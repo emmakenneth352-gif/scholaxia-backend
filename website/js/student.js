@@ -602,7 +602,7 @@
     cats.forEach(function (c) {
       var on = skillUnlocked(c) || ((s[c] || {}).active);
       var label = c.replace(/\b\w/g, function (w) { return w.toUpperCase(); });
-      rows += '<li style="font-size:0.85rem;padding:0.15rem 0">' + (on ? "✅ <strong style='color:#0a7d33'>" + label + "</strong> unlocked" : "🔒 " + label + " — code from tutor") + "</li>";
+      rows += '<li style="font-size:0.85rem;padding:0.15rem 0">' + (on ? "✅ <strong style='color:#0a7d33'>" + label + "</strong> unlocked" : "🔒 " + label) + "</li>";
     });
     return rows;
   }
