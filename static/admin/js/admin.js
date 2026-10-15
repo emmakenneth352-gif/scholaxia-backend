@@ -212,6 +212,7 @@ function showAdminPage(page) {
   else if (page === "cbt-settings") { loadCbtSettings(); setCbtSettingsBank(cbtSettingsBank || "JAMB"); }
   else if (page === "cbt") { cbtMode = "practice"; initCbtBuilder(); setCbtBank(cbtActiveBank || "JAMB"); }
   else if (page === "coupons") loadCbtCoupons();
+  else if (page === "study-coupons") loadStudyCoupons();
   else if (page === "plans") loadPlansAdmin();
   else if (page === "subject-change") loadSubjectChangeRequests();
   else if (page === "past-questions") { cbtMode = "past"; loadPastQuestionsAdmin(); }
@@ -3108,7 +3109,7 @@ async function markMarketplaceContacted(id) {
   }
 }
 
-/* ── Internal exams (admin) ── */
+/* ── School exams (admin) ── */
 var _ieStudentsCache = [];
 
 function toggleIeStudentPick() {
@@ -3262,7 +3263,7 @@ async function loadIeExamsTable() {
   try {
     var rows = await adminApi("/api/v1/admin/internal-exams");
     if (!rows || !rows.length) {
-      el.innerHTML = '<div class="empty-state">No internal exams yet.</div>';
+      el.innerHTML = '<div class="empty-state">No school exams yet.</div>';
       return;
     }
     el.innerHTML =
@@ -3378,11 +3379,11 @@ async function createInternalExamAdmin() {
     document.getElementById("ie-title").value = "";
     fileInput.value = "";
     if (notesInput) notesInput.value = "";
-    ok.textContent = "Internal exam published. Matching students can download it offline and submit.";
+    ok.textContent = "School exam published. Matching students can download it offline and submit.";
     loadIeExamsTable();
     loadIeSubmissionsTable();
   } catch (e) {
-    err.textContent = e.message || "Could not create internal exam.";
+    err.textContent = e.message || "Could not create school exam.";
   } finally {
     btn.disabled = false;
     btn.textContent = "Upload & publish";
@@ -3873,6 +3874,109 @@ async function deactivateCbtCoupon(id) {
   try {
     await adminApi("/api/v1/admin/cbt-coupons/" + id + "/deactivate", { method: "POST" });
     loadCbtCoupons();
+  } catch (e) { alert(e.message); }
+}
+
+/* ── Study coupons (Video Tutorials unlock — per skill, code-only) ── */
+const STUDY_SKILL_LABELS = {
+  "all": "All skills", "academics": "Academics", "web design": "Web Design",
+  "app development": "App Development", "software development": "Software Development",
+  "digital marketing": "Digital Marketing", "graphics design": "Graphics Design",
+  "cyber security": "Cyber Security", "data analysis": "Data Analysis",
+};
+
+async function loadStudyCoupons() {
+  var el = document.getElementById("study-coupon-table");
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Loading codes…</div>';
+  try {
+    var data = await adminApi("/api/v1/study-coupons/admin/list");
+    var rows = (data && data.coupons) || [];
+    if (!rows.length) { el.innerHTML = '<div class="empty-state">No activation codes yet — generate the first one above.</div>'; return; }
+    el.innerHTML = '<table class="data-table"><thead><tr><th>Code</th><th>Skill</th><th>Access</th><th>Used</th><th>Active</th><th>Expires</th><th>Note / Redeemed by</th><th></th></tr></thead><tbody>' +
+      rows.map(function (c) {
+        var who = "";
+        if (c.assigned_email) who += "Assigned: " + escHtml(c.assigned_email);
+        var red = (c.redeemed_by || []).map(function (r) { return escHtml(r.student_id || "") + " <span style='color:#8891a5'>" + escHtml((r.redeemed_at || "").slice(0, 10)) + "</span>"; }).join("<br>");
+        if (red) who += (who ? "<br>" : "") + "Student: " + red;
+        if (!who) who = "—";
+        var skill = STUDY_SKILL_LABELS[c.skill] || escHtml(c.skill || "all");
+        var access = c.access_days ? (c.access_days + " days") : "—";
+        return '<tr><td><strong>' + escHtml(c.code) + '</strong></td><td>' + skill + '</td><td>' + access + '</td><td>' + escHtml(c.used_count + " / " + c.max_uses) + '</td><td>' +
+          (c.is_active ? "Yes" : "No") + '</td><td>' + escHtml((c.expires_at || "").slice(0, 10) || "—") + '</td><td>' + who + '</td><td>' +
+          (c.is_active ? '<button class="btn-sm danger" onclick="deactivateStudyCoupon(\'' + c.id + '\')">Disable</button>' : '') + '</td></tr>';
+      }).join("") + "</tbody></table>";
+  } catch (e) {
+    el.innerHTML = '<div class="empty-state">' + escHtml(e.message) + "</div>";
+  }
+}
+
+async function generateStudyCoupons() {
+  var msg = document.getElementById("study-coupon-msg");
+  var count = parseInt((document.getElementById("study-coupon-count") || {}).value || "1", 10) || 1;
+  var uses = parseInt((document.getElementById("study-coupon-uses") || {}).value || "1", 10) || 1;
+  var days = parseInt((document.getElementById("study-coupon-days") || {}).value || "365", 10) || 365;
+  var accessDays = parseInt((document.getElementById("study-coupon-access-days") || {}).value || "30", 10) || 30;
+  var skill = ((document.getElementById("study-coupon-skill") || {}).value || "all");
+  var note = ((document.getElementById("study-coupon-note") || {}).value || "").trim();
+  if (msg) msg.textContent = "Generating…";
+  try {
+    var d = await adminApi("/api/v1/study-coupons/admin/create", {
+      method: "POST",
+      body: JSON.stringify({ count: count, max_uses: uses, days_valid: days, access_days: accessDays, skill: skill, note: note }),
+    });
+    if (msg) msg.textContent = "Generated for " + (STUDY_SKILL_LABELS[d.skill || skill] || skill) + ", " + accessDays + " days access: " + (d.codes || []).join(", ");
+    loadStudyCoupons();
+  } catch (e) {
+    if (msg) msg.textContent = e.message;
+  }
+}
+
+/* Students' tutorial access — month filter + per-skill revoke. */
+async function loadStudyStudentAccess() {
+  var el = document.getElementById("study-student-table");
+  if (!el) return;
+  var month = ((document.getElementById("study-student-month") || {}).value || "").trim();
+  var skill = ((document.getElementById("study-student-skill") || {}).value || "").trim();
+  el.innerHTML = '<div class="loading">Loading students…</div>';
+  try {
+    var qs = [];
+    if (month) qs.push("month=" + encodeURIComponent(month));
+    if (skill) qs.push("skill=" + encodeURIComponent(skill));
+    var data = await adminApi("/api/v1/study-coupons/admin/students" + (qs.length ? "?" + qs.join("&") : ""));
+    var rows = (data && data.students) || [];
+    if (!rows.length) { el.innerHTML = '<div class="empty-state">No student tutorial access found for this filter.</div>'; return; }
+    el.innerHTML = '<table class="data-table"><thead><tr><th>Student</th><th>Signed up</th><th>Skills unlocked</th><th></th></tr></thead><tbody>' +
+      rows.map(function (s) {
+        var chips = (s.access || []).map(function (a) {
+          var label = STUDY_SKILL_LABELS[a.skill] || a.skill;
+          var when = a.expires_at ? escHtml(a.expires_at.slice(0, 10)) : "no end";
+          return "<div>" + (a.active ? "✅ " : "⛔ ") + "<strong>" + escHtml(label) + "</strong> <span style='color:#8891a5'>until " + when + "</span></div>";
+        }).join("") || "—";
+        return '<tr><td><strong>' + escHtml(s.name || "Student") + '</strong><br><span style="color:#8891a5;font-size:0.75rem">' + escHtml(s.email || "") + '</span></td><td>' +
+          escHtml(s.signed_up_month || "—") + '</td><td>' + chips + '</td><td>' +
+          '<button class="btn-sm danger" onclick="revokeStudyStudent(\'' + s.student_id + '\',\'\' )">Revoke all</button></td></tr>';
+      }).join("") + "</tbody></table>";
+  } catch (e) {
+    el.innerHTML = '<div class="empty-state">' + escHtml(e.message) + "</div>";
+  }
+}
+
+async function revokeStudyStudent(studentId, skill) {
+  if (!confirm("Revoke this student's tutorial access" + (skill ? " for " + skill : " (all skills)") + "?")) return;
+  try {
+    await adminApi("/api/v1/study-coupons/admin/revoke", {
+      method: "POST",
+      body: JSON.stringify({ student_id: studentId, skill: skill || null }),
+    });
+    loadStudyStudentAccess();
+  } catch (e) { alert(e.message); }
+}
+
+async function deactivateStudyCoupon(id) {
+  try {
+    await adminApi("/api/v1/study-coupons/admin/" + id + "/deactivate", { method: "POST" });
+    loadStudyCoupons();
   } catch (e) { alert(e.message); }
 }
 

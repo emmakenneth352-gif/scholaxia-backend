@@ -81,6 +81,7 @@
       <button class="nav-btn" data-page="cbt" data-cbt-bank="NECO" onclick="openAdminCbtBank('NECO')">NECO Question Bank</button>
       <button class="nav-btn" data-page="cbt" data-cbt-bank="COMMON_ENTRANCE" onclick="openAdminCbtBank('COMMON_ENTRANCE')">Common Entrance Bank</button>
       <button class="nav-btn" data-page="coupons" onclick="showAdminPage('coupons')">CBT Coupons</button>
+      <button class="nav-btn" data-page="study-coupons" onclick="showAdminPage('study-coupons')">Study Coupons</button>
       <button class="nav-btn" data-page="plans" onclick="showAdminPage('plans')">Plans & Pricing</button>
       <button class="nav-btn" data-page="subject-change" onclick="showAdminPage('subject-change')">Subject Changes</button>
       <button class="nav-btn" data-page="past-questions" onclick="showAdminPage('past-questions')">Past Questions Shop</button>
@@ -88,7 +89,7 @@
       <button class="nav-btn" data-page="school-office" onclick="showAdminPage('school-office')">School office</button>
       <button class="nav-btn" data-page="videos" onclick="showAdminPage('videos')">Video Tutorials</button>
       <button class="nav-btn" data-page="library" onclick="showAdminPage('library')">Library</button>
-      <button class="nav-btn" data-page="internal-exams" onclick="showAdminPage('internal-exams')">Internal Exams</button>
+      <button class="nav-btn" data-page="internal-exams" onclick="showAdminPage('internal-exams')">School Exams</button>
       <button class="nav-btn" data-page="recommendations" onclick="showAdminPage('recommendations')">Recommendations</button>
       <div class="nav-section">Community</div>
       <button class="nav-btn" data-page="student-groups" onclick="showAdminPage('student-groups')">Student Groups</button>
@@ -201,6 +202,60 @@
         <p id="coupon-msg" class="cbt-hint small"></p>
       </div>
       <div id="coupon-table" class="data-table-wrap"><div class="loading">Open this page to load coupons…</div></div>
+    </section>
+
+    <section id="page-study-coupons" class="admin-page">
+      <div class="page-head">
+        <h2>Study Coupons (Video Tutorials unlock)</h2>
+        <button class="btn-sm" onclick="loadStudyCoupons()">Refresh</button>
+      </div>        <p class="page-desc">Issue codes that unlock <strong>Video Tutorials + Coding</strong> <em>without any payment</em>. Student types the code on the locked page and the lessons open. Codes can be reused N times, disabled anytime.</p>
+      <div class="panel" style="margin-bottom:16px">
+        <h3>Students' tutorial access</h3>
+        <div class="form-row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin:8px 0">
+          <label style="display:flex;flex-direction:column;font-size:0.78rem;gap:3px"><span>Filter by signup month</span><input id="study-student-month" type="month" /></label>
+          <label style="display:flex;flex-direction:column;font-size:0.78rem;gap:3px"><span>Filter by skill</span><select id="study-student-skill">
+            <option value="">All skills</option>
+            <option value="all">All skills (master)</option>
+            <option value="academics">Academics</option>
+            <option value="web design">Web Design</option>
+            <option value="app development">App Development</option>
+            <option value="software development">Software Development</option>
+            <option value="digital marketing">Digital Marketing</option>
+            <option value="graphics design">Graphics Design</option>
+            <option value="cyber security">Cyber Security</option>
+            <option value="data analysis">Data Analysis</option>
+          </select></label>
+          <button type="button" class="btn-sm" onclick="loadStudyStudentAccess()">Filter</button>
+        </div>
+        <div id="study-student-table" class="data-table-wrap"><div class="loading">Click Filter to load…</div></div>
+      </div>
+      <div class="panel" style="margin-bottom:16px">
+        <h3>Generate activation code</h3>
+        <p style="font-size:0.8rem;color:#47546a;margin:0 0 8px">Code-only unlocking: each code opens ONE skill (or all skills) for the chosen duration — plans never unlock tutorials.</p>
+        <div class="form-grid">
+          <label><span>Skill this code unlocks</span><select id="study-coupon-skill">
+            <option value="all">All skills (master code)</option>
+            <option value="academics">Academics</option>
+            <option value="web design">Web Design</option>
+            <option value="app development">App Development</option>
+            <option value="software development">Software Development</option>
+            <option value="digital marketing">Digital Marketing</option>
+            <option value="graphics design">Graphics Design</option>
+            <option value="cyber security">Cyber Security</option>
+            <option value="data analysis">Data Analysis</option>
+          </select></label>
+          <label><span>How many codes</span><input id="study-coupon-count" type="number" min="1" max="50" value="1" /></label>
+          <label><span>Max uses each</span><input id="study-coupon-uses" type="number" min="1" value="1" /></label>
+          <label><span>Access days (per student, starts on redeem)</span><input id="study-coupon-access-days" type="number" min="1" value="30" /></label>
+          <label><span>Code valid for (days)</span><input id="study-coupon-days" type="number" min="1" value="365" /></label>
+          <label><span>Note (optional, e.g. for: student@email.com)</span><input id="study-coupon-note" type="text" placeholder="for: student@email.com" /></label>
+        </div>
+        <div class="form-row" style="margin:8px 0">
+          <button type="button" class="btn-primary" style="width:auto;padding:12px 22px" onclick="generateStudyCoupons()">Generate activation code</button>
+        </div>
+        <p id="study-coupon-msg" class="cbt-hint small"></p>
+      </div>
+      <div id="study-coupon-table" class="data-table-wrap"><div class="loading">Open this page to load coupons…</div></div>
     </section>
 
     <section id="page-subject-change" class="admin-page">
@@ -974,7 +1029,7 @@
 
     <section id="page-internal-exams" class="admin-page">
       <div class="page-head">
-        <h2>Internal Exams</h2>
+        <h2>School Exams</h2>
         <button class="btn-sm" onclick="loadInternalExamsAdmin()">Refresh</button>
       </div>
       <p class="page-desc">
@@ -984,7 +1039,7 @@
       </p>
 
       <div class="panel">
-        <h3>Upload internal exam</h3>
+        <h3>Upload school exam</h3>
         <div class="form-grid">
           <label><span>Exam title *</span><input id="ie-title" placeholder="SS2 Mid-term Maths" /></label>
           <label><span>Subject *</span>
@@ -1032,7 +1087,7 @@
         <p id="ie-form-ok" class="cbt-hint small" style="color:#3dd68c"></p>
       </div>
 
-      <h3 style="margin:8px 0 10px;font-family:var(--font-brand)">Published internal exams</h3>
+      <h3 style="margin:8px 0 10px;font-family:var(--font-brand)">Published school exams</h3>
       <div id="ie-exams-table" class="data-table-wrap"><div class="loading">Loading…</div></div>
 
       <h3 style="margin:22px 0 10px;font-family:var(--font-brand)">Student submissions</h3>

@@ -513,6 +513,53 @@ async def ensure_cbt_coupon_tables() -> None:
         logger.warning("cbt coupon schema skipped: %s", exc)
 
 
+async def ensure_study_coupon_tables() -> None:
+    """Study coupons unlock Video Tutorials without a payment (owner request)."""
+    stmts = (
+        """
+        CREATE TABLE IF NOT EXISTS study_coupons (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            code VARCHAR(40) NOT NULL UNIQUE,
+            skill VARCHAR(60) NOT NULL DEFAULT 'all',
+            max_uses INTEGER DEFAULT 1,
+            used_count INTEGER DEFAULT 0,
+            is_active BOOLEAN DEFAULT TRUE,
+            note TEXT NULL,
+            expires_at TIMESTAMP NULL,
+            access_days INTEGER NULL,
+            created_by UUID NULL REFERENCES users(id),
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_study_coupons_code ON study_coupons (code)",
+        "ALTER TABLE study_coupons ADD COLUMN IF NOT EXISTS skill VARCHAR(60) NOT NULL DEFAULT 'all'",
+        "ALTER TABLE study_coupons ADD COLUMN IF NOT EXISTS access_days INTEGER NULL",
+        """
+        CREATE TABLE IF NOT EXISTS study_coupon_redemptions (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            coupon_id UUID NOT NULL REFERENCES study_coupons(id),
+            student_id UUID NOT NULL REFERENCES users(id),
+            skill VARCHAR(60) NULL,
+            expires_at TIMESTAMP NULL,
+            created_at TIMESTAMP DEFAULT NOW()
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_study_coupon_redemptions_coupon_id ON study_coupon_redemptions (coupon_id)",
+        "CREATE INDEX IF NOT EXISTS ix_study_coupon_redemptions_student_id ON study_coupon_redemptions (student_id)",
+        "ALTER TABLE study_coupon_redemptions ADD COLUMN IF NOT EXISTS skill VARCHAR(60) NULL",
+        "ALTER TABLE study_coupon_redemptions ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP NULL",
+    )
+    try:
+        async with engine.begin() as conn:
+            for stmt in stmts:
+                try:
+                    await conn.execute(text(stmt))
+                except Exception as exc:
+                    logger.warning("study coupon schema stmt skipped: %s", exc)
+    except Exception as exc:
+        logger.warning("study coupon schema skipped: %s", exc)
+
+
 async def ensure_videos_table() -> None:
     """Ensure video tutorials table exists for admin publish + student watch."""
     stmts = (
@@ -884,6 +931,10 @@ async def initialize_database() -> bool:
         await ensure_videos_table()
     except Exception as exc:
         logger.warning("ensure_videos_table: %s", exc)
+    try:
+        await ensure_study_coupon_tables()
+    except Exception as exc:
+        logger.warning("ensure_study_coupon_tables: %s", exc)
     try:
         await ensure_community_posts_columns()
     except Exception as exc:

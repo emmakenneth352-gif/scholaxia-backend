@@ -1,5 +1,4 @@
-const PAGE_TITLES = {
-  dashboard: "Home",
+const PAGE_TITLES = {  dashboard: "Home",
   live: "Live Class",
   "access-code": "Access Code",
   school: "Scholaxia Exam",
@@ -13,6 +12,7 @@ const PAGE_TITLES = {
   subscription: "Subscription",
   cbt: "CBT Practice",
   "study-materials": "Video Tutorials",
+  coding: "Coding Tutorials",
   "past-questions": "Past Questions",
   about: "About Scholaxia",
   contact: "Contact",
@@ -889,6 +889,142 @@ async function loadDashboard(force) {
   if (typeof renderHomeSkillsPreview === "function") renderHomeSkillsPreview();
 }
 
+/* Study access — per-skill activation codes ONLY (no plans).
+   /api/v1/study-access returns {unlocked, all_unlocked, skills{skill:{active,expires_at}}}. */
+var _studyAccessCache = null;
+var _skillAccessDesktop = { unlocked: false, all_unlocked: false, skills: {} };
+
+async function fetchStudyAccess() {
+  if (_studyAccessCache) return _studyAccessCache;
+  try {
+    _studyAccessCache = await api("/api/v1/study-access");
+  } catch (e) {
+    _studyAccessCache = { unlocked: false };
+  }
+  _skillAccessDesktop = _studyAccessCache || _skillAccessDesktop;
+  return _studyAccessCache || { unlocked: false };
+}
+
+function skillUnlockedDesktop(cat) {
+  if (_skillAccessDesktop.all_unlocked) return true;
+  var s = _skillAccessDesktop.skills || {};
+  var entry = s[cat];
+  return !!(entry && entry.active);
+}
+
+function anySkillActiveDesktop() {
+  var s = _skillAccessDesktop.skills || {};
+  return Object.keys(s).some(function (k) { return s[k] && s[k].active; });
+}
+
+function renderStudyGate(unlocked) {
+  var anySkill = unlocked && anySkillActiveDesktop();
+  ["study-gate", "library-gate"].forEach(function (id) {
+    var gate = document.getElementById(id);
+    if (gate) gate.hidden = !!anySkill; // library gate stays hidden anyway — free now
+  });
+  var libGate = document.getElementById("library-gate");
+  if (libGate) libGate.hidden = true;
+  ["study-materials-list", "library-toolbar", "library-stats", "library-list", "desktopVideoChips"].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = anySkill ? "" : "none";
+  });
+}
+
+var _desktopVideoCat = "all";
+var _desktopVideoRows = [];
+
+var DESKTOP_VIDEO_SKILL_CATS = [
+  "web design",
+  "app development",
+  "software development",
+  "digital marketing",
+  "graphics design",
+  "cyber security",
+  "data analysis",
+];
+
+function desktopVideoCategoryOf(r) {
+  var blob = [r && r.category, r && r.subject, r && r.topic, r && r.tags, r && r.title]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  for (var i = 0; i < DESKTOP_VIDEO_SKILL_CATS.length; i++) {
+    if (blob.indexOf(DESKTOP_VIDEO_SKILL_CATS[i]) >= 0) return DESKTOP_VIDEO_SKILL_CATS[i];
+  }
+  return "academics";
+}
+
+function renderDesktopVideoRows() {
+  var el = document.getElementById("study-materials-list");
+  if (!el) return;
+  var cat = _desktopVideoCat;
+  var rows = _desktopVideoRows.filter(function (r) {
+    var rowCat = desktopVideoCategoryOf(r);
+    if (cat !== "all" && rowCat !== cat) return false;
+    // Per-skill activation: hidden until that skill's code is redeemed.
+    if (!skillUnlockedDesktop(rowCat)) return false;
+    return true;
+  });
+    if (!rows.length) {
+    el.innerHTML = '<div class="empty">' + (cat === "all"
+      ? "No unlocked tutorials yet — enter your activation code below to open a skill."
+      : "No tutorials in this category yet — check back soon.") + "</div>";
+    return;
+  }
+  el.innerHTML = rows.map(function (r) {
+    var url = String(r.video_url || r.url || "");
+    var embed = youtubeEmbedUrl(url);
+    return (
+      '<article class="study-mat-card">' +
+      '<div class="study-mat-body"><h4>' + escHtml(r.title || "Video") + "</h4>" +
+      '<p class="study-mat-meta">' + escHtml(r.subject || "Tutorial") + "</p>" +
+      (embed
+        ? '<iframe src="' + mpAttrSafe(embed) + '" title="' + escHtml(r.title || "Video") +
+          '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen style="width:100%;min-height:240px;border:0;border-radius:12px"></iframe>'
+        : '<p class="study-mat-meta">Open: <a href="' + mpAttrSafe(url) + '" target="_blank" rel="noopener">' + escHtml(url) + "</a></p>") +
+      "</div></article>"
+    );
+  }).join("");
+}
+
+/* Study coupon redeem (desktop) — matches the web gate card. */
+async function redeemStudyCouponDesktop() {
+  var input = document.getElementById("studyCouponCodeDesktop");
+  var msg = document.getElementById("studyCouponMsgDesktop");
+  var btn = document.getElementById("studyCouponRedeemBtnDesktop");
+  if (!input || !msg) return;
+  var code = (input.value || "").trim();
+  if (!code) { msg.textContent = "Enter a coupon code first."; return; }
+  if (btn) { btn.disabled = true; btn.textContent = "Checking…"; }
+  msg.textContent = "Checking code…";
+  try {
+    var res = await api("/api/v1/study-coupons/redeem", {
+      method: "POST",
+      body: JSON.stringify({ code: code }),
+    });
+    msg.textContent = (res && res.message) || "🎉 Code accepted!";
+    _studyAccessCache = null;
+    loadStudyMaterials();
+  } catch (e) {
+    msg.textContent = (e && e.message) || "Could not redeem this code.";
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Redeem"; }
+  }
+}
+
+document.addEventListener("click", function (e) {
+  if (e.target && e.target.id === "studyCouponRedeemBtnDesktop") redeemStudyCouponDesktop();
+  var chip = e.target.closest("#desktopVideoChips .tab[data-vcat]");
+  if (chip) {
+    var wrap = document.getElementById("desktopVideoChips");
+    if (wrap) wrap.querySelectorAll(".tab").forEach(function (t) { t.classList.remove("is-active"); });
+    chip.classList.add("is-active");
+    _desktopVideoCat = chip.getAttribute("data-vcat") || "all";
+    renderDesktopVideoRows();
+  }
+});
+
 async function loadStudyMaterials() {
   var el = document.getElementById("study-materials-list");
   if (!el) return;
@@ -896,34 +1032,20 @@ async function loadStudyMaterials() {
     el.innerHTML = '<div class="empty">Sign in to watch video tutorials.</div>';
     return;
   }
+  var access = await fetchStudyAccess();
+  renderStudyGate(!!access.unlocked);
   el.innerHTML = '<div class="loading">Loading video tutorials…</div>';
   try {
     var data = await api("/api/v1/videos");
-    var rows = (data && data.videos) || data || [];
-    if (!Array.isArray(rows)) rows = [];
-    if (!rows.length) {
-      el.innerHTML = '<div class="empty">No video tutorials yet. Admin will post YouTube lessons here.</div>';
-      return;
-    }
-    el.innerHTML = rows.map(function (r) {
-      var url = String(r.video_url || r.url || "");
-      var embed = youtubeEmbedUrl(url);
-      return (
-        '<article class="study-mat-card">' +
-        '<div class="study-mat-body"><h4>' + escHtml(r.title || "Video") + "</h4>" +
-        '<p class="study-mat-meta">' + escHtml(r.subject || "Tutorial") + "</p>" +
-        (embed
-          ? '<iframe src="' + mpAttrSafe(embed) + '" title="' + escHtml(r.title || "Video") +
-            '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen style="width:100%;min-height:240px;border:0;border-radius:12px"></iframe>'
-          : '<p class="study-mat-meta">Open: <a href="' + mpAttrSafe(url) + '" target="_blank" rel="noopener">' + escHtml(url) + "</a></p>") +
-        "</div></article>"
-      );
-    }).join("");
+    _desktopVideoRows = (data && data.videos) || data || [];
+    if (!Array.isArray(_desktopVideoRows)) _desktopVideoRows = [];
+    renderDesktopVideoRows();
   } catch (e) {
     var msg = typeof networkErrorMessage === "function" ? networkErrorMessage(e) : e.message;
     el.innerHTML = '<div class="empty">' + escHtml(msg) + "</div>";
   }
 }
+
 function youtubeEmbedUrl(url) {
   var u = String(url || "").trim();
   if (!u) return "";
@@ -975,7 +1097,10 @@ function renderDashboardLive(sessions) {
       (s.visibility && s.visibility !== "private" ? '<span class="live-vis-pill">' + escHtml(liveVisibilityLabel(s.visibility)) + "</span>" : "") +
       "<h4>" + escHtml(s.title) + "</h4>" +
       '<p class="meta">Teacher: ' + escHtml(s.teacher_name || "Teacher") + " · " + escHtml(s.subject) + "</p>" +
-      '<button type="button" class="btn-action" onclick="openJoinLiveModal()">Join live</button>' +
+      '<button type="button" class="btn-action' + (s.visibility === "private" ? " join-needs-code" : " join-direct") + '" data-id="' + escHtml(s.id || "") + '" onclick="' +
+      (s.visibility === "private"
+        ? "openJoinLiveModal()"
+        : "joinLiveCard(this)" ) + '">Join live</button>' +
       "</article>";
   }).join("");
 }
@@ -1094,6 +1219,7 @@ function refreshPage() {
     done();
   }
   else if (currentPage === "study-materials") { loadStudyMaterials(); done(); }
+  else if (currentPage === "coding") { currentPage = "study-materials"; loadStudyMaterials(); done(); }
   else if (currentPage === "past-questions") {
     if (typeof loadPastQuestionsPage === "function") loadPastQuestionsPage();
     done();
@@ -1336,7 +1462,7 @@ function renderLive(sessions) {
       ${vis}
       <h3>${escHtml(s.title)}</h3>
       <p class="meta">Teacher: ${escHtml(s.teacher_name)} · ${escHtml(s.subject)}</p>
-      <button type="button" class="btn-action" onclick="openJoinLiveModal()">Join live</button>
+      <button type="button" class="btn-action ${s.visibility === "private" ? "join-needs-code" : "join-direct"}" data-id="${escHtml(s.id || "")}" onclick="${s.visibility === "private" ? "openJoinLiveModal()" : "joinLiveCard(this)"}">Join live</button>
     </div>
   `;
   }).join("");
@@ -1360,7 +1486,7 @@ function renderUpcoming(sessions) {
       <h3>${escHtml(s.title)}</h3>
       <p class="meta">${escHtml(s.subject)} · ${escHtml(s.teacher_name)}</p>
       <p class="schedule-meta">&#128197; ${formatDate(s.start_time)}${s.end_time ? " → " + formatDate(s.end_time) : ""}</p>
-      ${s.is_live ? `<button type="button" class="btn-action" onclick="openJoinLiveModal()">Join live</button>` : (started ? `<p class="notify-hint">Code will appear in Access Code tab when class starts.</p>` : `<p class="notify-hint">You'll get a code in Access Code tab when class starts.</p>`)}
+      ${s.is_live ? `<button type="button" class="btn-action ${s.visibility === "private" ? "join-needs-code" : "join-direct"}" data-id="${escHtml(s.id || "")}" onclick="${s.visibility === "private" ? "openJoinLiveModal()" : "joinLiveCard(this)"}">Join live</button>` : (started ? `<p class="notify-hint">Code will appear in Access Code tab when class starts.</p>` : `<p class="notify-hint">You'll get a code in Access Code tab when class starts.</p>`)}
     </div>`;
   }).join("");
 }

@@ -286,6 +286,7 @@
   var PAGE_TITLES = {
     home: "Home",
     "study-materials": "Video Tutorials",
+    coding: "Coding Tutorials",
     "past-questions": "Past Questions",
     cbt: "CBT Practice",
     school: "Scholaxia Exam",
@@ -310,6 +311,7 @@
   var PAGE_LOADERS = {
     home: loadHome,
     "study-materials": loadStudyMaterials,
+    coding: loadStudyMaterials, // legacy page id → same unified Video Tutorials page
     "past-questions": loadPastQuestions,
     cbt: loadCbt,
     school: loadSchoolExams,
@@ -538,7 +540,150 @@
   }
 
   /* =====================================================================
-     STUDY MATERIALS  — recommendations feed
+     STUDY ACCESS — any paid subscription unlocks videos + library
+     ===================================================================== */
+
+  var _studyAccessPromise = null;
+
+  function fetchStudyAccess() {
+    if (!_studyAccessPromise) {
+      _studyAccessPromise = api
+        .api("/api/v1/study-access", { timeout: 20000, retries: 1, preferXhr: true })
+        .catch(function () {
+          _studyAccessPromise = null; // allow retry on next visit
+          return { unlocked: false };
+        });
+    }
+    return _studyAccessPromise;
+  }
+
+  function pickGateTags(el) {
+    if (!el) return [];
+    return Array.prototype.slice.call(el.querySelectorAll(".study-gate"));
+  }
+
+  // Per-skill state from /api/v1/study-access → {unlocked, all_unlocked, skills{}}.
+  var _skillAccess = { unlocked: false, all_unlocked: false, skills: {} };
+
+  function skillUnlocked(cat) {
+    if (_skillAccess.all_unlocked) return true;
+    var s = _skillAccess.skills || {};
+    if (cat === "all") return !!s.academics && s.academics.active !== false && !!(Object.keys(s).length);
+    var entry = s[cat];
+    if (entry && entry.active) return true;
+    // A skill-hidden-by-name category (e.g. "app development" under "development")
+    var hint = Object.keys(s).some(function (k) {
+      return entry !== undefined && k.indexOf(cat) >= 0 && s[k].active;
+    });
+    return hint || false;
+  }
+
+  function skillsListHtml() {
+    var rows = "";
+    var cats = ["academics", "web design", "app development", "software development", "digital marketing", "graphics design", "cyber security", "data analysis"];
+    var s = _skillAccess.skills || {};
+    cats.forEach(function (c) {
+      var on = skillUnlocked(c) || (c === "academics" && s.academics && s.academics.active);
+      rows +=
+        '<li style="display:flex;gap:0.5rem;align-items:center;font-size:0.85rem;padding:0.15rem 0">' +
+        (on ? "✅ <strong style='color:#0a7d33'>" + c.replace(/\\b\\w/g, function (w) { return w.toUpperCase(); }) + "</strong> unlocked"
+            : "🔒 " + c.replace(/\\b\\w/g, function (w) { return w.toUpperCase(); }) + " — code from tutor") +
+        "</li>";
+    });
+    return rows;
+  }
+
+  function renderStudyGate(unlocked, info) {
+    var bannerHtml = "";
+    if (unlocked) {
+      bannerHtml =
+        '<div class="study-unlock-banner">🔓 ' +
+        esc((info && (info.all_unlocked ? "All skills" : "Activation code")) || "Activation code") +
+        " active — enter a new code below to unlock more skills</div>";
+    }
+    var anySkill = unlocked && !!(Object.keys(_skillAccess.skills || {}).length);
+    pickGateTags($("page-study-materials")).forEach(function (g) { g.hidden = !!anySkill; });
+    pickGateTags($("page-library")).forEach(function (g) { g.hidden = !!anySkill; });
+    ["studyMaterialsList", "libraryGrid", "libToolbar", "lessonSearchWrap", "videosCatWrap"].forEach(function (id) {
+      var el = $(id);
+      if (!el) return;
+      if (anySkill) {
+        el.hidden = false;
+        if (bannerHtml && !el.dataset.gateBanner) {
+          el.insertAdjacentHTML("beforebegin", bannerHtml);
+          el.dataset.gateBanner = "1";
+        }
+      }
+    });
+
+    // Redeem box — ALWAYS visible so students can add more skills later.
+    var sPage = $("page-study-materials");
+    if (sPage && !sPage.querySelector(".study-coupon-box")) {
+      var gate = sPage.querySelector(".study-gate");
+      var host = gate ? gate.querySelector(".study-gate-card") : $("videosCatWrap");
+      if (host) {
+        host.insertAdjacentHTML(
+          "beforeend",
+          '<div class="study-coupon-box" style="margin-top:0.9rem">' +
+            '<div class="form-field" style="margin:0;display:flex;gap:0.5rem">' +
+            '<input id="studyCouponCode" type="text" placeholder="Have a coupon code? Enter it here" ' +
+            'autocomplete="off" style="text-transform:uppercase" />' +
+            '<button type="button" class="btn btn-primary" id="studyCouponRedeemBtn">Redeem</button>' +
+            "</div>" +
+            '<p class="coupon-msg" id="studyCouponMsg" style="margin:0.45rem 0 0;color:#47546a;font-size:0.85rem"></p>' +
+            ((unlocked || anySkill) ? "" : "<ul style='margin:0.5rem 0 0;padding-left:1.1rem;color:#47546a'>" + skillsListHtml() + "</ul>") +
+          "</div>"
+        );
+      }
+    }
+  }
+
+  async function redeemStudyCoupon() {
+    var input = $("studyCouponCode");
+    var msg = $("studyCouponMsg");
+    var btn = $("studyCouponRedeemBtn");
+    if (!input || !msg) return;
+    var code = (input.value || "").trim();
+    if (!code) { msg.textContent = "Enter a coupon code first."; return; }
+    if (btn) { btn.disabled = true; btn.textContent = "Checking…"; }
+    msg.textContent = "Checking code…";
+    try {
+      var res = await api.api("/api/v1/study-coupons/redeem", {
+        method: "POST",
+        body: JSON.stringify({ code: code }),
+        headers: { "Content-Type": "application/json" },
+        timeout: 20000,
+        retries: 1,
+        preferXhr: true,
+      });
+      msg.textContent = (res && res.message) || "🎉 Code accepted!";
+      msg.style.color = "#0a7d33";
+      // immediate unlock
+      _studyAccessPromise = null;
+      var access = await fetchStudyAccess();
+      renderStudyGate(!!(access && access.unlocked), access);
+      _skillAccess = access || _skillAccess;
+      loadStudyMaterials();
+    } catch (e2) {
+      msg.textContent = (e2 && e2.message) || "Could not redeem this code.";
+      msg.style.color = "#b3261e";
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "Redeem"; }
+    }
+  }
+
+  document.addEventListener("click", function (e) {
+    if (e.target && e.target.id === "studyCouponRedeemBtn") redeemStudyCoupon();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.target && e.target.id === "studyCouponCode" && e.key === "Enter") {
+      e.preventDefault();
+      redeemStudyCoupon();
+    }
+  });
+
+  /* Υ =====================================================================
+     CODING — a "coding" tutorial is a video whose subject is Coding/Computer
      ===================================================================== */
 
   function youtubeEmbed(url) {
@@ -550,13 +695,50 @@
 
   var lessonVideosCache = [];
 
+  /* =====================================================================
+     VIDEO TUTORIALS — one page with category chips.
+     Chips: All · Academics (school subjects) · the 7 skill categories.
+     Admin marks a video's category with the skill name (e.g. "Web Design").
+     ===================================================================== */
+
+  var VIDEO_SKILL_CATS = [
+    "web design",
+    "app development",
+    "software development",
+    "digital marketing",
+    "graphics design",
+    "cyber security",
+    "data analysis",
+  ];
+  var _videoCat = "all";
+
+  function videoCategoryOf(it) {
+    var blob = [it.category, it.subject, it.topic, it.tags, it.title, it.exam_type]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    for (var i = 0; i < VIDEO_SKILL_CATS.length; i++) {
+      var cat = VIDEO_SKILL_CATS[i];
+      var words = cat.split(" ");
+      var idx = blob.indexOf(cat);
+      if (idx >= 0) return cat;
+      // partial-word match e.g. "graphics" or "marketing" alone
+      if (words.length === 2 && blob.indexOf(words[words.length - 1]) >= 0 && words[words.length - 1].length > 4) {
+        if (blob.indexOf(words[0]) >= 0) return cat;
+      }
+    }
+    return "academics";
+  }
+
   function renderLessonVideos(items) {
     var wrap = $("studyMaterialsList");
     if (!wrap) return;
     if (!items.length) {
       wrap.innerHTML = emptyHtml(
         "▶",
-        "No video tutorials yet. Admin posts YouTube lessons under Video Tutorials. PDF Lesson Notes are in Library."
+        _videoCat === "all"
+          ? "No video tutorials yet. Admin posts YouTube lessons under Video Tutorials. PDF Lesson Notes are in Library."
+          : "No tutorials in this category yet — check back soon or try another category."
       );
       return;
     }
@@ -587,13 +769,14 @@
       .join("");
   }
 
-  function filterLessonNotes() {
+  function applyVideoChips() {
     var q = (($("lessonNotesSearch") && $("lessonNotesSearch").value) || "").trim().toLowerCase();
-    if (!q) {
-      renderLessonVideos(lessonVideosCache);
-      return;
-    }
-    var filteredVideos = lessonVideosCache.filter(function (it) {
+    var items = lessonVideosCache.filter(function (it) {
+      var cat = videoCategoryOf(it);
+      if (_videoCat !== "all" && cat !== _videoCat) return false;
+      // Per-skill activation: a chip's videos stay hidden until that skill is unlocked.
+      if (!skillUnlocked(cat)) return false;
+      if (!q) return true;
       var blob = [
         it.title,
         it.subject,
@@ -603,35 +786,50 @@
         it.teacher_name,
         it.channel,
         it.exam_type,
+        it.category,
       ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
       return blob.indexOf(q) >= 0;
     });
-    renderLessonVideos(filteredVideos);
+    renderLessonVideos(items);
   }
 
   function loadStudyMaterials() {
     var wrap = $("studyMaterialsList");
     if (!wrap) return;
     wrap.innerHTML = loadingHtml("Loading video tutorials…");
-    api
-      .api("/api/v1/videos", { timeout: 30000, retries: 1, preferXhr: true })
-      .then(function (data) {
-        lessonVideosCache = firstArray(data, ["videos", "items", "results"]);
-        filterLessonNotes();
-      })
-      .catch(function (err) {
-        wrap.innerHTML = errorHtml(errMsg(err), "study-materials");
-      });
+    fetchStudyAccess().then(function (access) {
+      _skillAccess = access || _skillAccess;
+      renderStudyGate(!!(access && access.unlocked), access);
+      api
+        .api("/api/v1/videos", { timeout: 30000, retries: 1, preferXhr: true })
+        .then(function (data) {
+          lessonVideosCache = firstArray(data, ["videos", "items", "results"]);
+          applyVideoChips();
+        })
+        .catch(function (err) {
+          wrap.innerHTML = errorHtml(errMsg(err), "study-materials");
+        });
+    });
   }
 
   document.addEventListener("input", function (e) {
-    if (e.target && e.target.id === "lessonNotesSearch") filterLessonNotes();
+    if (e.target && e.target.id === "lessonNotesSearch") applyVideoChips();
+    if (e.target && e.target.id === "libSearch") return; // handled by renderLibrary below
   });
 
   document.addEventListener("click", function (e) {
+    var chip = e.target.closest("#videosCatWrap .tab[data-vcat]");
+    if (chip) {
+      var wrap = $("videosCatWrap");
+      if (wrap) wrap.querySelectorAll(".tab").forEach(function (t) { t.classList.remove("is-active"); });
+      chip.classList.add("is-active");
+      _videoCat = chip.getAttribute("data-vcat") || "all";
+      applyVideoChips();
+      return;
+    }
     if (e.target.closest("#libReaderClose")) {
       closeLibraryReader();
       return;
@@ -1045,6 +1243,14 @@
     var wrap = $("libraryGrid");
     if (!wrap) return;
     wrap.innerHTML = loadingHtml("Loading library…");
+    // Library is FREE for everyone now (owner request): the material shop must be
+    // visible so students can buy individual items — no subscription gate here.
+    var gate = document.querySelector("#page-library .study-gate");
+    if (gate) gate.hidden = true;
+    loadLibraryInner(wrap);
+  }
+
+  function loadLibraryInner(wrap) {
     api
       .api("/api/v1/library/student", { timeout: 45000, retries: 1, preferXhr: true })
       .then(function (data) {

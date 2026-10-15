@@ -9,7 +9,7 @@
     <link rel="icon" type="image/png" href="media/logo-main.png" />
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="css/app.css?v=15" />
-    <link rel="stylesheet" href="css/student-pretty.css?v=20260903dash" />
+    <link rel="stylesheet" href="css/student-pretty.css?v=20261009gate" />
     <script>
       // Drop stale caches so CBT updates are not stuck on old JS
       try {
@@ -37,6 +37,7 @@
         <nav class="side-nav" id="studentNav">
           <button class="side-link is-active" data-page="home" type="button"><span class="ico">⌂</span>Home</button>
           <button class="side-link" data-page="study-materials" type="button"><span class="ico">▶</span>Video Tutorials</button>
+          <button class="side-link" data-page="coding" type="button"><span class="ico">💻</span>Coding Tutorials</button>
           <button class="side-link" data-page="past-questions" type="button"><span class="ico">📄</span>Past Questions</button>
           <button class="side-link" data-page="cbt" type="button"><span class="ico">📝</span>My CBT</button>
           <button class="side-link" data-page="school-portal" type="button"><span class="ico">🏫</span>Examinations</button>
@@ -144,7 +145,15 @@
                 </div>
                 <button type="button" class="btn btn-mini" data-refresh="study-materials">⟲ Refresh</button>
               </div>
-              <div class="form-field" style="margin:0.75rem 0 1rem">
+              <div class="study-gate" id="studyGate" hidden>
+                <div class="study-gate-card">
+                  <span class="study-gate-ico">🔒</span>
+                  <h3 id="studyGateTitle">Activation code required</h3>
+                  <p id="studyGateText">Each skill unlocks with its own activation code from your tutor/admin. Enter a code — it can be for one skill or all skills, and lasts for the duration the admin set.</p>
+                  <button type="button" class="btn btn-primary" data-goto="study-materials" id="studyGateFocusCode" hidden>Unlock with a code →</button>
+                </div>
+              </div>
+              <div class="form-field" id="lessonSearchWrap" style="margin:0.75rem 0 1rem">
                 <label for="lessonNotesSearch">Search</label>
                 <input
                   id="lessonNotesSearch"
@@ -154,6 +163,37 @@
                 />
               </div>
               <div class="card-grid" id="studyMaterialsList"><div class="loading-state">Loading video tutorials…</div></div>
+            </div>
+          </section>
+
+          <!-- ================= CODING TUTORIALS ================= -->
+          <section class="page" id="page-coding">
+            <div class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Coding Tutorials</h2>
+                  <p>Learn to code — HTML, CSS, JavaScript, Python and more. Same subscription unlocks these lessons.</p>
+                </div>
+                <button type="button" class="btn btn-mini" data-refresh="coding">⟲ Refresh</button>
+              </div>
+              <div class="study-gate" id="codingGate" hidden>
+                <div class="study-gate-card">
+                  <span class="study-gate-ico">🔒</span>
+                  <h3>Activation code required</h3>
+                  <p>Coding tutorials open with the skill activation code from your tutor/admin.</p>
+                  <button type="button" class="btn btn-primary" data-goto="coding">Unlock with a code →</button>
+                </div>
+              </div>
+              <div class="form-field" id="codingSearchWrap" style="margin:0.75rem 0 1rem">
+                <label for="codingSearch">Search</label>
+                <input
+                  id="codingSearch"
+                  type="search"
+                  placeholder="Search coding lessons…"
+                  autocomplete="off"
+                />
+              </div>
+              <div class="card-grid" id="codingList"><div class="loading-state">Loading coding tutorials…</div></div>
             </div>
           </section>
 
@@ -225,7 +265,7 @@
           <section class="page" id="page-school">
             <div class="panel">
               <h2>Scholaxia Exam</h2>
-              <p>Teacher-set tests, internal exams, and your scores in one place.</p>
+              <p>Teacher-set tests, school exams, and your scores in one place.</p>
               <div class="card-grid" id="schoolExamsList"><div class="loading-state">Loading exams…</div></div>
             </div>
           </section>
@@ -338,7 +378,15 @@
                 </div>
                 <button type="button" class="btn btn-mini" data-refresh="library">⟲ Refresh</button>
               </div>
-              <div class="btn-row lib-toolbar">
+              <div class="study-gate" id="libraryGate" hidden>
+                <div class="study-gate-card">
+                  <span class="study-gate-ico">🔒</span>
+                  <h3>Activation code required</h3>
+                  <p>The library opens with an activation code from your tutor/admin — same code that unlocks Video Tutorials.</p>
+                  <button type="button" class="btn btn-primary" data-goto="study-materials">Unlock with a code →</button>
+                </div>
+              </div>
+              <div class="btn-row lib-toolbar" id="libToolbar">
                 <input type="search" id="libSearch" placeholder="Search library…" />
                 <select id="libFilter">
                   <option value="">All categories</option>
@@ -816,6 +864,6 @@
     <script src="js/api.js?v=20260827u"></script>
     <script src="js/paystack.js?v=9"></script>
     <script src="js/games.js?v=20260827a"></script>
-    <script src="js/student.js?v=20260903dash"></script>
+    <script src="js/student.js?v=20261009coding"></script>
   </body>
 </html>

@@ -696,6 +696,28 @@
           <p>Watch lessons posted by Scholaxia admin.</p>
           <button type="button" class="btn-sm" onclick="loadStudyMaterials()">Refresh</button>
         </div>
+        <div class="tabs" id="desktopVideoChips" style="flex-wrap:wrap;gap:0.4rem;margin:0.6rem 0">
+          <button type="button" class="tab is-active" data-vcat="all">All</button>
+          <button type="button" class="tab" data-vcat="academics">Academics</button>
+          <button type="button" class="tab" data-vcat="web design">Web Design</button>
+          <button type="button" class="tab" data-vcat="app development">App Development</button>
+          <button type="button" class="tab" data-vcat="software development">Software Development</button>
+          <button type="button" class="tab" data-vcat="digital marketing">Digital Marketing</button>
+          <button type="button" class="tab" data-vcat="graphics design">Graphics Design</button>
+          <button type="button" class="tab" data-vcat="cyber security">Cyber Security</button>
+          <button type="button" class="tab" data-vcat="data analysis">Data Analysis</button>
+        </div>          <div class="study-gate" id="study-gate" hidden>
+          <div class="study-gate-card">
+            <span class="study-gate-ico">🔒</span>
+            <h3>Activation code required</h3>
+            <p>Each skill unlocks with its own activation code from your tutor/admin — no plans. Enter a code for the skill you registered for.</p>
+            <div class="study-coupon-box" style="margin-top:0.9rem;display:flex;gap:0.5rem;flex-wrap:wrap">
+              <input id="studyCouponCodeDesktop" type="text" placeholder="Enter activation code" autocomplete="off" style="text-transform:uppercase;flex:1;min-width:180px" />
+              <button type="button" class="btn-sm btn-primary" id="studyCouponRedeemBtnDesktop">Redeem</button>
+            </div>
+            <p id="studyCouponMsgDesktop" style="margin:0.45rem 0 0;font-size:0.85rem;color:#47546a"></p>
+          </div>
+        </div>
         <div id="study-materials-list" class="study-materials-list"><div class="loading">Loading video tutorials…</div></div>
       </div>
     </section>
@@ -814,6 +836,13 @@
       <div class="page-intro">
         <h2>Library</h2>
         <p class="page-desc">Books and materials from Scholaxia admin. Search and filter like the mobile app — free items open instantly; paid items unlock after Paystack.</p>
+      </div>
+      <div class="study-gate" id="library-gate" hidden>
+        <div class="study-gate-card">
+          <span class="study-gate-ico">🔒</span>
+          <h3>Activation code required</h3>
+          <p>The library opens with an activation code from your tutor/admin — same code that unlocks Video Tutorials.</p>
+        </div>
       </div>
       <div class="library-toolbar">
         <input type="search" id="library-search" class="library-search" placeholder="Search title, author, subject…" autocomplete="off" />

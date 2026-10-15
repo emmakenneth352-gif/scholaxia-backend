@@ -153,8 +153,6 @@ async function adminRegister(e) {
   var name = document.getElementById("reg-name").value.trim();
   var email = document.getElementById("reg-email").value.trim();
   var password = document.getElementById("reg-password").value;
-  var setupKeyEl = document.getElementById("reg-setup-key");
-  var setupKey = setupKeyEl ? setupKeyEl.value : "";
   var err = document.getElementById("register-error");
   var btn = document.getElementById("btn-register");
   err.textContent = "";
@@ -163,7 +161,7 @@ async function adminRegister(e) {
     var res = await fetch(API_BASE + "/api/v1/admin/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email, password: password, full_name: name, setup_key: setupKey }),
+      body: JSON.stringify({ email: email, password: password, full_name: name }),
       signal: fetchTimeout(45000),
     });
     var data = await res.json();
@@ -187,10 +185,20 @@ function showAdminPage(page) {
   currentAdminPage = page;
   document.querySelectorAll(".admin-page").forEach(function (p) { p.classList.remove("active"); });
   document.querySelectorAll(".nav-btn").forEach(function (n) { n.classList.remove("active"); });
-  document.getElementById("page-" + page).classList.add("active");
-  document.querySelector('[data-page="' + page + '"]').classList.add("active");
+  var pageEl = document.getElementById("page-" + page);
+  if (pageEl) pageEl.classList.add("active");
+  if (page === "cbt") {
+    var bankNav = document.querySelector('.nav-btn[data-page="cbt"][data-cbt-bank="' + (cbtActiveBank || "JAMB") + '"]');
+    if (bankNav) bankNav.classList.add("active");
+    else {
+      var firstCbt = document.querySelector('.nav-btn[data-page="cbt"]');
+      if (firstCbt) firstCbt.classList.add("active");
+    }
+  } else {
+    var nav = document.querySelector('.nav-btn[data-page="' + page + '"]');
+    if (nav) nav.classList.add("active");
+  }
   if (page === "dashboard") loadDashboard();
-  else if (page === "sub-admins") loadSubAdmins();
   else if (page === "students") loadStudents();
   else if (page === "teachers") loadTeachers();
   else if (page === "vendors") loadVendors();
@@ -201,11 +209,12 @@ function showAdminPage(page) {
   else if (page === "requests") loadRequests();
   else if (page === "live-subs") loadLiveSubscriptions();
   else if (page === "skills-enroll") loadSkillsEnrollments();
-  else if (page === "cbt-settings") { loadCbtSettings(); }
+  else if (page === "cbt-settings") { loadCbtSettings(); setCbtSettingsBank(cbtSettingsBank || "JAMB"); }
   else if (page === "cbt") { cbtMode = "practice"; initCbtBuilder(); setCbtBank(cbtActiveBank || "JAMB"); }
   else if (page === "coupons") loadCbtCoupons();
-  else if (page === "subject-change") loadSubjectChangeRequests();
+  else if (page === "study-coupons") loadStudyCoupons();
   else if (page === "plans") loadPlansAdmin();
+  else if (page === "subject-change") loadSubjectChangeRequests();
   else if (page === "past-questions") { cbtMode = "past"; loadPastQuestionsAdmin(); }
   else if (page === "library") loadLibraryAdmin();
   else if (page === "videos") loadAdminVideos();
@@ -218,168 +227,12 @@ function showAdminPage(page) {
   else if (page === "marketplace") loadMarketplace();
 }
 
+function openAdminCbtBank(bank) {
+  cbtActiveBank = bank || "JAMB";
+  showAdminPage("cbt");
+}
+
 /* ── Dashboard ── */
-// ── Sub-admin management (main admin only) ────────────────────────────
-
-var SUB_PERM_LABELS = {
-  questions: "CBT questions & exams",
-  students: "Students",
-  teachers: "Teachers",
-  vendors: "Vendors",
-  kind: "Kids (Kind)",
-  library: "Library",
-  marketplace: "Marketplace",
-  plans: "Plans & pricing",
-  coupons: "CBT coupons",
-  community: "Community",
-  requests: "Live session requests",
-  reports: "Dashboard & reports",
-};
-
-function subAdminPermsCheckboxes(selected) {
-  selected = selected || [];
-  var keys = Object.keys(SUB_PERM_LABELS);
-  return keys
-    .map(function (k) {
-      var on = selected.indexOf(k) >= 0;
-      return (
-        '<label class="subadmin-perm"><input type="checkbox" value="' +
-        k +
-        '"' +
-        (on ? " checked" : "") +
-        " /> " +
-        escHtml(SUB_PERM_LABELS[k] || k) +
-        "</label>"
-      );
-    })
-    .join("");
-}
-
-async function loadSubAdmins() {
-  var box = document.getElementById("subadmins-list");
-  if (!box) return;
-  box.innerHTML = '<div class="loading">Loading…</div>';
-  var permBox = document.getElementById("subadmin-perms");
-  try {
-    var data = await adminApi("/api/v1/admin/sub-admins");
-    if (permBox) permBox.innerHTML = subAdminPermsCheckboxes([]);
-    var admins = data.admins || [];
-    if (!admins.length) {
-      box.innerHTML = '<div class="loading">No admin accounts.</div>';
-      return;
-    }
-    box.innerHTML = admins
-      .map(function (a) {
-        var badges = a.is_main
-          ? '<span class="subadmin-badge main">MAIN ADMIN</span>'
-          : '<span class="subadmin-badge sub">SUB-ADMIN</span>';
-        var state = a.is_active ? "" : '<span class="subadmin-badge off">DISABLED</span>';
-        var perms = a.is_main
-          ? "Full access — everything on the platform."
-          : (a.permissions || [])
-              .map(function (p) {
-                return escHtml(SUB_PERM_LABELS[p] || p);
-              })
-              .join(" · ") || "No permissions";
-        var actions = "";
-        if (!a.is_main) {
-          actions =
-            '<button class="btn-sm" onclick="toggleSubAdmin(\'' +
-            a.id +
-            "'," +
-            (!a.is_active) +
-            ')">' +
-            (a.is_active ? "Disable" : "Enable") +
-            '</button> <button class="btn-sm danger" onclick="removeSubAdmin(\'' +
-            a.id +
-            '\', \'' +
-            escHtml(a.email).replace(/'/g, "") +
-            '\')">Delete</button>';
-        }
-        return (
-          '<div class="panel subadmin-row" style="margin-bottom:12px">' +
-          '<div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap">' +
-          "<div><strong>" +
-          escHtml(a.full_name) +
-          "</strong> <span style=\"opacity:.7\">" +
-          escHtml(a.email) +
-          "</span> " +
-          badges +
-          state +
-          "</div>" +
-          "<div>" +
-          actions +
-          "</div></div>" +
-          '<div style="opacity:.75;font-size:.85rem;margin-top:6px">' +
-          perms +
-          "</div></div>"
-        );
-      })
-      .join("");
-  } catch (e) {
-    box.innerHTML =
-      '<div class="loading">' + escHtml(e.message || "Could not load sub-admins.") + "</div>";
-    if (permBox) permBox.innerHTML = "";
-  }
-}
-
-async function createSubAdmin() {
-  var err = document.getElementById("subadmin-create-error");
-  var name = (document.getElementById("subadmin-name") || {}).value || "";
-  var email = (document.getElementById("subadmin-email") || {}).value || "";
-  var password = (document.getElementById("subadmin-password") || {}).value || "";
-  var permBox = document.getElementById("subadmin-perms");
-  var perms = permBox
-    ? Array.from(permBox.querySelectorAll("input:checked")).map(function (c) {
-        return c.value;
-      })
-    : [];
-  if (err) err.textContent = "";
-  if (!name.trim() || !email.trim() || password.length < 8) {
-    if (err) err.textContent = "Fill name, email, and a password of at least 8 characters.";
-    return;
-  }
-  if (!perms.length) {
-    if (err) err.textContent = "Tick at least one permission for this sub-admin.";
-    return;
-  }
-  try {
-    await adminApi("/api/v1/admin/sub-admins", {
-      method: "POST",
-      body: { full_name: name.trim(), email: email.trim(), password: password, permissions: perms },
-    });
-    document.getElementById("subadmin-name").value = "";
-    document.getElementById("subadmin-email").value = "";
-    document.getElementById("subadmin-password").value = "";
-    if (permBox) permBox.innerHTML = subAdminPermsCheckboxes([]);
-    loadSubAdmins();
-  } catch (e) {
-    if (err) err.textContent = formatApiError(e.message) || e.message || "Could not create sub-admin.";
-  }
-}
-
-async function toggleSubAdmin(id, activate) {
-  try {
-    await adminApi("/api/v1/admin/sub-admins/" + id, {
-      method: "PATCH",
-      body: { is_active: !!activate },
-    });
-    loadSubAdmins();
-  } catch (e) {
-    alert(formatApiError(e.message) || e.message || "Update failed.");
-  }
-}
-
-async function removeSubAdmin(id, email) {
-  if (!confirm("Remove sub-admin " + email + "? They will immediately lose all admin access.")) return;
-  try {
-    await adminApi("/api/v1/admin/sub-admins/" + id, { method: "DELETE" });
-    loadSubAdmins();
-  } catch (e) {
-    alert(formatApiError(e.message) || e.message || "Delete failed.");
-  }
-}
-
 async function loadDashboard() {
   var el = document.getElementById("stats-grid");
   el.innerHTML = '<div class="loading">Loading…</div>';
@@ -1093,6 +946,8 @@ async function updateRequest(id, status) {
 /* ── CBT Exam Builder ── */
 var cbtMode = "practice";
 var cbtActiveBank = "JAMB";
+var cbtSettingsBank = "JAMB";
+var cbtSettingsBankRows = [];
 var cbtSearchTimer = null;
 var CBT_CE_SUBJECTS = [
   "Mathematics / Quantitative Reasoning",
@@ -1110,53 +965,159 @@ var CBT_CE_SUBJECTS = [
   "Islamic Religious Studies",
   "Creative Arts",
 ];
-var CBT_JUNIOR_SUBJECTS = [
-  "English Studies",
-  "Mathematics",
-  "Basic Science",
-  "Basic Technology",
-  "Social Studies",
-  "Business Studies",
-  "Civic Education",
-  "Computer Studies/ICT",
-  "Agricultural Science",
-  "Home Economics",
-  "Physical and Health Education",
-  "Christian Religious Studies",
-  "Islamic Religious Studies",
-  "French",
-  "Yoruba",
-  "Igbo",
-  "Hausa",
-  "Cultural and Creative Art",
-];
 
 function setCbtBank(bank) {
   cbtActiveBank = bank || "JAMB";
-  document.querySelectorAll("#cbt-bank-tabs .cbt-bank-tab").forEach(function (btn) {
-    btn.classList.toggle("is-active", btn.getAttribute("data-bank") === cbtActiveBank);
+  document.querySelectorAll('.nav-btn[data-page="cbt"]').forEach(function (n) {
+    n.classList.toggle("active", n.getAttribute("data-cbt-bank") === cbtActiveBank);
   });
   var typeSel = document.getElementById("cbt-import-type");
   var createType = document.getElementById("cbt-type");
   if (typeSel) typeSel.value = cbtActiveBank;
   if (createType) createType.value = cbtActiveBank;
+  var label = String(cbtActiveBank).replace(/_/g, " ");
+  var titleEl = document.getElementById("cbt-bank-page-title");
+  if (titleEl) titleEl.textContent = label + " Question Bank";
+  var activeLabel = document.getElementById("cbt-bank-active-label");
+  if (activeLabel) activeLabel.textContent = "Active bank: " + label;
+  var addHeading = document.getElementById("cbt-add-questions-heading");
+  if (addHeading) addHeading.textContent = "+ Add questions to " + label;
   syncCbtSubjectOptionsForBank();
+  syncCbtImportDurationHint();
   loadCbtBankSummary();
   loadCbt();
+}
+
+function focusAddQuestionsPanel(subject) {
+  var typeSel = document.getElementById("cbt-import-type");
+  if (typeSel) typeSel.value = cbtActiveBank || "JAMB";
+  if (subject) {
+    var subj = document.getElementById("cbt-import-subject");
+    if (subj) {
+      var found = false;
+      for (var i = 0; i < subj.options.length; i++) {
+        if (subj.options[i].value === subject || subj.options[i].text === subject) {
+          subj.selectedIndex = i;
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        var opt = document.createElement("option");
+        opt.value = subject;
+        opt.textContent = subject;
+        subj.appendChild(opt);
+        subj.value = subject;
+      }
+    }
+  }
+  var panel = document.getElementById("cbt-add-questions-panel");
+  if (panel) panel.scrollIntoView({ behavior: "smooth", block: "start" });
+  var file = document.getElementById("cbt-import-file");
+  if (file) setTimeout(function () { file.focus(); }, 250);
+}
+
+/** Prefill Add Questions from a listed exam set (PDF joins onto that subject bank). */
+function openAddQuestionsForExam(subject, examType) {
+  if (examType) setCbtBank(examType);
+  else if (cbtActiveBank) setCbtBank(cbtActiveBank);
+  focusAddQuestionsPanel(subject || "");
+  var err = document.getElementById("cbt-import-error");
+  if (err) err.textContent = "";
+  var ok = document.getElementById("cbt-import-success");
+  if (ok) {
+    ok.textContent = subject
+      ? "Choose a PDF/CSV for " + subject + ". New questions will be joined to the existing ones."
+      : "Choose subject + PDF/CSV. New questions join this exam bank.";
+  }
+}
+
+function addQuestionsFromEditSubject() {
+  var subject = cbtEditSubject || "";
+  var examType = cbtEditExamType || cbtActiveBank || "JAMB";
+  cancelCbtExamEdit();
+  openAddQuestionsForExam(subject, examType);
+}
+
+function openCbtSettingsForActiveBank() {
+  showAdminPage("cbt-settings");
+  setCbtSettingsBank(cbtActiveBank || "JAMB");
+}
+
+function setCbtSettingsBank(bank) {
+  cbtSettingsBank = bank || "JAMB";
+  document.querySelectorAll("#cbt-settings-tabs .cbt-settings-tab").forEach(function (btn) {
+    btn.classList.toggle("is-active", btn.getAttribute("data-settings-bank") === cbtSettingsBank);
+  });
+  document.querySelectorAll(".cbt-settings-panel").forEach(function (panel) {
+    var key = panel.getAttribute("data-settings-panel");
+    panel.style.display = key === cbtSettingsBank ? "" : "none";
+  });
+  var title = document.getElementById("cbt-settings-bank-title");
+  if (title) {
+    title.textContent = "Question bank totals — " + String(cbtSettingsBank).replace(/_/g, " ");
+  }
+  renderCbtSettingsBankTable();
+}
+
+function renderCbtSettingsBankTable() {
+  var bankEl = document.getElementById("cbt-bank-table");
+  if (!bankEl) return;
+  var rows = (cbtSettingsBankRows || []).filter(function (r) {
+    return r.exam_type === cbtSettingsBank;
+  });
+  if (!rows.length) {
+    bankEl.innerHTML =
+      '<div class="empty-state">No published ' +
+      escHtml(String(cbtSettingsBank).replace(/_/g, " ")) +
+      " practice questions in the bank yet. Upload under CBT Question Bank → " +
+      escHtml(String(cbtSettingsBank).replace(/_/g, " ")) +
+      " Bank.</div>";
+    return;
+  }
+  bankEl.innerHTML =
+    '<table class="data-table"><thead><tr><th>Subject</th><th>Questions in bank</th></tr></thead><tbody>' +
+    rows
+      .map(function (r) {
+        return (
+          "<tr><td>" +
+          escHtml(r.subject) +
+          "</td><td>" +
+          escHtml(r.total_questions) +
+          "</td></tr>"
+        );
+      })
+      .join("") +
+    "</tbody></table>";
+}
+
+function syncCbtImportDurationHint() {
+  var hint = document.getElementById("cbt-import-duration-hint");
+  var typeSel = document.getElementById("cbt-import-type");
+  var board = (typeSel && typeSel.value) || cbtActiveBank || "JAMB";
+  if (!hint) return;
+  if (board === "COMMON_ENTRANCE") {
+    hint.innerHTML =
+      "Common Entrance uses the duration configured in <strong>Common Entrance CBT Settings</strong>. " +
+      "Subjects are combined into <strong>one exam</strong> for students (one timer, one submission). " +
+      "Uploading here only fills the subject bank (e.g. Mathematics).";
+  } else if (board === "JAMB") {
+    hint.innerHTML =
+      "JAMB duration comes from <strong>JAMB CBT Settings</strong>. Student exams combine their profile subjects into one session.";
+  } else {
+    hint.innerHTML =
+      "Exam duration comes from <strong>" + board + " CBT Settings</strong> — not from this upload form.";
+  }
 }
 
 function syncCbtSubjectOptionsForBank() {
   var filter = document.getElementById("cbt-filter-subject");
   var importSub = document.getElementById("cbt-import-subject");
   var createSub = document.getElementById("cbt-subject");
-  function ensureBoardOptions(sel) {
+  function ensureCeOptions(sel) {
     if (!sel) return;
-    var extras =
-      cbtActiveBank === "COMMON_ENTRANCE" ? CBT_CE_SUBJECTS
-      : cbtActiveBank === "JUNIOR_WAEC" ? CBT_JUNIOR_SUBJECTS
-      : null;
-    if (!extras) return;
-    extras.forEach(function (name) {
+    if (cbtActiveBank !== "COMMON_ENTRANCE") return;
+    CBT_CE_SUBJECTS.forEach(function (name) {
       var exists = Array.prototype.some.call(sel.options, function (o) {
         return o.value === name || o.textContent === name;
       });
@@ -1168,17 +1129,13 @@ function syncCbtSubjectOptionsForBank() {
       }
     });
   }
-  ensureBoardOptions(importSub);
-  ensureBoardOptions(createSub);
+  ensureCeOptions(importSub);
+  ensureCeOptions(createSub);
   if (filter) {
     var current = filter.value;
     var opts = ['<option value="">All subjects</option>'];
     if (cbtActiveBank === "COMMON_ENTRANCE") {
       CBT_CE_SUBJECTS.forEach(function (s) {
-        opts.push('<option value="' + escHtml(s) + '">' + escHtml(s) + "</option>");
-      });
-    } else if (cbtActiveBank === "JUNIOR_WAEC") {
-      CBT_JUNIOR_SUBJECTS.forEach(function (s) {
         opts.push('<option value="' + escHtml(s) + '">' + escHtml(s) + "</option>");
       });
     } else if (importSub) {
@@ -1377,6 +1334,8 @@ function clearQuestionImage(idx) {
 }
 
 var cbtEditExamId = null;
+var cbtEditSubject = "";
+var cbtEditExamType = "";
 var cbtEditQuestions = [];
 
 function syncEditQuestionFromDom(idx) {
@@ -1509,11 +1468,13 @@ async function openCbtExamEdit(id) {
   try {
     var data = await adminApi("/api/v1/admin/cbt/exams/" + encodeURIComponent(id));
     cbtEditExamId = id;
+    cbtEditSubject = data.subject || "";
+    cbtEditExamType = data.exam_type || cbtActiveBank || "JAMB";
     document.getElementById("cbt-edit-title").value = data.title || "";
     document.getElementById("cbt-edit-duration").value = data.duration_minutes || 30;
     document.getElementById("cbt-edit-publish").checked = !!data.is_published;
     document.getElementById("cbt-edit-heading").textContent =
-      "Preview / edit — " + (data.subject || "") + " (" + (data.exam_type || "") + ")";
+      "Edit — " + (data.subject || "") + " (" + (data.exam_type || "") + ")";
     cbtEditQuestions = (data.questions || []).map(function (q) {
       return {
         id: q.id || null,
@@ -1543,6 +1504,8 @@ async function openCbtExamEdit(id) {
 
 function cancelCbtExamEdit() {
   cbtEditExamId = null;
+  cbtEditSubject = "";
+  cbtEditExamType = "";
   cbtEditQuestions = [];
   var panel = document.getElementById("cbt-edit-panel");
   if (panel) panel.style.display = "none";
@@ -1632,31 +1595,25 @@ async function loadCbtSettings() {
     setNum("cbt-set-jamb-eng", s.jamb_english_questions);
     setNum("cbt-set-jamb-dur", s.jamb_duration_minutes);
     setNum("cbt-set-jamb-subj", s.jamb_subjects_required);
-    setNum("cbt-set-jamb-total", s.jamb_score_total != null ? s.jamb_score_total : 400);
     setNum("cbt-set-waec-q", s.waec_questions_per_subject);
     setNum("cbt-set-waec-dur", s.waec_duration_minutes);
-    setNum("cbt-set-waec-total", s.waec_score_per_subject != null ? s.waec_score_per_subject : 100);
     setNum("cbt-set-neco-q", s.neco_questions_per_subject);
     setNum("cbt-set-neco-dur", s.neco_duration_minutes);
-    setNum("cbt-set-neco-total", s.neco_score_per_subject != null ? s.neco_score_per_subject : 100);
-    setNum("cbt-set-jw-q", s.jw_questions_per_subject);
-    setNum("cbt-set-jw-dur", s.jw_duration_minutes);
-    var bank = (data && data.question_bank) || [];
-    if (bankEl) {
-      if (!bank.length) {
-        bankEl.innerHTML = '<div class="empty-state">No published practice questions in the bank yet.</div>';
-      } else {
-        bankEl.innerHTML = '<table class="data-table"><thead><tr><th>Exam</th><th>Subject</th><th>Questions in bank</th></tr></thead><tbody>' +
-          bank.map(function (r) {
-            return "<tr><td>" + escHtml(r.exam_type) + "</td><td>" + escHtml(r.subject) + "</td><td>" +
-              escHtml(r.total_questions) + "</td></tr>";
-          }).join("") + "</tbody></table>";
-      }
+    setNum("cbt-set-ce-q", s.ce_questions_per_subject);
+    setNum("cbt-set-ce-dur", s.ce_duration_minutes);
+    var ceSubEl = document.getElementById("cbt-set-ce-subjects");
+    if (ceSubEl) {
+      var ceSubs = Array.isArray(s.ce_subjects) ? s.ce_subjects : [];
+      ceSubEl.value = ceSubs.join("\n");
     }
+    var bank = (data && data.question_bank) || [];
+    cbtSettingsBankRows = bank.slice();
+    setCbtSettingsBank(cbtSettingsBank || "JAMB");
     if (msg) msg.textContent = "";
   } catch (e) {
     if (msg) msg.textContent = e.message;
-    if (bankEl) bankEl.innerHTML = '<div class="empty-state">' + escHtml(e.message) + "</div>";
+    var bankElErr = document.getElementById("cbt-bank-table");
+    if (bankElErr) bankElErr.innerHTML = '<div class="empty-state">' + escHtml(e.message) + "</div>";
   }
 }
 
@@ -1681,15 +1638,16 @@ async function saveCbtSettings() {
         jamb_english_questions: numVal("cbt-set-jamb-eng"),
         jamb_duration_minutes: numVal("cbt-set-jamb-dur"),
         jamb_subjects_required: numVal("cbt-set-jamb-subj"),
-        jamb_score_total: numVal("cbt-set-jamb-total"),
         waec_questions_per_subject: numVal("cbt-set-waec-q"),
         waec_duration_minutes: numVal("cbt-set-waec-dur"),
-        waec_score_per_subject: numVal("cbt-set-waec-total"),
         neco_questions_per_subject: numVal("cbt-set-neco-q"),
         neco_duration_minutes: numVal("cbt-set-neco-dur"),
-        neco_score_per_subject: numVal("cbt-set-neco-total"),
-        jw_questions_per_subject: numVal("cbt-set-jw-q"),
-        jw_duration_minutes: numVal("cbt-set-jw-dur"),
+        ce_questions_per_subject: numVal("cbt-set-ce-q"),
+        ce_duration_minutes: numVal("cbt-set-ce-dur"),
+        ce_subjects: ((document.getElementById("cbt-set-ce-subjects") || {}).value || "")
+          .split(/\n|,/)
+          .map(function (s) { return s.trim(); })
+          .filter(Boolean),
       }),
     });
     if (msg) msg.textContent = "Settings saved.";
@@ -1719,18 +1677,21 @@ async function loadCbt() {
     loadCbtBankSummary();
     if (!rows.length) {
       el.innerHTML = '<div class="empty-state">No ' + escHtml((cbtActiveBank || "").replace(/_/g, " ")) +
-        " practice exams yet. Upload questions for this bank above.</div>";
+        ' practice sets yet. Use <strong>Add questions</strong> above to upload a PDF for this exam.</div>';
       return;
     }
     el.innerHTML = '<table class="data-table"><thead><tr><th>Title</th><th>Subject</th><th>Type</th><th>Questions</th><th>Status</th><th></th></tr></thead><tbody>' +
       rows.map(function (e) {
         var typeBadge = '<span class="badge ok">' + escHtml(e.exam_type) + "</span>";
         var pub = e.is_published ? '<span class="badge ok">Published</span>' : '<span class="badge muted">Draft</span>';
+        var subjJs = String(e.subject || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+        var typeJs = String(e.exam_type || cbtActiveBank || "JAMB").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
         return "<tr><td>" + escHtml(e.title) + "</td><td>" + escHtml(e.subject) + "</td>" +
           "<td>" + typeBadge + "</td><td>" + e.total_questions + "</td><td>" + pub + "</td>" +
           '<td class="actions">' +
-          '<button class="btn-sm" onclick="openCbtExamEdit(\'' + e.id + '\')">Edit questions</button>' +
-          '<button class="btn-sm" onclick="toggleCbtPublish(\'' + e.id + '\')">Toggle publish</button>' +
+          '<button class="btn-sm" onclick="openCbtExamEdit(\'' + e.id + '\')">Edit</button> ' +
+          '<button class="btn-primary btn-sm" onclick="openAddQuestionsForExam(\'' + subjJs + '\',\'' + typeJs + '\')">Add questions</button> ' +
+          '<button class="btn-sm" onclick="toggleCbtPublish(\'' + e.id + '\')">Toggle publish</button> ' +
           '<button class="btn-sm danger" onclick="deleteCbt(\'' + e.id + '\')">Delete set</button>' +
           "</td></tr>";
       }).join("") + "</tbody></table>";
@@ -1744,24 +1705,162 @@ async function loadPastQuestionsAdmin() {
   if (!el) return;
   el.innerHTML = '<div class="loading">Loading…</div>';
   try {
-    var rows = await adminApi("/api/v1/admin/cbt/exams");
+    var rows = await adminApi("/api/v1/admin/library/books?library_target=student");
     if (!rows) return;
-    rows = rows.filter(function (e) { return e.paper_kind === "past_questions"; });
-    if (!rows.length) { el.innerHTML = '<div class="empty-state">No past question papers yet. Upload one above.</div>'; return; }
-    el.innerHTML = '<table class="data-table"><thead><tr><th>Title</th><th>Subject</th><th>Board</th><th>Questions</th><th>Status</th><th></th></tr></thead><tbody>' +
-      rows.map(function (e) {
-        var pub = e.is_published ? '<span class="badge ok">Published</span>' : '<span class="badge muted">Draft</span>';
-        return '<tr><td>' + escHtml(e.title) + '</td><td>' + escHtml(e.subject) + '</td>' +
-          '<td><span class="badge ok">' + escHtml(e.exam_type) + '</span></td><td>' + e.total_questions + '</td><td>' + pub + '</td>' +
-          '<td class="actions">' +
-          '<button class="btn-sm" onclick="openCbtExamEdit(\'' + e.id + '\')">Edit questions &amp; images</button>' +
-          '<button class="btn-sm" onclick="toggleCbtPublish(\'' + e.id + '\')">Toggle publish</button>' +
-          '<button class="btn-sm danger" onclick="deleteCbt(\'' + e.id + '\')">Delete set</button>' +
-          '</td></tr>';
-      }).join("") + '</tbody></table>';
+    rows = (rows || []).filter(function (b) {
+      return /past/i.test(String(b.category || ""));
+    });
+    if (!rows.length) {
+      el.innerHTML = '<div class="empty-state">No Past Questions PDFs yet. Upload a cover + PDF above.</div>';
+      return;
+    }
+    el.innerHTML =
+      '<table class="data-table"><thead><tr><th>Cover</th><th>Title</th><th>Subject</th><th>Board</th><th>Year</th><th>Price</th><th>Description</th><th></th></tr></thead><tbody>' +
+      rows
+        .map(function (b) {
+          var cover = b.cover_image_url
+            ? '<img src="' +
+              escHtml(b.cover_image_url) +
+              '" alt="" style="width:48px;height:64px;object-fit:cover;border-radius:6px" />'
+            : "—";
+          var desc = (b.description || "").slice(0, 80);
+          if ((b.description || "").length > 80) desc += "…";
+          return (
+            "<tr><td>" +
+            cover +
+            "</td><td>" +
+            escHtml(b.title || "—") +
+            "</td><td>" +
+            escHtml(b.subject || "—") +
+            "</td><td>" +
+            escHtml(b.exam_type || "—") +
+            "</td><td>" +
+            escHtml(b.year != null ? String(b.year) : "—") +
+            "</td><td>₦" +
+            Number(b.price || 0).toLocaleString() +
+            "</td><td>" +
+            escHtml(desc || "—") +
+            '</td><td class="actions">' +
+            '<button class="btn-sm" onclick="editLibraryPrice(\'' +
+            b.id +
+            "', " +
+            Number(b.price || 0) +
+            ')">Price</button> ' +
+            '<button class="btn-sm" onclick="replaceLibraryPdf(\'' +
+            b.id +
+            "')\">Replace PDF</button> " +
+            '<button class="btn-sm danger" onclick="deleteLibraryBook(\'' +
+            b.id +
+            "')\">Remove</button></td></tr>"
+          );
+        })
+        .join("") +
+      "</tbody></table>";
   } catch (e) {
-    el.innerHTML = '<div class="empty-state">' + escHtml(e.message) + '</div>';
+    el.innerHTML = '<div class="empty-state">' + escHtml(e.message) + "</div>";
   }
+}
+
+async function uploadPastQuestionProduct() {
+  var err = document.getElementById("pq-import-error");
+  var ok = document.getElementById("pq-import-success");
+  var btn = document.getElementById("btn-upload-pq");
+  if (err) err.textContent = "";
+  if (ok) ok.textContent = "";
+
+  var coverInput = document.getElementById("pq-cover-file");
+  var pdfInput = document.getElementById("pq-pdf-file");
+  var subject = ((document.getElementById("pq-subject") || {}).value || "").trim();
+  var board = ((document.getElementById("pq-exam-board") || {}).value || "").trim();
+  var desc = ((document.getElementById("pq-description") || {}).value || "").trim();
+  var price = Number(((document.getElementById("pq-price") || {}).value || "0").replace(/,/g, ""));
+
+  var coverFile = coverInput && coverInput.files && coverInput.files[0];
+  var pdfFile = pdfInput && pdfInput.files && pdfInput.files[0];
+
+  if (!coverFile) {
+    if (err) err.textContent = "Choose a cover page photo (image).";
+    return;
+  }
+  if (!pdfFile) {
+    if (err) err.textContent = "Choose the Past Questions PDF file.";
+    return;
+  }
+  if (!subject) {
+    if (err) err.textContent = "Select a subject.";
+    return;
+  }
+  if (!board) {
+    if (err) err.textContent = "Select an exam board.";
+    return;
+  }
+  if (!desc) {
+    if (err) err.textContent = "Enter a short description.";
+    return;
+  }
+  if (!(price > 0)) {
+    if (err) err.textContent = "Enter a price greater than zero (Past Questions are sold via Paystack).";
+    return;
+  }
+  var pdfName = (pdfFile.name || "").toLowerCase();
+  if (!pdfName.endsWith(".pdf") && (pdfFile.type || "").toLowerCase().indexOf("pdf") < 0) {
+    if (err) err.textContent = "PDF file must be a .pdf document.";
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Uploading…";
+  }
+  try {
+    var coverUp = await uploadMarketplaceImage(coverFile);
+    if (!coverUp) return;
+    var coverUrl = (coverUp.image_url || coverUp.secure_url || "").trim();
+    if (!coverUrl) throw new Error("Cover upload did not return an image URL.");
+
+    var pdfUp = await uploadLibraryPdf(pdfFile);
+    if (!pdfUp || !pdfUp.file_key) throw new Error("PDF upload did not return a file key.");
+
+    var title = board + " " + subject + " Past Questions";
+    var created = await adminApi("/api/v1/admin/library/books", {
+      method: "POST",
+      body: JSON.stringify({
+        title: title,
+        subject: subject,
+        exam_type: board,
+        file_key: pdfUp.file_key,
+        cover_image_url: coverUrl,
+        description: desc,
+        category: "Past Questions",
+        library_target: "student",
+        is_free: false,
+        price: price,
+        is_downloadable: true,
+      }),
+    });
+    if (!created || !created.id) throw new Error("Server did not confirm the upload.");
+
+    if (ok) ok.textContent = "Uploaded \"" + title + "\" to the Past Questions shop.";
+    if (coverInput) coverInput.value = "";
+    if (pdfInput) pdfInput.value = "";
+    var descEl = document.getElementById("pq-description");
+    if (descEl) descEl.value = "";
+    var priceEl = document.getElementById("pq-price");
+    if (priceEl) priceEl.value = "";
+    loadPastQuestionsAdmin();
+  } catch (e) {
+    if (err) err.textContent = e.message || "Upload failed.";
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Upload Past Question";
+    }
+  }
+}
+
+async function importPastQuestionsFile() {
+  // Legacy CBT paper import removed from Past Questions tab.
+  return uploadPastQuestionProduct();
 }
 
 async function createCbt() {
@@ -1884,11 +1983,18 @@ async function seedCbt() {
 
 async function importCbtFile() {
   cbtMode = "practice";
+  var typeSel = document.getElementById("cbt-import-type");
+  if (typeSel) typeSel.value = cbtActiveBank || "JAMB";
+  // Always append: PDF/CSV questions join the existing bank (never wipe).
   return importPaperFile({
     prefix: "cbt",
     paperKind: "cbt_practice",
-    btnLabel: "Upload & create exam(s)",
-    afterSave: loadCbt,
+    btnLabel: "Extract & add to bank",
+    afterSave: function () {
+      loadCbt();
+      loadCbtBankSummary();
+    },
+    appendToBank: true,
   });
 }
 
@@ -1899,7 +2005,17 @@ async function importPastQuestionsFile() {
     paperKind: "past_questions",
     btnLabel: "Upload & create paper(s)",
     afterSave: loadPastQuestionsAdmin,
+    appendToBank: false,
   });
+}
+
+function startBulkAdd(kind) {
+  var input = document.getElementById("cbt-import-file");
+  if (!input) return;
+  if (kind === "pdf") input.accept = ".pdf,application/pdf";
+  else if (kind === "csv") input.accept = ".csv,text/csv";
+  else input.accept = ".json,.csv,.pdf,.docx,application/json,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  input.click();
 }
 
 async function importPaperFile(opts) {
@@ -1931,11 +2047,31 @@ async function importPaperFile(opts) {
   fields.subject = String(fields.subject).trim();
 
   if (!fields.subject) {
-    if (err) err.textContent = "Pick a subject so students can find this exam.";
+    if (err) err.textContent = "Pick a subject so questions go into the correct bank.";
     return;
   }
   if (!fields.title) {
     fields.title = fields.exam_type + " " + fields.subject;
+  }
+
+  // Bank append: always preview (CSV + PDF), then confirm via /cbt/bank/append
+  if (opts.appendToBank) {
+    if (btn) { btn.disabled = true; btn.textContent = "Reading file…"; }
+    try {
+      var bankPreview = await previewBankAppendFile(file, fields.exam_type, fields.subject);
+      if (!bankPreview) return;
+      bankPreview._appendMode = true;
+      bankPreview._filename = file.name;
+      renderPaperPreview(prefix, bankPreview);
+      if (ok) {
+        ok.textContent = "Preview ready — review below, then Import. Existing bank questions will stay.";
+      }
+    } catch (e) {
+      if (err) err.textContent = e.message;
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = opts.btnLabel; }
+    }
+    return;
   }
 
   var needsPreview = /\.(pdf|docx)$/i.test(file.name || "");
@@ -1944,6 +2080,7 @@ async function importPaperFile(opts) {
     try {
       var preview = await previewCbtFile(file);
       if (!preview) return;
+      preview._appendMode = false;
       renderPaperPreview(prefix, preview);
       if (ok) ok.textContent = "Review the extracted questions below, then click Confirm & save.";
     } catch (e) {
@@ -1986,75 +2123,193 @@ async function downloadCbtTemplate() {
   }
 }
 
-/* ── PDF import preview / confirm ── */
+/* ── PDF/CSV bank import preview / confirm ── */
 var cbtPreviewData = null;
 var cbtPreviewPrefix = "cbt";
+var cbtPreviewPage = 0;
+var CBT_PREVIEW_PAGE_SIZE = 40;
 
 function renderCbtPreview(preview) {
   renderPaperPreview("cbt", preview);
 }
 
-function renderPaperPreview(prefix, preview) {
-  cbtPreviewData = preview;
-  cbtPreviewPrefix = prefix || "cbt";
-  var panel = document.getElementById(prefix + "-preview-panel");
+function cbtPreviewModeValue() {
+  var checked = document.querySelector('input[name="cbt-import-mode"]:checked');
+  return checked ? checked.value : "all";
+}
+
+function updateCbtPreviewImportButton() {
+  var btn = document.getElementById("btn-confirm-cbt-preview");
+  if (!btn || !cbtPreviewData) return;
+  if (!cbtPreviewData._appendMode) {
+    btn.textContent = "Confirm & save exam";
+    return;
+  }
+  var mode = cbtPreviewModeValue();
+  var n = 0;
+  (cbtPreviewData.questions || []).forEach(function (q) {
+    if (q._included === false) return;
+    if (mode === "new_only" && q.is_duplicate) return;
+    n += 1;
+  });
+  btn.textContent = "Import " + n + " Questions";
+}
+
+function cbtPreviewPrevPage() {
+  if (cbtPreviewPage <= 0) return;
+  cbtPreviewFlushPageEdits();
+  cbtPreviewPage -= 1;
+  renderCbtPreviewPage();
+}
+
+function cbtPreviewNextPage() {
+  if (!cbtPreviewData) return;
+  var total = (cbtPreviewData.questions || []).length;
+  var maxPage = Math.max(0, Math.ceil(total / CBT_PREVIEW_PAGE_SIZE) - 1);
+  if (cbtPreviewPage >= maxPage) return;
+  cbtPreviewFlushPageEdits();
+  cbtPreviewPage += 1;
+  renderCbtPreviewPage();
+}
+
+function cbtPreviewFlushPageEdits() {
+  if (!cbtPreviewData || !cbtPreviewData.questions) return;
+  var idPrefix = cbtPreviewPrefix + "-pv";
+  var start = cbtPreviewPage * CBT_PREVIEW_PAGE_SIZE;
+  var end = Math.min(start + CBT_PREVIEW_PAGE_SIZE, cbtPreviewData.questions.length);
+  for (var i = start; i < end; i++) {
+    var q = cbtPreviewData.questions[i];
+    var inc = document.getElementById(idPrefix + "-inc-" + i);
+    var textEl = document.getElementById(idPrefix + "-text-" + i);
+    var a = document.getElementById(idPrefix + "-a-" + i);
+    var b = document.getElementById(idPrefix + "-b-" + i);
+    var c = document.getElementById(idPrefix + "-c-" + i);
+    var d = document.getElementById(idPrefix + "-d-" + i);
+    var ans = document.getElementById(idPrefix + "-ans-" + i);
+    if (inc) q._included = !!inc.checked;
+    if (textEl) q.question_text = textEl.value;
+    if (a) q.option_a = a.value;
+    if (b) q.option_b = b.value;
+    if (c) q.option_c = c.value;
+    if (d) q.option_d = d.value;
+    if (ans) q.correct_option = ans.value;
+  }
+}
+
+function renderCbtPreviewPage() {
+  if (!cbtPreviewData) return;
+  var prefix = cbtPreviewPrefix;
   var list = document.getElementById(prefix + "-preview-list");
-  var summary = document.getElementById(prefix + "-preview-summary");
-  var warnBox = document.getElementById(prefix + "-preview-warnings");
-  var errEl = document.getElementById(prefix + "-preview-error");
-  if (errEl) errEl.textContent = "";
-
-  var lowConf = preview.low_confidence_count || 0;
-  if (summary) {
-    summary.textContent = preview.total_questions + " question(s) extracted" +
-      (preview.answer_key_found ? " (answer key found)" : " (no answer key found)") +
-      (lowConf ? " — " + lowConf + " need review" : "");
-  }
-
-  if (warnBox) {
-    warnBox.innerHTML = (preview.warnings || []).map(function (w) {
-      return '<p class="cbt-hint small" style="color:#c47f17">&#9888; ' + escHtml(w) + '</p>';
-    }).join("");
-  }
-
-  var threshold = preview.low_confidence_threshold || 0;
+  var pageLabel = document.getElementById(prefix + "-preview-page-label");
+  var pager = document.getElementById(prefix + "-preview-pager");
+  var threshold = cbtPreviewData.low_confidence_threshold || 0;
+  var qs = cbtPreviewData.questions || [];
+  var total = qs.length;
+  var maxPage = Math.max(0, Math.ceil(total / CBT_PREVIEW_PAGE_SIZE) - 1);
+  if (cbtPreviewPage > maxPage) cbtPreviewPage = maxPage;
+  var start = cbtPreviewPage * CBT_PREVIEW_PAGE_SIZE;
+  var end = Math.min(start + CBT_PREVIEW_PAGE_SIZE, total);
   var idPrefix = prefix + "-pv";
+
+  if (pager) pager.style.display = total > CBT_PREVIEW_PAGE_SIZE ? "flex" : "none";
+  if (pageLabel) {
+    pageLabel.textContent = total
+      ? ("Showing " + (start + 1) + "–" + end + " of " + total)
+      : "No questions";
+  }
+
   if (list) {
-    list.innerHTML = (preview.questions || []).map(function (q, i) {
-      var flagged = (q.confidence != null && q.confidence < threshold) || (q.issues || []).length > 0;
+    var html = [];
+    for (var i = start; i < end; i++) {
+      var q = qs[i];
+      var flagged = (q.confidence != null && q.confidence < threshold) ||
+        (q.issues || []).length > 0 || q.needs_review || q.is_duplicate;
       var issues = (q.issues || []).map(function (s) {
-        return '<p class="cbt-hint small" style="color:#c47f17;margin:2px 0">&#9888; ' + escHtml(s) + '</p>';
+        return '<p class="cbt-hint small" style="color:#c47f17;margin:2px 0">&#9888; ' + escHtml(s) + "</p>";
       }).join("");
       var optSel = ["", "A", "B", "C", "D"].map(function (o) {
         var label = o || "— pick answer —";
         var sel = (q.correct_option || "") === o ? " selected" : "";
         return '<option value="' + o + '"' + sel + ">" + label + "</option>";
       }).join("");
-      return '<div class="panel" style="margin:10px 0;padding:12px;' +
-        (flagged ? "border:1px solid #e8a33d" : "") + '" id="' + idPrefix + '-q-' + i + '">' +
+      var included = q._included !== false;
+      html.push(
+        '<div class="panel" style="margin:10px 0;padding:12px;' +
+        (flagged ? "border:1px solid #e8a33d" : "") + '" id="' + idPrefix + "-q-" + i + '">' +
         '<div class="form-row" style="justify-content:space-between;align-items:center">' +
-          '<label class="chk-label"><input type="checkbox" id="' + idPrefix + '-inc-' + i + '" checked /> ' +
+          '<label class="chk-label"><input type="checkbox" id="' + idPrefix + "-inc-" + i + '"' +
+          (included ? " checked" : "") + ' onchange="updateCbtPreviewImportButton()" /> ' +
           "Question " + escHtml(String(q.number || i + 1)) +
+          (q.is_duplicate ? ' <span class="cbt-hint small" style="color:#b45309">(possible duplicate)</span>' : "") +
           (q.confidence != null ? ' <span class="cbt-hint small">(confidence ' + Math.round(q.confidence * 100) + "%)</span>" : "") +
           "</label>" +
         "</div>" +
         issues +
-        '<label><span>Question</span><textarea id="' + idPrefix + '-text-' + i + '" rows="2" style="width:100%">' + escHtml(q.question_text) + "</textarea></label>" +
+        '<label><span>Question</span><textarea id="' + idPrefix + "-text-" + i + '" rows="2" style="width:100%">' + escHtml(q.question_text) + "</textarea></label>" +
         '<div class="form-grid">' +
-          '<label><span>Option A</span><input id="' + idPrefix + '-a-' + i + '" value="' + escHtml(q.option_a) + '" /></label>' +
-          '<label><span>Option B</span><input id="' + idPrefix + '-b-' + i + '" value="' + escHtml(q.option_b) + '" /></label>' +
-          '<label><span>Option C</span><input id="' + idPrefix + '-c-' + i + '" value="' + escHtml(q.option_c) + '" /></label>' +
-          '<label><span>Option D</span><input id="' + idPrefix + '-d-' + i + '" value="' + escHtml(q.option_d) + '" /></label>' +
-          '<label><span>Correct option</span><select id="' + idPrefix + '-ans-' + i + '">' + optSel + "</select></label>" +
+          '<label><span>Option A</span><input id="' + idPrefix + "-a-" + i + '" value="' + escHtml(q.option_a) + '" /></label>' +
+          '<label><span>Option B</span><input id="' + idPrefix + "-b-" + i + '" value="' + escHtml(q.option_b) + '" /></label>' +
+          '<label><span>Option C</span><input id="' + idPrefix + "-c-" + i + '" value="' + escHtml(q.option_c) + '" /></label>' +
+          '<label><span>Option D</span><input id="' + idPrefix + "-d-" + i + '" value="' + escHtml(q.option_d) + '" /></label>' +
+          '<label><span>Correct option</span><select id="' + idPrefix + "-ans-" + i + '">' + optSel + "</select></label>" +
         "</div>" +
-      "</div>";
+      "</div>"
+      );
+    }
+    list.innerHTML = html.join("");
+  }
+  updateCbtPreviewImportButton();
+}
+
+function renderPaperPreview(prefix, preview) {
+  cbtPreviewData = preview;
+  cbtPreviewPrefix = prefix || "cbt";
+  cbtPreviewPage = 0;
+  var panel = document.getElementById(prefix + "-preview-panel");
+  var summary = document.getElementById(prefix + "-preview-summary");
+  var warnBox = document.getElementById(prefix + "-preview-warnings");
+  var errEl = document.getElementById(prefix + "-preview-error");
+  var modeRow = document.getElementById(prefix + "-preview-mode-row");
+  if (errEl) errEl.textContent = "";
+
+  var lowConf = preview.low_confidence_count || preview.needs_review_count || 0;
+  var dup = preview.duplicate_count || 0;
+  var valid = preview.valid_count != null ? preview.valid_count : preview.total_questions;
+  if (summary) {
+    var parts = [
+      "File: " + (preview._filename || preview.filename || preview.source || "upload"),
+      "Detected: " + (preview.total_questions || 0),
+      "Valid: " + valid,
+      "Needs review: " + lowConf
+    ];
+    if (preview.bank_count_before != null) parts.push("Current bank: " + preview.bank_count_before);
+    if (dup) parts.push("Possible duplicates: " + dup);
+    if (preview.new_count != null) parts.push("New: " + preview.new_count);
+    summary.textContent = parts.join(" · ");
+  }
+
+  if (warnBox) {
+    warnBox.innerHTML = (preview.warnings || []).map(function (w) {
+      return '<p class="cbt-hint small" style="color:#c47f17">&#9888; ' + escHtml(w) + "</p>";
     }).join("");
   }
+
+  if (modeRow) modeRow.style.display = preview._appendMode ? "flex" : "none";
+
+  (preview.questions || []).forEach(function (q) {
+    if (q._included == null) q._included = true;
+  });
+
+  renderCbtPreviewPage();
 
   if (panel) {
     panel.style.display = "";
     panel.scrollIntoView({ behavior: "smooth", block: "start" });
   }
+
+  document.querySelectorAll('input[name="cbt-import-mode"]').forEach(function (el) {
+    el.onchange = updateCbtPreviewImportButton;
+  });
 }
 
 function cancelCbtPreview() {
@@ -2067,6 +2322,7 @@ function cancelPastPreview() {
 
 function cancelPaperPreview(prefix) {
   cbtPreviewData = null;
+  cbtPreviewPage = 0;
   var panel = document.getElementById(prefix + "-preview-panel");
   var list = document.getElementById(prefix + "-preview-list");
   if (panel) panel.style.display = "none";
@@ -2074,7 +2330,10 @@ function cancelPaperPreview(prefix) {
 }
 
 async function confirmCbtPreviewUi() {
-  return confirmPaperPreviewUi("cbt", "cbt_practice", loadCbt);
+  return confirmPaperPreviewUi("cbt", "cbt_practice", function () {
+    loadCbt();
+    loadCbtBankSummary();
+  });
 }
 
 async function confirmPastPreviewUi() {
@@ -2083,6 +2342,7 @@ async function confirmPastPreviewUi() {
 
 async function confirmPaperPreviewUi(prefix, paperKind, afterSave) {
   if (!cbtPreviewData) return;
+  cbtPreviewFlushPageEdits();
   var err = document.getElementById(prefix + "-preview-error");
   var btn = document.getElementById(prefix === "pq" ? "btn-confirm-pq-preview" : "btn-confirm-cbt-preview");
   if (err) err.textContent = "";
@@ -2098,18 +2358,22 @@ async function confirmPaperPreviewUi(prefix, paperKind, afterSave) {
 
   var threshold = cbtPreviewData.low_confidence_threshold || 0;
   var questions = [];
-  var idPrefix = prefix + "-pv";
+  var importMode = cbtPreviewModeValue();
+  var appendMode = !!cbtPreviewData._appendMode;
+
   for (var i = 0; i < cbtPreviewData.questions.length; i++) {
-    var inc = document.getElementById(idPrefix + "-inc-" + i);
-    if (!inc || !inc.checked) continue;
     var orig = cbtPreviewData.questions[i];
+    if (orig._included === false) continue;
     var q = {
-      question_text: document.getElementById(idPrefix + "-text-" + i).value.trim(),
-      option_a: document.getElementById(idPrefix + "-a-" + i).value.trim(),
-      option_b: document.getElementById(idPrefix + "-b-" + i).value.trim(),
-      option_c: document.getElementById(idPrefix + "-c-" + i).value.trim(),
-      option_d: document.getElementById(idPrefix + "-d-" + i).value.trim(),
-      correct_option: document.getElementById(idPrefix + "-ans-" + i).value,
+      question_text: (orig.question_text || "").trim(),
+      option_a: (orig.option_a || "").trim(),
+      option_b: (orig.option_b || "").trim(),
+      option_c: (orig.option_c || "").trim(),
+      option_d: (orig.option_d || "").trim(),
+      correct_option: orig.correct_option || "",
+      explanation: orig.explanation || null,
+      topic: orig.topic || null,
+      is_duplicate: !!orig.is_duplicate
     };
     if (!q.question_text || !q.option_a || !q.option_b || !q.option_c || !q.option_d || !q.correct_option) {
       if (err) {
@@ -2118,39 +2382,59 @@ async function confirmPaperPreviewUi(prefix, paperKind, afterSave) {
       }
       return;
     }
-    var edited = q.question_text !== (orig.question_text || "").trim() ||
-      q.correct_option !== (orig.correct_option || "");
-    if (orig.confidence != null && orig.confidence < threshold && !edited) {
-      q.confidence = orig.confidence;
+    if (appendMode && importMode === "new_only" && orig.is_duplicate) continue;
+    if (!appendMode) {
+      var edited = q.question_text !== (orig.question_text || "").trim() ||
+        q.correct_option !== (orig.correct_option || "");
+      if (orig.confidence != null && orig.confidence < threshold && !edited) {
+        q.confidence = orig.confidence;
+      }
     }
     questions.push(q);
   }
   if (!questions.length) {
-    if (err) err.textContent = "Keep at least one question ticked.";
+    if (err) err.textContent = "Keep at least one question ticked (or choose Import all if only duplicates remain).";
     return;
   }
 
-  var payload = {
-    title: title,
-    subject: subject,
-    year: null,
-    exam_type: examType,
-    duration_minutes: parseInt((document.getElementById(prefix + "-import-duration") || {}).value, 10) || 60,
-    is_published: !!(document.getElementById(prefix + "-import-publish") || {}).checked,
-    skip_duplicates: !!(document.getElementById(prefix + "-import-skip-dup") || {}).checked,
-    paper_kind: paperKind,
-    questions: questions,
-  };
-
-  if (btn) { btn.disabled = true; btn.textContent = "Saving…"; }
+  if (btn) { btn.disabled = true; btn.textContent = "Importing…"; }
   try {
-    var r = await confirmCbtImport(payload);
-    if (!r) return;
-    var msg = "Created \"" + r.title + "\" with " + r.total_questions + " question(s)." +
-      (r.is_published ? "" : " Saved unpublished.");
-    if (r.note) msg += " " + r.note;
-    var ok = document.getElementById(prefix + "-import-success");
-    if (ok) ok.textContent = msg;
+    var r;
+    if (appendMode) {
+      r = await appendBankQuestions({
+        exam_type: examType,
+        subject: subject,
+        duration_minutes: parseInt((document.getElementById(prefix + "-import-duration") || {}).value, 10) || 60,
+        import_mode: importMode,
+        questions: questions
+      });
+      if (!r) return;
+      var msg = "Appended " + r.inserted_count + " question(s) to " + r.exam_type + " / " + r.subject +
+        ". Bank: " + r.bank_count_before + " → " + r.bank_count_after + ".";
+      if (r.skipped_duplicate_count) msg += " Skipped " + r.skipped_duplicate_count + " duplicate(s).";
+      if (r.skipped_invalid_count) msg += " Skipped " + r.skipped_invalid_count + " invalid.";
+      var ok = document.getElementById(prefix + "-import-success");
+      if (ok) ok.textContent = msg;
+    } else {
+      var payload = {
+        title: title,
+        subject: subject,
+        year: null,
+        exam_type: examType,
+        duration_minutes: parseInt((document.getElementById(prefix + "-import-duration") || {}).value, 10) || 60,
+        is_published: !!(document.getElementById(prefix + "-import-publish") || {}).checked,
+        skip_duplicates: !!(document.getElementById(prefix + "-import-skip-dup") || {}).checked,
+        paper_kind: paperKind,
+        questions: questions
+      };
+      r = await confirmCbtImport(payload);
+      if (!r) return;
+      var msg2 = "Created \"" + r.title + "\" with " + r.total_questions + " question(s)." +
+        (r.is_published ? "" : " Saved unpublished.");
+      if (r.note) msg2 += " " + r.note;
+      var ok2 = document.getElementById(prefix + "-import-success");
+      if (ok2) ok2.textContent = msg2;
+    }
     var fileInput = document.getElementById(prefix + "-import-file");
     if (fileInput) fileInput.value = "";
     cancelPaperPreview(prefix);
@@ -2160,7 +2444,10 @@ async function confirmPaperPreviewUi(prefix, paperKind, afterSave) {
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.textContent = prefix === "pq" ? "Confirm & save paper" : "Confirm & save exam";
+      updateCbtPreviewImportButton();
+      if (!cbtPreviewData) {
+        btn.textContent = prefix === "pq" ? "Confirm & save paper" : "Import questions";
+      }
     }
   }
 }
@@ -2822,7 +3109,7 @@ async function markMarketplaceContacted(id) {
   }
 }
 
-/* ── Internal exams (admin) ── */
+/* ── School exams (admin) ── */
 var _ieStudentsCache = [];
 
 function toggleIeStudentPick() {
@@ -2976,7 +3263,7 @@ async function loadIeExamsTable() {
   try {
     var rows = await adminApi("/api/v1/admin/internal-exams");
     if (!rows || !rows.length) {
-      el.innerHTML = '<div class="empty-state">No internal exams yet.</div>';
+      el.innerHTML = '<div class="empty-state">No school exams yet.</div>';
       return;
     }
     el.innerHTML =
@@ -3092,11 +3379,11 @@ async function createInternalExamAdmin() {
     document.getElementById("ie-title").value = "";
     fileInput.value = "";
     if (notesInput) notesInput.value = "";
-    ok.textContent = "Internal exam published. Matching students can download it offline and submit.";
+    ok.textContent = "School exam published. Matching students can download it offline and submit.";
     loadIeExamsTable();
     loadIeSubmissionsTable();
   } catch (e) {
-    err.textContent = e.message || "Could not create internal exam.";
+    err.textContent = e.message || "Could not create school exam.";
   } finally {
     btn.disabled = false;
     btn.textContent = "Upload & publish";
@@ -3178,6 +3465,9 @@ async function editLibraryPrice(id, currentPrice) {
       body: JSON.stringify({ price: price, is_free: false }),
     });
     loadLibraryAdmin();
+    if (typeof currentAdminPage !== "undefined" && currentAdminPage === "past-questions") {
+      loadPastQuestionsAdmin();
+    }
   } catch (e) {
     alert(e.message || "Could not update price.");
   }
@@ -3477,6 +3767,9 @@ async function replaceLibraryPdf(id) {
       await uploadAdminFile("/api/v1/admin/library/books/" + encodeURIComponent(id) + "/replace-file", file);
       alert("PDF replaced. Students can tap Read again.");
       loadLibraryAdmin();
+      if (typeof currentAdminPage !== "undefined" && currentAdminPage === "past-questions") {
+        loadPastQuestionsAdmin();
+      }
     } catch (e) {
       alert(e.message || "Could not replace PDF.");
     }
@@ -3520,6 +3813,9 @@ async function deleteLibraryBook(id) {
   try {
     await adminApi("/api/v1/admin/library/books/" + id, { method: "DELETE" });
     loadLibraryAdmin();
+    if (typeof currentAdminPage !== "undefined" && currentAdminPage === "past-questions") {
+      loadPastQuestionsAdmin();
+    }
   } catch (e) {
     alert(e.message);
   }
@@ -3578,6 +3874,109 @@ async function deactivateCbtCoupon(id) {
   try {
     await adminApi("/api/v1/admin/cbt-coupons/" + id + "/deactivate", { method: "POST" });
     loadCbtCoupons();
+  } catch (e) { alert(e.message); }
+}
+
+/* ── Study coupons (Video Tutorials unlock — per skill, code-only) ── */
+const STUDY_SKILL_LABELS = {
+  "all": "All skills", "academics": "Academics", "web design": "Web Design",
+  "app development": "App Development", "software development": "Software Development",
+  "digital marketing": "Digital Marketing", "graphics design": "Graphics Design",
+  "cyber security": "Cyber Security", "data analysis": "Data Analysis",
+};
+
+async function loadStudyCoupons() {
+  var el = document.getElementById("study-coupon-table");
+  if (!el) return;
+  el.innerHTML = '<div class="loading">Loading codes…</div>';
+  try {
+    var data = await adminApi("/api/v1/study-coupons/admin/list");
+    var rows = (data && data.coupons) || [];
+    if (!rows.length) { el.innerHTML = '<div class="empty-state">No activation codes yet — generate the first one above.</div>'; return; }
+    el.innerHTML = '<table class="data-table"><thead><tr><th>Code</th><th>Skill</th><th>Access</th><th>Used</th><th>Active</th><th>Expires</th><th>Note / Redeemed by</th><th></th></tr></thead><tbody>' +
+      rows.map(function (c) {
+        var who = "";
+        if (c.assigned_email) who += "Assigned: " + escHtml(c.assigned_email);
+        var red = (c.redeemed_by || []).map(function (r) { return escHtml(r.student_id || "") + " <span style='color:#8891a5'>" + escHtml((r.redeemed_at || "").slice(0, 10)) + "</span>"; }).join("<br>");
+        if (red) who += (who ? "<br>" : "") + "Student: " + red;
+        if (!who) who = "—";
+        var skill = STUDY_SKILL_LABELS[c.skill] || escHtml(c.skill || "all");
+        var access = c.access_days ? (c.access_days + " days") : "—";
+        return '<tr><td><strong>' + escHtml(c.code) + '</strong></td><td>' + skill + '</td><td>' + access + '</td><td>' + escHtml(c.used_count + " / " + c.max_uses) + '</td><td>' +
+          (c.is_active ? "Yes" : "No") + '</td><td>' + escHtml((c.expires_at || "").slice(0, 10) || "—") + '</td><td>' + who + '</td><td>' +
+          (c.is_active ? '<button class="btn-sm danger" onclick="deactivateStudyCoupon(\'' + c.id + '\')">Disable</button>' : '') + '</td></tr>';
+      }).join("") + "</tbody></table>";
+  } catch (e) {
+    el.innerHTML = '<div class="empty-state">' + escHtml(e.message) + "</div>";
+  }
+}
+
+async function generateStudyCoupons() {
+  var msg = document.getElementById("study-coupon-msg");
+  var count = parseInt((document.getElementById("study-coupon-count") || {}).value || "1", 10) || 1;
+  var uses = parseInt((document.getElementById("study-coupon-uses") || {}).value || "1", 10) || 1;
+  var days = parseInt((document.getElementById("study-coupon-days") || {}).value || "365", 10) || 365;
+  var accessDays = parseInt((document.getElementById("study-coupon-access-days") || {}).value || "30", 10) || 30;
+  var skill = ((document.getElementById("study-coupon-skill") || {}).value || "all");
+  var note = ((document.getElementById("study-coupon-note") || {}).value || "").trim();
+  if (msg) msg.textContent = "Generating…";
+  try {
+    var d = await adminApi("/api/v1/study-coupons/admin/create", {
+      method: "POST",
+      body: JSON.stringify({ count: count, max_uses: uses, days_valid: days, access_days: accessDays, skill: skill, note: note }),
+    });
+    if (msg) msg.textContent = "Generated for " + (STUDY_SKILL_LABELS[d.skill || skill] || skill) + ", " + accessDays + " days access: " + (d.codes || []).join(", ");
+    loadStudyCoupons();
+  } catch (e) {
+    if (msg) msg.textContent = e.message;
+  }
+}
+
+/* Students' tutorial access — month filter + per-skill revoke. */
+async function loadStudyStudentAccess() {
+  var el = document.getElementById("study-student-table");
+  if (!el) return;
+  var month = ((document.getElementById("study-student-month") || {}).value || "").trim();
+  var skill = ((document.getElementById("study-student-skill") || {}).value || "").trim();
+  el.innerHTML = '<div class="loading">Loading students…</div>';
+  try {
+    var qs = [];
+    if (month) qs.push("month=" + encodeURIComponent(month));
+    if (skill) qs.push("skill=" + encodeURIComponent(skill));
+    var data = await adminApi("/api/v1/study-coupons/admin/students" + (qs.length ? "?" + qs.join("&") : ""));
+    var rows = (data && data.students) || [];
+    if (!rows.length) { el.innerHTML = '<div class="empty-state">No student tutorial access found for this filter.</div>'; return; }
+    el.innerHTML = '<table class="data-table"><thead><tr><th>Student</th><th>Signed up</th><th>Skills unlocked</th><th></th></tr></thead><tbody>' +
+      rows.map(function (s) {
+        var chips = (s.access || []).map(function (a) {
+          var label = STUDY_SKILL_LABELS[a.skill] || a.skill;
+          var when = a.expires_at ? escHtml(a.expires_at.slice(0, 10)) : "no end";
+          return "<div>" + (a.active ? "✅ " : "⛔ ") + "<strong>" + escHtml(label) + "</strong> <span style='color:#8891a5'>until " + when + "</span></div>";
+        }).join("") || "—";
+        return '<tr><td><strong>' + escHtml(s.name || "Student") + '</strong><br><span style="color:#8891a5;font-size:0.75rem">' + escHtml(s.email || "") + '</span></td><td>' +
+          escHtml(s.signed_up_month || "—") + '</td><td>' + chips + '</td><td>' +
+          '<button class="btn-sm danger" onclick="revokeStudyStudent(\'' + s.student_id + '\',\'\' )">Revoke all</button></td></tr>';
+      }).join("") + "</tbody></table>";
+  } catch (e) {
+    el.innerHTML = '<div class="empty-state">' + escHtml(e.message) + "</div>";
+  }
+}
+
+async function revokeStudyStudent(studentId, skill) {
+  if (!confirm("Revoke this student's tutorial access" + (skill ? " for " + skill : " (all skills)") + "?")) return;
+  try {
+    await adminApi("/api/v1/study-coupons/admin/revoke", {
+      method: "POST",
+      body: JSON.stringify({ student_id: studentId, skill: skill || null }),
+    });
+    loadStudyStudentAccess();
+  } catch (e) { alert(e.message); }
+}
+
+async function deactivateStudyCoupon(id) {
+  try {
+    await adminApi("/api/v1/study-coupons/admin/" + id + "/deactivate", { method: "POST" });
+    loadStudyCoupons();
   } catch (e) { alert(e.message); }
 }
 
@@ -3793,29 +4192,13 @@ async function loadSchoolsAdmin() {
   if (!el) return;
   el.innerHTML = '<div class="loading">Loading…</div>';
   try {
-    var rows = [];
-    try {
-      var sup = await adminApi("/api/v1/super-admin/schools");
-      rows = (sup && sup.schools) || [];
-      window.__sxSchools = rows;
-    } catch (supErr) {
-      // Sub-admins (or older backends) fall back to the basic schools list.
-      var basic = await adminApi("/api/v1/admin/schools");
-      rows = (basic && basic.schools) || [];
-      rows = rows.map(function (r) {
-        return {
-          school_id: r.id, name: r.name, code: r.code, city: r.city,
-          admins: r.admins, approval_status: r.approval_status || "approved",
-          plan: null, subscription_active: false, slug: null,
-        };
-      });
-    }
+    var data = await adminApi("/api/v1/super-admin/schools");
+    var rows = (data && data.schools) || [];
+    window.__sxSchools = rows;
     if (!rows.length) { el.innerHTML = '<div class="empty-state">No schools yet. Add the first school above.</div>'; return; }
     el.innerHTML = '<table class="data-table"><thead><tr><th>School</th><th>Type</th><th>City</th><th>Status</th><th>Plan</th><th>Domain</th><th>School admins</th><th>Actions</th></tr></thead><tbody>' +
       rows.map(function (s) {
-        var ads = (s.admins && s.admins.length)
-          ? s.admins.map(function (a) { return escHtml(a.full_name) + " (" + escHtml(a.email) + ")"; }).join("<br>")
-          : (s.admin_email ? escHtml(s.admin_name || "") + " (" + escHtml(s.admin_email) + ")" : "—");
+        var ads = (s.admin_email ? escHtml(s.admin_name || "") + " (" + escHtml(s.admin_email) + ")" : "—");
         var status = String(s.approval_status || "approved").toLowerCase();
         var planTxt = (s.plan ? escHtml(s.plan) : "—") + (s.subscription_active ? " ✓" : " (no sub)");
         var acts = "";
@@ -4170,12 +4553,67 @@ async function hostSchoolLiveClass(startNow) {
 
 
 
+/* ── CBT subject-change requests (students ask admin to change locked subjects) ── */
+
+async function loadSubjectChangeRequests() {
+  var wrap = document.getElementById("subject-change-table");
+  if (!wrap) return;
+  wrap.innerHTML = '<div class="loading">Loading requests…</div>';
+  try {
+    var data = await adminApi("/api/v1/admin/cbt/subject-change-requests?status=pending");
+    var requests = data.requests || [];
+    if (!requests.length) {
+      wrap.innerHTML = '<div class="loading">No pending subject-change requests.</div>';
+      return;
+    }
+    wrap.innerHTML =
+      '<table class="data-table"><thead><tr>' +
+      "<th>Student</th><th>Board</th><th>Current</th><th>Requested</th><th>Reason</th><th>Actions</th>" +
+      "</tr></thead><tbody>" +
+      requests
+        .map(function (r) {
+          return (
+            "<tr>" +
+            "<td>" + escHtml(r.student_name) + "<br><small>" + escHtml(r.student_email) + "</small></td>" +
+            "<td><strong>" + escHtml(r.board) + "</strong></td>" +
+            "<td>" + escHtml((r.old_subjects || []).join(", ") || "—") + "</td>" +
+            "<td>" + escHtml((r.new_subjects || []).join(", ")) + "</td>" +
+            "<td>" + escHtml(r.reason || "—") + "</td>" +
+            '<td><button type="button" class="btn-sm" onclick="reviewSubjectChange(\'' + r.id + '\', \'approve\')">Approve</button> ' +
+            '<button type="button" class="btn-sm" onclick="reviewSubjectChange(\'' + r.id + '\', \'reject\')">Reject</button></td>' +
+            "</tr>"
+          );
+        })
+        .join("") +
+      "</tbody></table>";
+  } catch (e) {
+    wrap.innerHTML = '<div class="loading">Could not load: ' + escHtml(e.message) + "</div>";
+  }
+}
+
+async function reviewSubjectChange(requestId, decision) {
+  if (decision === "approve" && !confirm("Approve this subject change? The student's subjects update immediately.")) return;
+  try {
+    var res = await adminApi("/api/v1/admin/cbt/subject-change-requests/review", {
+      method: "POST",
+      body: JSON.stringify({ request_id: requestId, decision: decision }),
+    });
+    alert((res && res.message) || "Done.");
+    loadSubjectChangeRequests();
+  } catch (e) {
+    alert(e.message || "Action failed.");
+  }
+}
+
 /* ── Plans & Pricing (admin-editable CBT packages + live class plans) ───────── */
+var _plansAdminData = null;
+
 async function loadPlansAdmin() {
   var wrap = document.getElementById("plans-admin-wrap");
   if (!wrap) return;
   try {
     var data = await adminApi("/api/v1/admin/plans");
+    _plansAdminData = data;
     wrap.innerHTML = renderPlansAdmin(data);
   } catch (e) {
     wrap.innerHTML = '<p class="error-text">' + escHtml(e.message || "Could not load plans.") + "</p>";
@@ -4315,57 +4753,5 @@ async function savePlanOverride(btn) {
     alert(e.message || "Could not save plan.");
   } finally {
     btn.disabled = false;
-  }
-}
-
-/* ── CBT subject-change requests (students ask admin to change locked subjects) ── */
-
-async function loadSubjectChangeRequests() {
-  var wrap = document.getElementById("subject-change-table");
-  if (!wrap) return;
-  wrap.innerHTML = '<div class="loading">Loading requests…</div>';
-  try {
-    var data = await adminApi("/api/v1/admin/cbt/subject-change-requests?status=pending");
-    var requests = data.requests || [];
-    if (!requests.length) {
-      wrap.innerHTML = '<div class="loading">No pending subject-change requests.</div>';
-      return;
-    }
-    wrap.innerHTML =
-      '<table class="data-table"><thead><tr>' +
-      "<th>Student</th><th>Board</th><th>Current</th><th>Requested</th><th>Reason</th><th>Actions</th>" +
-      "</tr></thead><tbody>" +
-      requests
-        .map(function (r) {
-          return (
-            "<tr>" +
-            "<td>" + escHtml(r.student_name) + "<br><small>" + escHtml(r.student_email) + "</small></td>" +
-            "<td><strong>" + escHtml(r.board) + "</strong></td>" +
-            "<td>" + escHtml((r.old_subjects || []).join(", ") || "—") + "</td>" +
-            "<td>" + escHtml((r.new_subjects || []).join(", ")) + "</td>" +
-            "<td>" + escHtml(r.reason || "—") + "</td>" +
-            '<td><button type="button" class="btn-sm" onclick="reviewSubjectChange(\'' + r.id + '\', \'approve\')">Approve</button> ' +
-            '<button type="button" class="btn-sm" onclick="reviewSubjectChange(\'' + r.id + '\', \'reject\')">Reject</button></td>' +
-            "</tr>"
-          );
-        })
-        .join("") +
-      "</tbody></table>";
-  } catch (e) {
-    wrap.innerHTML = '<div class="loading">Could not load: ' + escHtml(e.message) + "</div>";
-  }
-}
-
-async function reviewSubjectChange(requestId, decision) {
-  if (decision === "approve" && !confirm("Approve this subject change? The student's subjects update immediately.")) return;
-  try {
-    var res = await adminApi("/api/v1/admin/cbt/subject-change-requests/review", {
-      method: "POST",
-      body: JSON.stringify({ request_id: requestId, decision: decision }),
-    });
-    alert((res && res.message) || "Done.");
-    loadSubjectChangeRequests();
-  } catch (e) {
-    alert(e.message || "Action failed.");
   }
 }
