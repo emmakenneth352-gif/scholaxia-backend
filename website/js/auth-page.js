@@ -394,6 +394,17 @@
       finished = true;
       clearTimeout(watchdog);
       var msg = (err && err.message) || "Login failed";
+      var notVerified = err && err.data && err.data.detail && err.data.detail.code === "EMAIL_NOT_VERIFIED";
+      if (notVerified) {
+        pendingEmail = (err.data.detail.email || email).toLowerCase();
+        switchMode("signup");
+        try { $("signupEmail").value = pendingEmail; } catch (e1) {}
+        setVisible($("signupStepDetails"), false);
+        setVisible($("signupStepOtp"), true);
+        showErr($("otpError"), err.data.detail.message || "We sent a code to your email. Verify it to continue.");
+        try { $("signupOtp").focus(); } catch (e2) {}
+        return; // keep button state — user is now on the OTP step
+      }
       if (err && err.data && err.data.detail) {
         var d = err.data.detail;
         if (typeof d === "string") msg = d;

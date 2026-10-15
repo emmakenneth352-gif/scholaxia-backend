@@ -354,6 +354,20 @@
     });
   }
 
+  function handleSessionExpired() {
+    // Any 401 with an existing session means the token is invalid/expired —
+    // clear everything and force the user back to login.
+    try {
+      var hadSession = !!(getToken() || localStorage.getItem("sia_teacher_token") || localStorage.getItem("sia_school_token"));
+      var here = currentPageName();
+      var onAuthPage = here === "auth.html" || here === "portal.html" || here === "index.html";
+      if (hadSession && !onAuthPage) {
+        clearSession();
+        window.location.replace("portal.html?force=1&reason=auth");
+      }
+    } catch (e) {}
+  }
+
   async function parseResponse(res) {
     var text = await res.text();
     var data = null;
@@ -370,6 +384,7 @@
       var err = new Error(msg);
       err.status = res.status;
       err.data = data;
+      if (res.status === 401) handleSessionExpired();
       throw err;
     }
     return data;

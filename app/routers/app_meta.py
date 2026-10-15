@@ -21,4 +21,8 @@ async def app_version():
         "android_url": settings.APP_UPDATE_ANDROID_URL,
         "ios_url": settings.APP_UPDATE_IOS_URL,
         "message": settings.APP_UPDATE_MESSAGE,
+        # Desktop (Electron) fields
+        "desktop_latest_version": settings.APP_LATEST_DESKTOP_VERSION,
+        "desktop_url": settings.APP_DESKTOP_URL,
+        "desktop_message": settings.APP_DESKTOP_UPDATE_MESSAGE,
     }

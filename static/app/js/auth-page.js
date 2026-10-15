@@ -100,13 +100,7 @@
     }
     setVisible($("kindFields"), role === "kind" && mode === "signup");
     setVisible($("teacherFields"), role === "teacher" && mode === "signup");
-    // Vendor signup lives in the Marketplace only — hidden on the normal page.
-    var vendorBtn = document.querySelector(".role-btn[data-role='vendor']");
-    if (vendorBtn) {
-      vendorBtn.hidden = !marketMode;
-      vendorBtn.style.display = marketMode ? "" : "none";
-    }
-    if ($("vendorFields")) setVisible($("vendorFields"), role === "vendor" && mode === "signup");
+    setVisible($("vendorFields"), role === "vendor" && mode === "signup");
     setVisible($("teacherHint"), role === "teacher");
     setVisible($("vendorHint"), role === "vendor");
     $("btnSignup").disabled = false;
@@ -231,9 +225,10 @@
   function roleMismatch(selected, actual) {
     if (selected === "teacher") return "This account is not a teacher. Pick the correct role.";
     if (selected === "kind") return "This is not a Kid account. Choose Student or create a Kid account.";
+    if (selected === "vendor") return "This is not a vendor account. Choose Vendor to sell on Market.";
     if (actual === "teacher") return "This is a teacher account. Select Teacher above.";
     if (actual === "kind") return "This is a Kid account. Select Kid above.";
-    if (actual === "vendor") return "This is a vendor account. Vendors register through the Marketplace.";
+    if (actual === "vendor") return "This is a vendor account. Select Vendor above.";
     return "Account type does not match the role you selected.";
   }
 
@@ -278,6 +273,12 @@
     }
 
     redirectAfterAuth(actual);
+  }
+
+  function esc(s) {
+    return String(s || "").replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
   }
 
   /* ── School private-link branding (divine-light.scholaxia.com or /school/<slug>/ or ?school=<slug>) ── */
@@ -329,15 +330,7 @@
       })
       .catch(function () {
         if (sub) sub.textContent = "";
-        // Unknown/unapproved school: the backend already shows a friendly page
-        // for the root path; here just keep the default Scholaxia copy.
       });
-  }
-
-  function esc(s) {
-    return String(s || "").replace(/[&<>"']/g, function (c) {
-      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
-    });
   }
 
   async function onLogin(e) {
@@ -401,6 +394,17 @@
       finished = true;
       clearTimeout(watchdog);
       var msg = (err && err.message) || "Login failed";
+      var notVerified = err && err.data && err.data.detail && err.data.detail.code === "EMAIL_NOT_VERIFIED";
+      if (notVerified) {
+        pendingEmail = (err.data.detail.email || email).toLowerCase();
+        switchMode("signup");
+        try { $("signupEmail").value = pendingEmail; } catch (e1) {}
+        setVisible($("signupStepDetails"), false);
+        setVisible($("signupStepOtp"), true);
+        showErr($("otpError"), err.data.detail.message || "We sent a code to your email. Verify it to continue.");
+        try { $("signupOtp").focus(); } catch (e2) {}
+        return; // keep button state — user is now on the OTP step
+      }
       if (err && err.data && err.data.detail) {
         var d = err.data.detail;
         if (typeof d === "string") msg = d;
@@ -464,10 +468,10 @@
           throw new Error("Add at least one subject");
         }
       } else if (role === "vendor") {
-        body.business_name = $("signupBusiness") ? $("signupBusiness").value.trim() : "";
-        body.phone = $("signupVendorPhone") ? $("signupVendorPhone").value.trim() : "";
-        body.location = $("signupVendorLocation") ? $("signupVendorLocation").value.trim() : "";
-        body.address = $("signupVendorAddress") ? $("signupVendorAddress").value.trim() : "";
+        body.business_name = $("signupBusiness").value.trim();
+        body.phone = $("signupVendorPhone").value.trim();
+        body.location = $("signupVendorLocation").value.trim();
+        body.address = $("signupVendorAddress").value.trim();
         if (!body.business_name) throw new Error("Business name is required");
         if (!body.phone || body.phone.length < 7) {
           throw new Error("WhatsApp number is required");
@@ -475,22 +479,11 @@
         if (!body.location) throw new Error("Location is required");
         if (!body.address) throw new Error("Business address is required");
       }
-      var startRes = await api.api("/api/v1/auth/signup/start", {
+      await api.api("/api/v1/auth/signup/start", {
         method: "POST",
         noAuth: true,
         body: body,
       });
-      // Dev convenience: when the server runs with DEBUG=1 it returns the OTP in
-      // the response so signup can be tested without an email provider.
-      var devOtp = startRes && (startRes.debug_otp || (startRes.message && /code:\s*(\d{6})/.test(startRes.message) && RegExp.$1));
-      if (devOtp && /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
-        var hint = $("devOtpHint");
-        if (hint) {
-          hint.style.display = "";
-          hint.hidden = false;
-          hint.textContent = "Dev mode OTP: " + devOtp;
-        }
-      }
       pendingEmail = email;
       setVisible($("signupStepDetails"), false);
       setVisible($("signupStepOtp"), true);
@@ -542,6 +535,8 @@
       showErr($("signupError"), "Auth scripts failed to load. Refresh the page.");
       return;
     }
+
+    applySchoolBranding();
 
     applySchoolBranding();
 
@@ -693,7 +688,6 @@
     });
 
     var roleParam = params.get("role");
-    if (roleParam === "vendor" && !marketMode) roleParam = null; // vendor signup is Marketplace-only
     if (roleParam && (ROLE_META[roleParam] || MARKET_ROLE_META[roleParam])) {
       setRole(roleParam);
     } else if (marketMode) {

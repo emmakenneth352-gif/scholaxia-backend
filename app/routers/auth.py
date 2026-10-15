@@ -862,6 +862,33 @@ async def _login_user(payload: LoginRequest, db: AsyncSession):
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Account disabled")
 
+    # Email signup finished but OTP never verified — take the user to the
+    # verification step instead of logging them in.
+    if not getattr(user, "is_verified", True) and email_raw:
+        try:
+            await send_otp(email_raw, str(user.full_name or "there"), "signup")
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=502,
+                detail="Could not send the verification email ("
+                + str(e)[:120].replace("\n", " ")
+                + "). Try again in a minute.",
+            )
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "EMAIL_NOT_VERIFIED",
+                "message": (
+                    "Your email is not verified yet — we just sent a new code to "
+                    + email_raw
+                    + ". Verify it to continue."
+                ),
+                "email": email_raw,
+            },
+        )
+
     role = str(getattr(user, "role", "student") or "student").replace("UserRole.", "").lower()
     school_name = None
     school_sub = False

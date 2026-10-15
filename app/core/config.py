@@ -56,6 +56,14 @@ class Settings(BaseSettings):
     APP_UPDATE_MESSAGE: str = (
         "A new version of Scholaxia is available with improvements and new features."
     )
+    # Desktop app (Electron) update support — the desktop checks /app/version
+    # and shows a download banner when its version is older. Set this to the
+    # public download link for the newest Scholaxia-Student-Setup installer.
+    APP_LATEST_DESKTOP_VERSION: str = "1.0.4"
+    APP_DESKTOP_URL: str = ""
+    APP_DESKTOP_UPDATE_MESSAGE: str = (
+        "A new version of the Scholaxia desktop app is available. Please install it."
+    )
 
     # Flutterwave (live class payments)
     FLUTTERWAVE_PUBLIC_KEY: str = ""
