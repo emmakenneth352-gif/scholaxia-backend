@@ -561,52 +561,83 @@ body.classroom-board-open .board-overlay:not(.hidden) {
   object-fit: contain !important;
 }
 
-/* ===== WHITEBOARD PERMANENTLY DISABLED ===== */
 .board-overlay {
-  display: none !important;
+  position: absolute; inset: 0; z-index: 5;
+  display: flex; flex-direction: column; background: #0d1110;
 }
 .board-overlay.view-only .whiteboard-canvas { cursor: default; pointer-events: none; }
 .board-scroll {
-  display: none !important;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  -webkit-overflow-scrolling: touch;
 }
 .whiteboard-canvas {
-  display: none !important;
+  display: block; width: 100%; min-height: 100%;
+  background: #1a2420; cursor: crosshair; touch-action: none;
+}
+.reaction-bar {
+  display: inline-flex; align-items: center; gap: 2px;
+  margin-left: 4px;
+}
+.reaction-btn {
+  min-width: 36px; padding: 6px 8px !important; font-size: 1rem !important;
+}
+.reaction-overlay {
+  pointer-events: none;
+  position: absolute; inset: 0; z-index: 28;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.reaction-burst {
+  position: absolute;
+  font-size: 2.6rem;
+  animation: reaction-fly 1.6s ease-out forwards;
+  filter: drop-shadow(0 4px 10px rgba(0,0,0,0.45));
+}
+@keyframes reaction-fly {
+  0% { opacity: 0; transform: translateY(28px) scale(0.6); }
+  20% { opacity: 1; transform: translateY(0) scale(1.15); }
+  100% { opacity: 0; transform: translateY(-70px) scale(1); }
 }
 .board-toolbar {
-  display: none !important;
+  background: #1a1228; border-top: 1px solid #2e1f4a; padding: 10px 12px;
+  max-height: 42%; overflow-y: auto;
 }
 .board-toolbar-row {
-  display: none !important;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px;
 }
-.board-label { display: none !important; }
-.board-toolbar select { display: none !important; }
+.board-label { font-size: 0.78rem; color: #a78bfa; }
+.board-toolbar select {
+  padding: 6px 10px; border-radius: 6px; border: 1px solid #6d28d9;
+  background: #0a0612; color: #f5f3ff; font-size: 0.82rem;
+}
 .vc-btn.sm { padding: 5px 10px; font-size: 0.78rem; }
 .symbol-palette {
-  display: none !important;
+  display: flex; flex-wrap: wrap; gap: 5px;
 }
 .sym-btn {
-  display: none !important;
+  min-width: 34px; padding: 5px 8px; border-radius: 6px;
+  border: 1px solid #6d28d9; background: #13091f; color: #f5f3ff;
+  font-size: 0.9rem; cursor: pointer; line-height: 1.2;
 }
-.board-type-row { display: none !important; }
+.sym-btn:hover { background: #2e1065; border-color: #7c3aed; }
+.sym-btn.active { background: #5b21b6; border-color: #c4b5fd; }
+.board-type-row { margin-bottom: 8px; }
 .board-type-input {
-  display: none !important;
+  width: 100%; padding: 10px 12px; border-radius: 8px;
+  border: 1px solid #7c3aed; background: #0a0612; color: #fff;
+  font-size: 1rem; font-family: inherit;
 }
+.board-type-input:focus { outline: none; border-color: #c4b5fd; box-shadow: 0 0 0 2px rgba(125, 211, 160, 0.2); }
+.board-toolbar .vc-btn.sm.active { background: #5b21b6; border-color: #c4b5fd; color: #fff; }
 .board-cursor {
-  display: none !important;
+  position: absolute; width: 2px; height: 28px; background: #c4b5fd;
+  pointer-events: none; z-index: 6; animation: cursor-blink 1s step-end infinite;
 }
-#btn-board {
-  display: none !important;
-}
-.btn-board {
-  display: none !important;
-}
-[data-spot="board"] {
-  display: none !important;
-}
-.board-toggle {
-  display: none !important;
-}
-
+@keyframes cursor-blink { 50% { opacity: 0; } }
 .video-controls .host-only.hidden { display: none !important; }
 .video-controls .student-only.hidden { display: none !important; }
 .save-live-badge {
@@ -928,21 +959,42 @@ body:not(.classroom-chrome-hidden) .classroom-chrome-toggle {
     height: 90px !important;
     max-width: 120px !important;
   }
-  /* ===== WHITEBOARD HIDDEN ON MOBILE ===== */
   .board-overlay {
-    display: none !important;
+    inset: 0;
+    width: 100%;
+    max-width: 100vw;
+    z-index: 14;
+    display: flex;
+    flex-direction: column;
+    background: #1a2420;
+  }
+  .board-overlay:not(.hidden) {
+    display: flex !important;
   }
   .board-scroll {
-    display: none !important;
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    display: block;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
   }
   .whiteboard-canvas {
-    display: none !important;
+    width: 100% !important;
+    min-height: 100%;
+    max-width: 100%;
+    display: block;
+    background: #1a2420;
   }
   .board-toolbar {
-    display: none !important;
+    max-height: 24vh;
+    padding: 6px 8px;
+    flex: 0 0 auto;
   }
   .board-type-input {
-    display: none !important;
+    font-size: 0.88rem;
+    padding: 8px 10px;
   }
   .participants-list {
     max-height: 36px;
@@ -1292,30 +1344,6 @@ body:not(.classroom-chrome-hidden) .classroom-chrome-toggle {
 }
 .chat-unread.hidden { display: none !important; }
 #btn-chat { position: relative; }
-
-.reaction-overlay {
-  pointer-events: none;
-  position: absolute;
-  inset: 0;
-  z-index: 28;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-
-.reaction-burst {
-  position: absolute;
-  font-size: 2.6rem;
-  animation: reaction-fly 1.6s ease-out forwards;
-  filter: drop-shadow(0 4px 10px rgba(0,0,0,0.45));
-}
-
-@keyframes reaction-fly {
-  0% { opacity: 0; transform: translateY(28px) scale(0.6); }
-  20% { opacity: 1; transform: translateY(0) scale(1.15); }
-  100% { opacity: 0; transform: translateY(-70px) scale(1); }
-}
 
 .bottom-sheet {
   position: fixed;
@@ -2087,7 +2115,9 @@ body.meet-v2 .meet-sidebar {
     max-height: 30vh;
   }
   body.meet-v2 .whiteboard-canvas {
-    display: none !important;
+    width: 100% !important;
+    height: auto !important;
+    max-width: 100%;
   }
 }
 
@@ -2187,13 +2217,15 @@ body.meet-stage-fullscreen #btn-stage-fullscreen {
   }
 }
 
-/* Board — permanently disabled */
+/* Board — readable text when canvas is scaled down on phones */
 @media (max-width: 900px) {
   .board-scroll {
-    display: none !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
   }
   .whiteboard-canvas {
-    display: none !important;
+    min-height: 100%;
   }
 }
 

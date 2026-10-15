@@ -108,12 +108,17 @@ async def broadcast(room_id: str, message: dict, exclude: WebSocket = None):
     conns = list(rooms.get(room_id) or [])
     if not conns:
         return
+    payload = json.dumps(message)
     dead = []
     for conn in conns:
         if conn["ws"] == exclude:
             continue
         try:
-            await conn["ws"].send_text(json.dumps(message))
+            # A slow/dead client must never stall the room: board text, erase
+            # and clear must reach every healthy student the same frame the
+            # teacher sends them. Cap each send; the laggard is dropped and
+            # rejoins via the normal reconnect path.
+            await asyncio.wait_for(conn["ws"].send_text(payload), timeout=3)
         except Exception:
             dead.append(conn)
     if dead:
