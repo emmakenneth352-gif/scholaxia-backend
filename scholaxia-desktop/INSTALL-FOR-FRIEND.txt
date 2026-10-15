@@ -7,8 +7,8 @@ WHICH FILE TO USE
 -----------------
 Try in this order:
 
-  1. Scholaxia-Student-Portable-1.0.1.exe  (no install — try this FIRST if Setup failed)
-  2. Scholaxia-Student-Setup-1.0.1.exe     (installer)
+  1. Scholaxia-Student-Portable-1.0.4.exe  (no install — try this FIRST if Setup failed)
+  2. Scholaxia-Student-Setup-1.0.4.exe     (installer)
 
 IMPORTANT: Download the full file (~45 MB). If sent via WhatsApp, the file may be
 corrupted — ask for a Google Drive / WeTransfer link instead.

@@ -36,8 +36,8 @@ var ROLE_CONFIG = {
   exam: {
     portalTitle: { login: "EXAM PORTAL", signup: "EXAM PORTAL" },
     portalSub: {
-      login: "Internal Examination — registration number + access code",
-      signup: "Internal Examination — registration number + access code",
+      login: "School Examination — registration number + access code",
+      signup: "School Examination — registration number + access code",
     },
     signupBtn: "CREATE ACCOUNT",
     expectedRole: "exam",
@@ -195,7 +195,7 @@ function updatePortalCopy() {
 
   if (examActive) {
     document.getElementById("portal-title").textContent = "EXAM PORTAL";
-    document.getElementById("portal-sub").textContent = "Internal Examination — registration number + access code";
+    document.getElementById("portal-sub").textContent = "School Examination — registration number + access code";
   } else {
     document.getElementById("portal-title").textContent = cfg.portalTitle[mode];
     document.getElementById("portal-sub").textContent = cfg.portalSub[mode];
@@ -311,7 +311,7 @@ function switchTab(tab) {
   updatePortalCopy();
 }
 
-/* Exam tab: reg number + access code → the Internal Examination portal.
+/* Exam tab: reg number + access code → the School Examination portal.
    Separate session keys (sia_exam_token/user) so an exam session never mixes
    with the student/teacher app session. The portal page (exam.html) keeps its
    own offline engine — packages downloaded there work with no internet. */
@@ -488,6 +488,15 @@ async function login(e) {
     });
     var data = await res.json();
     if (!res.ok) {
+      // Unverified email: backend auto-sends an OTP and asks us to verify.
+      if (res.status === 403 && data.detail && data.detail.code === "EMAIL_NOT_VERIFIED") {
+        pendingSignupEmail = (data.detail.email || (isEmailId ? email : "")).toLowerCase();
+        showSignupOtpStep(pendingSignupEmail);
+        document.getElementById("signup-otp-error").textContent =
+          data.detail.message || "We sent a code to your email. Verify it to continue.";
+        try { document.getElementById("signup-otp").focus(); } catch (e1) {}
+        return; // finally re-enables the login button
+      }
       err.textContent = typeof data.detail === "string" ? data.detail : "Login failed.";
       return;
     }

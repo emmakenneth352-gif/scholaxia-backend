@@ -123,10 +123,29 @@ app.whenReady().then(async () => {
     appBaseUrl = "";
   }
   createWindow();
+  watchForNewInstall();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
+
+(function exposeVersion() {
+  try {
+    const { contextBridge } = require("electron");
+    contextBridge.exposeInMainWorld("scholaxiaDesktop", {
+      appVersion: app.getVersion(),
+    });
+  } catch (e) {
+    console.error("Could not expose app version", e);
+  }
+})();
+
+function watchForNewInstall() {
+  // Nudge already-installing users: once the new Setup runs, the old
+  // installed copy is replaced and old versions keep working until then.
+  const exe = process.execPath || "";
+  console.log("[Scholaxia] desktop running version", app.getVersion(), "from", exe);
+}
 
 app.on("before-quit", () => {
   stopDesktopServer();

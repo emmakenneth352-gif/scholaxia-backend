@@ -1748,3 +1748,56 @@ html[data-app-theme="dark"] .mp-cart-close { background: #322c4d; color: #f0edff
 html[data-app-theme="dark"] .mp-cart-row { border-color: #3a3357; }
 html[data-app-theme="dark"] .modal-box { background: #242038; color: #f0edff; }
 html[data-app-theme="dark"] .subj-chip { border-color: #3a3357; color: #f0edff; }
+
+/* ========== Study gate — any paid subscription unlocks videos/library/coding ========== */
+.study-gate { margin: 12px 0 16px; }
+.study-gate[hidden] { display: none !important; }
+.study-gate-card {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  text-align: center; padding: 24px 18px;
+  border: 1px dashed #c4b5fd; border-radius: 16px; background: #faf5ff;
+}
+.study-gate-ico { font-size: 28px; }
+.study-gate-card h3 { margin: 0; font-size: 1.05rem; }
+.study-gate-card p { margin: 0; max-width: 34rem; color: #5b21b6; font-size: 0.92rem; }
+
+/* Study gate — dark mode */
+html[data-app-theme="dark"] .study-gate-card {
+  background: #2a2540;
+  border-color: #4c4070;
+}
+html[data-app-theme="dark"] .study-gate-card h3 { color: #f0edff; }
+html[data-app-theme="dark"] .study-gate-card p { color: #c4bce4; }
+html[data-app-theme="dark"] .study-gate-card input[type="text"] {
+  background: #221d36;
+  border-color: #3a3357;
+  color: #f0edff;
+}
+html[data-app-theme="dark"] .study-gate-card input[type="text"]::placeholder { color: #8f87ad; }
+html[data-app-theme="dark"] .study-gate-card input[type="text"]:focus {
+  border-color: #8b5cf6;
+  outline: none;
+}
+html[data-app-theme="dark"] .study-gate-card p[id$="CouponMsgDesktop"],
+html[data-app-theme="dark"] .study-gate-card p[id$="CouponMsg"] { color: #b9a7e8; }
+html[data-app-theme="dark"] .study-mat-card {
+  background: #242038;
+  border-color: #3a3357;
+}
+html[data-app-theme="dark"] .study-mat-meta { color: #b9b1d8; }
+
+/* ========== Exam screen: subjects row on top, question next, numbers below ========== */
+@media (max-width: 900px) {
+  .exam-screen .exam-body,
+  .exam-body { display: flex !important; flex-direction: column !important; }
+  .exam-screen .exam-question-area,
+  .exam-question-area { order: 2 !important; }
+  .exam-screen .q-nav,
+  .exam-nav { order: 3 !important; max-height: none !important; }
+  .exam-section-bar { position: sticky; top: 0; z-index: 5; }
+  .exam-section-tabs {
+    display: flex; flex-wrap: nowrap !important;
+    overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin;
+  }
+  .exam-section-tab { flex: 0 0 auto; white-space: nowrap; }
+}
