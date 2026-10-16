@@ -578,21 +578,6 @@
     return hint || false;
   }
 
-  function skillsListHtml() {
-    var rows = "";
-    var cats = ["academics", "web design", "app development", "software development", "digital marketing", "graphics design", "cyber security", "data analysis"];
-    var s = _skillAccess.skills || {};
-    cats.forEach(function (c) {
-      var on = skillUnlocked(c) || (c === "academics" && s.academics && s.academics.active);
-      rows +=
-        '<li style="display:flex;gap:0.5rem;align-items:center;font-size:0.85rem;padding:0.15rem 0">' +
-        (on ? "✅ <strong style='color:#0a7d33'>" + c.replace(/\\b\\w/g, function (w) { return w.toUpperCase(); }) + "</strong> unlocked"
-            : "🔒 " + c.replace(/\\b\\w/g, function (w) { return w.toUpperCase(); })) +
-        "</li>";
-    });
-    return rows;
-  }
-
   function renderStudyGate(unlocked, info) {
     var bannerHtml = "";
     if (unlocked) {
