@@ -18,6 +18,7 @@
     en: {
       currency_label: '🌍 Prices shown in:',
       nav_home: 'Home', nav_cbt: 'CBT Practice', nav_pq: 'Past questions',
+      nav_exam: 'School Exam',
       nav_market: 'Marketplace', nav_affiliate: 'Affiliate',
       nav_contact: 'Contact', nav_about: 'About',
       btn_marketplace: 'Marketplace', btn_join: 'Join', btn_join_free: 'Join free',
@@ -78,6 +79,7 @@
     fr: {
       currency_label: '🌍 Prix affichés en :',
       nav_home: 'Accueil', nav_cbt: 'Pratique CBT', nav_pq: 'Annales',
+      nav_exam: 'Examen scolaire',
       nav_market: 'Marché', nav_affiliate: 'Affiliation',
       nav_contact: 'Contact', nav_about: 'À propos',
       btn_marketplace: 'Marché', btn_join: 'Rejoindre', btn_join_free: 'Rejoindre gratuitement',
@@ -138,6 +140,7 @@
     pt: {
       currency_label: '🌍 Preços exibidos em:',
       nav_home: 'Início', nav_cbt: 'Prática CBT', nav_pq: 'Questões anteriores',
+      nav_exam: 'Prova escolar',
       nav_market: 'Mercado', nav_affiliate: 'Afiliado',
       nav_contact: 'Contato', nav_about: 'Sobre',
       btn_marketplace: 'Mercado', btn_join: 'Entrar', btn_join_free: 'Entrar grátis',
@@ -198,6 +201,7 @@
     ar: {
       currency_label: '🌍 الأسعار المعروضة بـ:',
       nav_home: 'الرئيسية', nav_cbt: 'تدريب CBT', nav_pq: 'أسئلة سابقة',
+      nav_exam: 'امتحان مدرسي',
       nav_market: 'السوق', nav_affiliate: 'الشراكة',
       nav_contact: 'اتصل بنا', nav_about: 'حول',
       btn_marketplace: 'السوق', btn_join: 'انضم', btn_join_free: 'انضم مجاناً',

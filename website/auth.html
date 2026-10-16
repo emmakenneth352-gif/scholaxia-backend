@@ -207,5 +207,32 @@
     <script src="js/i18n.js?v=31"></script>
     <script src="js/api.js?v=20260927a"></script>
     <script src="js/auth-page.js?v=20260927a"></script>
+    <script>
+      /* Show-password eye toggle on Login + Signup password fields. */
+      (function () {
+        var CSS = ".pw-eye{position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:0;cursor:pointer;font-size:1.05rem;line-height:1;padding:4px;color:#47546a;opacity:.85}.pw-eye:hover{opacity:1}.pw-wrap{position:relative;padding-right:40px}";
+        var style = document.createElement("style");
+        style.textContent = CSS;
+        document.head.appendChild(style);
+        ["loginPassword", "signupPassword"].forEach(function (id) {
+          var input = document.getElementById(id);
+          if (!input) return;
+          var wrap = document.createElement("span");
+          wrap.className = "pw-wrap";
+          input.parentNode.insertBefore(wrap, input);
+          wrap.appendChild(input);
+          wrap.insertAdjacentHTML(
+            "beforeend",
+            '<button type="button" class="pw-eye" title="Show password" aria-label="Show password">👁︎</button>'
+          );
+          wrap.querySelector(".pw-eye").addEventListener("click", function () {
+            var showing = input.type === "text";
+            input.type = showing ? "password" : "text";
+            this.textContent = showing ? "👁︎" : "🙈";
+            this.title = this.setAttribute("aria-label", showing ? "Show password" : "Hide password");
+          });
+        });
+      })();
+    </script>
   </body>
 </html>

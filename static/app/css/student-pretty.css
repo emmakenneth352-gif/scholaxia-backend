@@ -1770,3 +1770,48 @@ body.app-body {
     pointer-events: auto !important;
   }
 }
+
+/* ========== Study gate — any paid subscription unlocks videos/library/coding ========== */
+.study-gate { margin: 0.75rem 0 1rem; }
+.study-gate[hidden] { display: none !important; }
+.study-gate-card {
+  display: flex; flex-direction: column; align-items: center; gap: 0.55rem;
+  text-align: center; padding: 1.6rem 1.2rem;
+  border: 1px dashed #c4b5fd; border-radius: 16px; background: #faf5ff;
+}
+.study-gate-ico { font-size: 1.8rem; }
+.study-gate-card h3 { margin: 0; font-size: 1.1rem; }
+.study-gate-card p { margin: 0; max-width: 34rem; color: #5b21b6; font-size: 0.95rem; }
+.study-unlock-banner {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.6rem 0.9rem; margin: 0.4rem 0 0.9rem;
+  border-radius: 12px; background: #ecfdf5; color: #065f46;
+  font-weight: 700; font-size: 0.92rem;
+}
+
+/* ========== Mobile exam layout — subjects strip, then question, then numbers ========== */
+@media (max-width: 900px) {
+  .exam-body { display: flex; flex-direction: column; }
+  .exam-nav { order: 3 !important; max-height: none !important; border-bottom: 0 !important; border-top: 1px solid var(--line); }
+  .exam-question-area { order: 2 !important; }
+  .exam-section-bar { order: -1; position: sticky; top: 0; z-index: 5; }
+  /* Subject pills in ONE horizontal scrolling row */
+  .exam-section-tabs {
+    display: flex; flex-wrap: nowrap !important;
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin; padding-bottom: 2px;
+  }
+  .exam-section-tab { flex: 0 0 auto; white-space: nowrap; }
+  /* Re-title the numbers pad */
+  .exam-nav-label { margin: 0.35rem 0; }
+  .exam-nav { display: flex; flex-direction: column; }
+  .exam-legend { display: flex; gap: 0.8rem; flex-wrap: wrap; }
+  /* Keep question stage comfortable above the numbers */
+  .exam-question-area { padding-bottom: 0.75rem; }
+  /* Floating language pills: out of the way on small screens (never overlap options) */
+  .sx-page-lang { right: 6px !important; bottom: 6px !important; z-index: 40000 !important; }
+  .sx-page-lang button { padding: 3px 5px !important; font-size: 9px !important; }
+  /* Collapsed pill: only the active language shows; tap or hover expands the buttons */
+  .sx-page-lang:not(:focus-within):not(:hover) button:not(.active) { display: none; }
+  .sx-page-lang:not(:focus-within):not(:hover) { opacity: 0.9; }
+}
