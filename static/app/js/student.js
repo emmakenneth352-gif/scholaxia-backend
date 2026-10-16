@@ -631,7 +631,7 @@
             '<button type="button" class="btn btn-primary" id="studyCouponRedeemBtn">Redeem</button>' +
             "</div>" +
             '<p class="coupon-msg" id="studyCouponMsg" style="margin:0.45rem 0 0;color:#47546a;font-size:0.85rem"></p>' +
-            ((unlocked || anySkill) ? "" : "<ul style='margin:0.5rem 0 0;padding-left:1.1rem;color:#47546a'>" + skillsListHtml() + "</ul>") +
+            ((unlocked || anySkill) ? "" : "") +
           "</div>"
         );
       }
