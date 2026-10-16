@@ -1297,14 +1297,11 @@
     var wrap = $("libraryGrid");
     if (!wrap) return;
     wrap.innerHTML = loadingHtml("Loading library…");
-    fetchStudyAccess().then(function (access) {
-      renderStudyGate(!!(access && access.unlocked), access);
-      if (!(access && access.unlocked)) {
-        wrap.innerHTML = "";
-        return;
-      }
-      loadLibraryInner(wrap);
-    });
+    // Library is FREE for everyone now (owner request): the material shop must
+    // be visible so students can buy individual items — no subscription gate.
+    var gate = document.querySelector("#page-library .study-gate");
+    if (gate) gate.hidden = true;
+    loadLibraryInner(wrap);
   }
 
   function loadLibraryInner(wrap) {
