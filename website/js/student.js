@@ -748,14 +748,11 @@
 
   function filterLessonNotes() {
     var q = (($("lessonNotesSearch") && $("lessonNotesSearch").value) || "").trim().toLowerCase();
-    if (!q) {
-      renderLessonVideos(lessonVideosCache);
-      return;
-    }
-    var filteredVideos = lessonVideosCache.filter(function (it) {
+    var items = lessonVideosCache.filter(function (it) {
       var cat = videoCategoryOf(it);
-      // Per-skill activation: hidden until that skill's code is redeemed.
+      // Per-skill activation: a category's videos stay hidden until that skill is unlocked.
       if (!skillUnlocked(cat)) return false;
+      if (!q) return true;
       var blob = [
         it.title,
         it.subject,
@@ -771,7 +768,7 @@
         .toLowerCase();
       return blob.indexOf(q) >= 0;
     });
-    renderLessonVideos(filteredVideos);
+    renderLessonVideos(items);
   }
 
   function loadStudyMaterials() {
