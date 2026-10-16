@@ -35,6 +35,7 @@ from app.routers import marketplace
 from app.routers import kid_games
 from app.routers import sil
 from app.routers import cbt_coupons, cbt_practice, videos, school_office, school_cbt, schools, external_exams
+from app.routers import study_coupons
 from app.routers import cbt_subject_change
 from app.routers import school_core, school_results_router
 from app.routers import past_questions_shop
@@ -110,6 +111,7 @@ app.include_router(kid_games.router, prefix="/api/v1")
 app.include_router(kid_games.admin_router, prefix="/api/v1")
 app.include_router(sil.router, prefix="/api/v1")
 app.include_router(cbt_coupons.router, prefix="/api/v1")
+app.include_router(study_coupons.router, prefix="/api/v1")
 app.include_router(videos.router, prefix="/api/v1")
 app.include_router(school_office.router, prefix="/api/v1")
 app.include_router(school_office.portal_router, prefix="/api/v1")

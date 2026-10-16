@@ -16,6 +16,18 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Video tutorials"])
 
 
+@router.get("/study-access")
+async def study_access(
+    current_user: dict = Depends(require_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Whether this student's ANY paid subscription unlocks Video Tutorials + Library."""
+    from app.services.study_access import get_study_access_info
+
+    info = await get_study_access_info(db, current_user["sub"])
+    return info
+
+
 async def ensure_videos_table() -> None:
     stmts = (
         """
