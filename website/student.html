@@ -37,7 +37,6 @@
         <nav class="side-nav" id="studentNav">
           <button class="side-link is-active" data-page="home" type="button"><span class="ico">⌂</span>Home</button>
           <button class="side-link" data-page="study-materials" type="button"><span class="ico">▶</span>Video Tutorials</button>
-          <button class="side-link" data-page="coding" type="button"><span class="ico">💻</span>Coding Tutorials</button>
           <button class="side-link" data-page="past-questions" type="button"><span class="ico">📄</span>Past Questions</button>
           <button class="side-link" data-page="cbt" type="button"><span class="ico">📝</span>My CBT</button>
           <button class="side-link" data-page="school-portal" type="button"><span class="ico">🏫</span>Examinations</button>
@@ -149,9 +148,10 @@
                 <div class="study-gate-card">
                   <span class="study-gate-ico">🔒</span>
                   <h3 id="studyGateTitle">Activation code required</h3>
+                  <button type="button" class="btn btn-primary" data-goto="study-materials" id="studyGateFocusCode" hidden>Unlock with a code →</button>
                 </div>
               </div>
-              <div class="form-field" id="lessonSearchWrap" style="margin:0.75rem 0 1rem">
+              <div class="form-field" id="lessonSearchWrap" style="margin:0.75rem 0 0.5rem">
                 <label for="lessonNotesSearch">Search</label>
                 <input
                   id="lessonNotesSearch"
@@ -160,36 +160,18 @@
                   autocomplete="off"
                 />
               </div>
+              <div class="tabs video-cat-chips" id="videosCatWrap" style="margin-bottom:1rem;flex-wrap:wrap;gap:0.4rem">
+                <button type="button" class="tab is-active" data-vcat="all">All</button>
+                <button type="button" class="tab" data-vcat="academics">Academics</button>
+                <button type="button" class="tab" data-vcat="web design">Web Design</button>
+                <button type="button" class="tab" data-vcat="app development">App Development</button>
+                <button type="button" class="tab" data-vcat="software development">Software Development</button>
+                <button type="button" class="tab" data-vcat="digital marketing">Digital Marketing</button>
+                <button type="button" class="tab" data-vcat="graphics design">Graphics Design</button>
+                <button type="button" class="tab" data-vcat="cyber security">Cyber Security</button>
+                <button type="button" class="tab" data-vcat="data analysis">Data Analysis</button>
+              </div>
               <div class="card-grid" id="studyMaterialsList"><div class="loading-state">Loading video tutorials…</div></div>
-            </div>
-          </section>
-
-          <!-- ================= CODING TUTORIALS ================= -->
-          <section class="page" id="page-coding">
-            <div class="panel">
-              <div class="panel-head">
-                <div>
-                  <h2>Coding Tutorials</h2>
-                  <p>Learn to code — HTML, CSS, JavaScript, Python and more. Same subscription unlocks these lessons.</p>
-                </div>
-                <button type="button" class="btn btn-mini" data-refresh="coding">⟲ Refresh</button>
-              </div>
-              <div class="study-gate" id="codingGate" hidden>
-                <div class="study-gate-card">
-                  <span class="study-gate-ico">🔒</span>
-                  <h3>Activation code required</h3>
-                </div>
-              </div>
-              <div class="form-field" id="codingSearchWrap" style="margin:0.75rem 0 1rem">
-                <label for="codingSearch">Search</label>
-                <input
-                  id="codingSearch"
-                  type="search"
-                  placeholder="Search coding lessons…"
-                  autocomplete="off"
-                />
-              </div>
-              <div class="card-grid" id="codingList"><div class="loading-state">Loading coding tutorials…</div></div>
             </div>
           </section>
 

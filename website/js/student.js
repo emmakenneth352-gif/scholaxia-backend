@@ -311,7 +311,7 @@
   var PAGE_LOADERS = {
     home: loadHome,
     "study-materials": loadStudyMaterials,
-    coding: loadCodingTutorials,
+    coding: loadStudyMaterials, // legacy page id → same unified Video Tutorials page
     "past-questions": loadPastQuestions,
     cbt: loadCbt,
     school: loadSchoolExams,
@@ -565,34 +565,17 @@
   // Per-skill state from /api/v1/study-access → {unlocked, all_unlocked, skills{}}.
   var _skillAccess = { unlocked: false, all_unlocked: false, skills: {} };
 
-  var VIDEO_SKILL_CATS = [
-    "web design", "app development", "software development", "digital marketing",
-    "graphics design", "cyber security", "data analysis",
-  ];
-
   function skillUnlocked(cat) {
     if (_skillAccess.all_unlocked) return true;
     var s = _skillAccess.skills || {};
+    if (cat === "all") return !!s.academics && s.academics.active !== false && !!(Object.keys(s).length);
     var entry = s[cat];
     if (entry && entry.active) return true;
-    return false;
-  }
-
-  function videoCategoryOf(it) {
-    var blob = [it.category, it.subject, it.topic, it.tags, it.title, it.exam_type]
-      .filter(Boolean).join(" ").toLowerCase();
-    for (var i = 0; i < VIDEO_SKILL_CATS.length; i++) {
-      var cat = VIDEO_SKILL_CATS[i];
-      if (blob.indexOf(cat) >= 0) return cat;
-      var words = cat.split(" ");
-      if (words.length === 2 && blob.indexOf(words[words.length - 1]) >= 0 && words[words.length - 1].length > 4 && blob.indexOf(words[0]) >= 0) return cat;
-    }
-    return "academics";
-  }
-
-  function anySkillActive() {
-    var s = _skillAccess.skills || {};
-    return Object.keys(s).some(function (k) { return s[k] && s[k].active; });
+    // A skill-hidden-by-name category (e.g. "app development" under "development")
+    var hint = Object.keys(s).some(function (k) {
+      return entry !== undefined && k.indexOf(cat) >= 0 && s[k].active;
+    });
+    return hint || false;
   }
 
   function renderStudyGate(unlocked, info) {
@@ -603,11 +586,10 @@
         esc((info && (info.all_unlocked ? "All skills" : "Activation code")) || "Activation code") +
         " active — enter a new code below to unlock more skills</div>";
     }
-    var anySkill = unlocked && anySkillActive();
-    pickGateTags($("page-study-materials")).forEach(function (g) { g.hidden = !anySkill; });
-    pickGateTags($("page-library")).forEach(function (g) { g.hidden = !anySkill; });
-    pickGateTags($("page-coding")).forEach(function (g) { g.hidden = !anySkill; });
-    ["studyMaterialsList", "libraryGrid", "codingList", "libToolbar", "lessonSearchWrap", "codingSearchWrap"].forEach(function (id) {
+    var anySkill = unlocked && !!(Object.keys(_skillAccess.skills || {}).length);
+    pickGateTags($("page-study-materials")).forEach(function (g) { g.hidden = !!anySkill; });
+    pickGateTags($("page-library")).forEach(function (g) { g.hidden = !!anySkill; });
+    ["studyMaterialsList", "libraryGrid", "libToolbar", "lessonSearchWrap", "videosCatWrap"].forEach(function (id) {
       var el = $(id);
       if (!el) return;
       if (anySkill) {
@@ -619,11 +601,11 @@
       }
     });
 
-    // Redeem box — always available so a student can add more skills later.
+    // Redeem box — ALWAYS visible so students can add more skills later.
     var sPage = $("page-study-materials");
     if (sPage && !sPage.querySelector(".study-coupon-box")) {
       var gate = sPage.querySelector(".study-gate");
-      var host = gate ? gate.querySelector(".study-gate-card") : null;
+      var host = gate ? gate.querySelector(".study-gate-card") : $("videosCatWrap");
       if (host) {
         host.insertAdjacentHTML(
           "beforeend",
@@ -634,6 +616,7 @@
             '<button type="button" class="btn btn-primary" id="studyCouponRedeemBtn">Redeem</button>' +
             "</div>" +
             '<p class="coupon-msg" id="studyCouponMsg" style="margin:0.45rem 0 0;color:#47546a;font-size:0.85rem"></p>' +
+            ((unlocked || anySkill) ? "" : "") +
           "</div>"
         );
       }
@@ -660,10 +643,11 @@
       });
       msg.textContent = (res && res.message) || "🎉 Code accepted!";
       msg.style.color = "#0a7d33";
+      // immediate unlock
       _studyAccessPromise = null;
       var access = await fetchStudyAccess();
-      _skillAccess = access || _skillAccess;
       renderStudyGate(!!(access && access.unlocked), access);
+      _skillAccess = access || _skillAccess;
       loadStudyMaterials();
     } catch (e2) {
       msg.textContent = (e2 && e2.message) || "Could not redeem this code.";
@@ -696,13 +680,50 @@
 
   var lessonVideosCache = [];
 
+  /* =====================================================================
+     VIDEO TUTORIALS — one page with category chips.
+     Chips: All · Academics (school subjects) · the 7 skill categories.
+     Admin marks a video's category with the skill name (e.g. "Web Design").
+     ===================================================================== */
+
+  var VIDEO_SKILL_CATS = [
+    "web design",
+    "app development",
+    "software development",
+    "digital marketing",
+    "graphics design",
+    "cyber security",
+    "data analysis",
+  ];
+  var _videoCat = "all";
+
+  function videoCategoryOf(it) {
+    var blob = [it.category, it.subject, it.topic, it.tags, it.title, it.exam_type]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    for (var i = 0; i < VIDEO_SKILL_CATS.length; i++) {
+      var cat = VIDEO_SKILL_CATS[i];
+      var words = cat.split(" ");
+      var idx = blob.indexOf(cat);
+      if (idx >= 0) return cat;
+      // partial-word match e.g. "graphics" or "marketing" alone
+      if (words.length === 2 && blob.indexOf(words[words.length - 1]) >= 0 && words[words.length - 1].length > 4) {
+        if (blob.indexOf(words[0]) >= 0) return cat;
+      }
+    }
+    return "academics";
+  }
+
   function renderLessonVideos(items) {
     var wrap = $("studyMaterialsList");
     if (!wrap) return;
     if (!items.length) {
       wrap.innerHTML = emptyHtml(
         "▶",
-        "No video tutorials yet. Admin posts YouTube lessons under Video Tutorials. PDF Lesson Notes are in Library."
+        _videoCat === "all"
+          ? "No video tutorials yet. Admin posts YouTube lessons under Video Tutorials. PDF Lesson Notes are in Library."
+          : "No tutorials in this category yet — check back soon or try another category."
       );
       return;
     }
@@ -733,11 +754,12 @@
       .join("");
   }
 
-  function filterLessonNotes() {
+  function applyVideoChips() {
     var q = (($("lessonNotesSearch") && $("lessonNotesSearch").value) || "").trim().toLowerCase();
     var items = lessonVideosCache.filter(function (it) {
       var cat = videoCategoryOf(it);
-      // Per-skill activation: a category's videos stay hidden until that skill is unlocked.
+      if (_videoCat !== "all" && cat !== _videoCat) return false;
+      // Per-skill activation: a chip's videos stay hidden until that skill is unlocked.
       if (!skillUnlocked(cat)) return false;
       if (!q) return true;
       var blob = [
@@ -749,6 +771,7 @@
         it.teacher_name,
         it.channel,
         it.exam_type,
+        it.category,
       ]
         .filter(Boolean)
         .join(" ")
@@ -769,7 +792,7 @@
         .api("/api/v1/videos", { timeout: 30000, retries: 1, preferXhr: true })
         .then(function (data) {
           lessonVideosCache = firstArray(data, ["videos", "items", "results"]);
-          filterLessonNotes();
+          applyVideoChips();
         })
         .catch(function (err) {
           wrap.innerHTML = errorHtml(errMsg(err), "study-materials");
@@ -777,97 +800,21 @@
     });
   }
 
-  /* Coding tutorials = videos whose subject/topic is a coding topic. */
-  var _codingCache = null;
-
-  function isCodingItem(it) {
-    var blob = [it && it.subject, it && it.topic, it && it.title, it && it.category]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-    return /\b(coding|programming|computer science|javascript|python|html|css|web development|scratch|php|java|c\+\+|sql|app development)\b/.test(blob);
-  }
-
-  function renderCodingList(items) {
-    var wrap = $("codingList");
-    if (!wrap) return;
-    if (!items.length) {
-      wrap.innerHTML = emptyHtml(
-        "💻",
-        "No coding tutorials yet. Admin posts them under Video Tutorials with a coding subject (e.g. Coding, Python, JavaScript)."
-      );
-      return;
-    }
-    wrap.innerHTML = items
-      .map(function (it) {
-        var src = youtubeEmbed(it.video_url || it.url || "");
-        var tutor = it.tutor_name || it.tutor || it.teacher_name || it.channel || "";
-        return (
-          '<div class="card">' +
-          '<span class="card-tag">' +
-          esc(it.subject || "Coding") +
-          "</span><h4>" +
-          esc(it.title || "Coding lesson") +
-          "</h4>" +
-          (tutor
-            ? '<p class="muted" style="margin:0.25rem 0 0.65rem">Tutor: ' + esc(tutor) + "</p>"
-            : "") +
-          (src
-            ? '<div class="video-frame"><iframe src="' +
-              esc(src) +
-              '" title="' +
-              esc(it.title || "Coding lesson") +
-              '" allowfullscreen loading="lazy"></iframe></div>'
-            : "") +
-          "</div>"
-        );
-      })
-      .join("");
-  }
-
-  function filterCoding(q) {
-    var list = _codingCache || [];
-    if (q) {
-      list = list.filter(function (it) {
-        var blob = [it.title, it.subject, it.topic, it.tutor_name, it.tutor, it.teacher_name, it.channel]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        return blob.indexOf(q) >= 0;
-      });
-    }
-    renderCodingList(list);
-  }
-
-  function loadCodingTutorials() {
-    var wrap = $("codingList");
-    if (!wrap) return;
-    wrap.innerHTML = loadingHtml("Loading coding tutorials…");
-    fetchStudyAccess().then(function (access) {
-      _skillAccess = access || _skillAccess;
-      renderStudyGate(!!(access && access.unlocked), access);
-      api
-        .api("/api/v1/videos", { timeout: 30000, retries: 1, preferXhr: true })
-        .then(function (data) {
-          var all = firstArray(data, ["videos", "items", "results"]);
-          // Per-skill gate + coding list mapping
-          _codingCache = all.filter(function (it) {
-            return (isCodingItem(it) && (skillUnlocked("app development") || skillUnlocked("software development") || skillUnlocked("web design") || _skillAccess.all_unlocked)) || it.audience === "coding";
-          });
-          filterCoding((($("codingSearch") && $("codingSearch").value) || "").trim().toLowerCase());
-        })
-        .catch(function (err) {
-          wrap.innerHTML = errorHtml(errMsg(err), "coding");
-        });
-    });
-  }
-
   document.addEventListener("input", function (e) {
-    if (e.target && e.target.id === "lessonNotesSearch") filterLessonNotes();
-    if (e.target && e.target.id === "codingSearch") filterCoding(e.target.value.trim().toLowerCase());
+    if (e.target && e.target.id === "lessonNotesSearch") applyVideoChips();
+    if (e.target && e.target.id === "libSearch") return; // handled by renderLibrary below
   });
 
   document.addEventListener("click", function (e) {
+    var chip = e.target.closest("#videosCatWrap .tab[data-vcat]");
+    if (chip) {
+      var wrap = $("videosCatWrap");
+      if (wrap) wrap.querySelectorAll(".tab").forEach(function (t) { t.classList.remove("is-active"); });
+      chip.classList.add("is-active");
+      _videoCat = chip.getAttribute("data-vcat") || "all";
+      applyVideoChips();
+      return;
+    }
     if (e.target.closest("#libReaderClose")) {
       closeLibraryReader();
       return;
@@ -1281,8 +1228,8 @@
     var wrap = $("libraryGrid");
     if (!wrap) return;
     wrap.innerHTML = loadingHtml("Loading library…");
-    // Library is FREE for everyone now (owner request): the material shop must
-    // be visible so students can buy individual items — no subscription gate.
+    // Library is FREE for everyone now (owner request): the material shop must be
+    // visible so students can buy individual items — no subscription gate here.
     var gate = document.querySelector("#page-library .study-gate");
     if (gate) gate.hidden = true;
     loadLibraryInner(wrap);
