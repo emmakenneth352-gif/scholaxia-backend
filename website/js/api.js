@@ -557,7 +557,9 @@
         options.body
           ? options.body instanceof FormData
             ? options.body
-            : JSON.stringify(options.body)
+            : typeof options.body === "string"
+              ? options.body // pre-serialized body: send as-is (do NOT double-encode)
+              : JSON.stringify(options.body)
           : null
       );
     });

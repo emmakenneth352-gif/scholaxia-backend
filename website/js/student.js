@@ -602,10 +602,14 @@
     });
 
     // Redeem box — ALWAYS visible so students can add more skills later.
+    // MOBILE FIX: only sit INSIDE the big lock card when it is actually shown
+    // (i.e. nothing unlocked). Otherwise attach to the category chips row so
+    // the “Activation code required” card never blocks the tutorial list.
     var sPage = $("page-study-materials");
     if (sPage && !sPage.querySelector(".study-coupon-box")) {
       var gate = sPage.querySelector(".study-gate");
-      var host = gate ? gate.querySelector(".study-gate-card") : $("videosCatWrap");
+      var gateVisible = gate && !gate.hidden;
+      var host = gateVisible ? gate.querySelector(".study-gate-card") : $("videosCatWrap");
       if (host) {
         host.insertAdjacentHTML(
           "beforeend",
@@ -635,7 +639,9 @@
     try {
       var res = await api.api("/api/v1/study-coupons/redeem", {
         method: "POST",
-        body: JSON.stringify({ code: code }),
+        // NOTE: pass the OBJECT — api() serializes it. A pre-stringified body
+        // gets double-encoded on the XHR path and the API answers 422.
+        body: { code: code },
         headers: { "Content-Type": "application/json" },
         timeout: 20000,
         retries: 1,
@@ -698,7 +704,12 @@
   var _videoCat = "all";
 
   function videoCategoryOf(it) {
-    var blob = [it.category, it.subject, it.topic, it.tags, it.title, it.exam_type]
+    // Admin-assigned category wins when present (upload form now sends it)
+    if (it && it.category) {
+      var c = String(it.category).toLowerCase().trim();
+      if (c === "academics" || VIDEO_SKILL_CATS.indexOf(c) >= 0) return c;
+    }
+    var blob = [it.subject, it.topic, it.tags, it.title, it.exam_type]
       .filter(Boolean)
       .join(" ")
       .toLowerCase();

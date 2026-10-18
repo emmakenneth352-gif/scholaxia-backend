@@ -1,0 +1,118 @@
+﻿{
+    "subjects":  [
+                     {
+                         "questions":  [
+
+                                       ],
+                         "subject":  "English Language"
+                     },
+                     {
+                         "questions":  [
+
+                                       ],
+                         "subject":  "Mathematics"
+                     },
+                     {
+                         "questions":  [
+
+                                       ],
+                         "subject":  "Intermediate Science"
+                     },
+                     {
+                         "questions":  [
+
+                                       ],
+                         "subject":  "Basic Technology"
+                     },
+                     {
+                         "questions":  [
+
+                                       ],
+                         "subject":  "Social Studies"
+                     },
+                     {
+                         "questions":  [
+
+                                       ],
+                         "subject":  "Agricultural Science"
+                     },
+                     {
+                         "questions":  [
+
+                                       ],
+                         "subject":  "Digital Technologies"
+                     },
+                     {
+                         "questions":  [
+
+                                       ],
+                         "subject":  "Physical and Health Education"
+                     },
+                     {
+                         "questions":  [
+
+                                       ],
+                         "subject":  "Social and Citizenship Studies"
+                     },
+                     {
+                         "questions":  [
+
+                                       ],
+                         "subject":  "Business Studies"
+                     },
+                     {
+                         "questions":  [
+
+                                       ],
+                         "subject":  "Home Economics"
+                     },
+                     {
+                         "questions":  [
+
+                                       ],
+                         "subject":  "Music"
+                     },
+                     {
+                         "questions":  [
+
+                                       ],
+                         "subject":  "Cultural \u0026 Creative Arts"
+                     },
+                     {
+                         "questions":  [
+
+                                       ],
+                         "subject":  "French"
+                     },
+                     {
+                         "questions":  [
+
+                                       ],
+                         "subject":  "Religious Studies"
+                     },
+                     {
+                         "questions":  [
+
+                                       ],
+                         "subject":  "Igbo"
+                     },
+                     {
+                         "questions":  [
+
+                                       ],
+                         "subject":  "Hausa"
+                     },
+                     {
+                         "questions":  [
+
+                                       ],
+                         "subject":  "Yoruba"
+                     },
+                     {
+                         "questions":  [
+
+                                       ],
+                         "subject":  "Livestock Farming"
+                     }
+                 ]
+}

@@ -1814,4 +1814,56 @@ body.app-body {
   /* Collapsed pill: only the active language shows; tap or hover expands the buttons */
   .sx-page-lang:not(:focus-within):not(:hover) button:not(.active) { display: none; }
   .sx-page-lang:not(:focus-within):not(:hover) { opacity: 0.9; }
+
+  /* =============================================================
+     MOBILE EXAM NAV: question numbers become ONE sliding row.
+     The old 5-column grid pushed the question off-screen — this
+     keeps it a swipeable strip under the question, thumb-high.
+     ============================================================== */
+  .exam-nav {
+    position: sticky;
+    bottom: 0;
+    z-index: 6;
+    background: #fff;
+    padding: 0.5rem 0.75rem calc(0.5rem + env(safe-area-inset-bottom, 0)) !important;
+    border-top: 1px solid var(--line) !important;
+    box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.08);
+    max-height: none !important;
+  }
+  .exam-nav-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0 0 0.35rem !important;
+    font-size: 0.68rem;
+  }
+  .exam-nav-grid {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 0.4rem;
+    padding: 0 0 2px;
+  }
+  .exam-nav-grid::-webkit-scrollbar { display: none; }
+  .exam-nav-grid button {
+    flex: 0 0 auto;
+    width: 2.35rem;
+    height: 2.35rem;
+    aspect-ratio: auto;
+    border-radius: 10px;
+    font-size: 0.8rem;
+    scroll-snap-align: center;
+  }
+  .exam-legend {
+    display: none !important; /* colors on the numbers already say it */
+  }
+  .exam-submit-btn {
+    margin-top: 0.5rem;
+    width: 100%;
+    padding: 0.55rem 1rem;
+    border-radius: 12px;
+  }
 }

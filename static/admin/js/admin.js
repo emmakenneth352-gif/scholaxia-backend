@@ -4054,6 +4054,7 @@ async function createAdminVideo() {
         subject: (document.getElementById("vid-subject").value || "General").trim(),
         tutor_name: (document.getElementById("vid-tutor") && document.getElementById("vid-tutor").value || "").trim(),
         video_url: (document.getElementById("vid-url").value || "").trim(),
+        category: (document.getElementById("vid-category") && document.getElementById("vid-category").value || "academics").trim(),
         audience: "student",
       }),
     });

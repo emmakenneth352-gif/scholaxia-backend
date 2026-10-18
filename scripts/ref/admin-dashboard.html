@@ -1,0 +1,3527 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scholaxia Admin Dashboard</title>
+    
+    <!-- Premium Fonts & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    
+    <!-- Main Stylesheet -->
+    <link rel="stylesheet" href="style.css">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%);
+            min-height: 100vh;
+            color: #15803d;
+        }
+
+        /* Premium Container */
+        .premium-container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Glassmorphism Effects */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(12px);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(34, 197, 94, 0.15);
+            border: 1px solid rgba(34, 197, 94, 0.1);
+        }
+
+        /* Premium Header */
+        .premium-header {
+            background: linear-gradient(135deg, #22c55e 0%, #4ade80 100%);
+            border-radius: 20px;
+            padding: 20px 30px;
+            margin-bottom: 25px;
+            box-shadow: 0 10px 30px rgba(34, 197, 94, 0.15);
+            border: 1px solid rgba(34, 197, 94, 0.1);
+        }
+
+        .admin-info-premium {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo-premium {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo-icon-premium {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+            overflow: hidden;
+        }
+
+        .logo-icon-premium img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+            display: block;
+        }
+
+        .logo-icon-premium i {
+            display: none;
+        }
+
+        .logo-text-premium h1 {
+            color: white;
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .logo-text-premium p {
+            color: #a0aec0;
+            font-size: 14px;
+        }
+
+        .admin-details-premium {
+            display: flex;
+            align-items: center;
+            gap: 30px;
+        }
+
+        .admin-welcome-premium {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px 20px;
+            border-radius: 15px;
+        }
+
+        .admin-welcome-premium i {
+            font-size: 40px;
+            color: #667eea;
+        }
+
+        .admin-welcome-premium div {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .admin-welcome-premium strong {
+            color: white;
+            font-size: 16px;
+        }
+
+        .admin-welcome-premium span {
+            color: #a0aec0;
+            font-size: 13px;
+        }
+
+        /* Premium Dashboard Layout */
+        .dashboard-layout {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            gap: 25px;
+        }
+
+        /* Premium Sidebar */
+        .premium-sidebar {
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 25px 0;
+            height: fit-content;
+            box-shadow: 0 20px 40px rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.1);
+        }
+
+        .sidebar-nav-premium ul {
+            list-style: none;
+            padding: 0 15px;
+        }
+
+        .sidebar-nav-premium li {
+            margin-bottom: 5px;
+        }
+
+        .sidebar-nav-premium a {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 20px;
+            color: #64748b;
+            text-decoration: none;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .sidebar-nav-premium a i {
+            width: 20px;
+            font-size: 18px;
+        }
+
+        .sidebar-nav-premium a:hover {
+            background: linear-gradient(135deg, #667eea10, #764ba210);
+            color: #667eea;
+        }
+
+        .sidebar-nav-premium a.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        /* Premium Quick Stats */
+        .quick-stats-premium {
+            margin-top: 25px;
+            padding: 20px;
+            background: linear-gradient(135deg, #f8f9fa, #ffffff);
+            border-radius: 15px;
+        }
+
+        .quick-stats-premium h4 {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #1e293b;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+
+        .stat-item-premium {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .stat-item-premium:last-child {
+            border-bottom: none;
+        }
+
+        .stat-item-premium span {
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .stat-item-premium strong {
+            color: #1e293b;
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        /* Premium Main Content */
+        .premium-content {
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.1);
+        }
+
+        /* Section Header */
+        .section-header-premium {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f1f5f9;
+        }
+
+        .section-header-premium h2 {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 22px;
+            color: #1e293b;
+            font-weight: 700;
+        }
+
+        .section-header-premium h2 i {
+            color: #667eea;
+        }
+
+        .section-actions-premium {
+            display: flex;
+            gap: 10px;
+        }
+
+        /* Premium Buttons */
+        .btn-premium {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .btn-premium-primary {
+            background: linear-gradient(135deg, #22c55e, #4ade80);
+            color: #15803d;
+            box-shadow: 0 10px 20px rgba(34, 197, 94, 0.3);
+        }
+
+        .btn-premium-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 30px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-premium-outline {
+            background: transparent;
+            border: 2px solid #e2e8f0;
+            color: #64748b;
+        }
+
+        .btn-premium-outline:hover {
+            border-color: #667eea;
+            color: #667eea;
+        }
+
+        .btn-premium-success {
+            background: linear-gradient(135deg, #22c55e, #4ade80);
+            color: #15803d;
+        }
+
+        .btn-premium-danger {
+            background: linear-gradient(135deg, #f0fdf4, #22c55e);
+            color: #15803d;
+        }
+
+        .btn-premium-warning {
+            background: linear-gradient(135deg, #bbf7d0, #22c55e);
+            color: #15803d;
+        }
+
+        .btn-premium-info {
+            background: linear-gradient(135deg, #86efac, #4ade80);
+            color: #15803d;
+        }
+
+        /* Premium Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card-premium {
+            background: linear-gradient(135deg, #ffffff, #bbf7d0);
+            border-radius: 20px;
+            padding: 25px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            box-shadow: 0 10px 20px rgba(34, 197, 94, 0.05);
+            border: 1px solid rgba(34, 197, 94, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .stat-card-premium:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 30px rgba(102, 126, 234, 0.2);
+        }
+
+        .stat-icon-premium {
+            width: 60px;
+            height: 60px;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
+        }
+
+        .stat-info-premium h3 {
+            font-size: 28px;
+            font-weight: 800;
+            color: #1e293b;
+            margin-bottom: 5px;
+        }
+
+        .stat-info-premium p {
+            color: #64748b;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        /* Premium Forms */
+        .premium-form {
+            max-width: 800px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .form-group-premium {
+            margin-bottom: 20px;
+        }
+
+        .form-label-premium {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #1e293b;
+            font-size: 14px;
+        }
+
+        .form-label-premium i {
+            color: #667eea;
+            margin-right: 8px;
+        }
+
+        .form-control-premium {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .form-control-premium:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .input-group-premium {
+            display: flex;
+            gap: 10px;
+        }
+
+        .input-group-premium .form-control-premium {
+            flex: 1;
+        }
+
+        #examScheduleForm {
+            max-width: 100%;
+        }
+
+        #scheduleSubjectSelect {
+            min-height: 220px;
+            background: #f8fafc;
+        }
+
+        #scheduleSubjectSelect option {
+            padding: 8px 10px;
+            border-radius: 8px;
+        }
+
+        #scheduleSubjectSelect option:checked {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #fff;
+        }
+
+        .schedule-form-help {
+            display: block;
+            margin-top: 8px;
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        .schedule-subject-list {
+            list-style: none;
+            padding: 0;
+            margin: 10px 0;
+            display: grid;
+            gap: 8px;
+        }
+
+        .schedule-subject-item {
+            padding: 10px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            background: #f8fafc;
+            color: #334155;
+            font-size: 13px;
+        }
+
+        .schedule-subject-item strong {
+            color: #1e293b;
+        }
+
+        /* Premium Tables */
+        .table-container-premium {
+            overflow-x: auto;
+            border-radius: 15px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .premium-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        .premium-table th {
+            background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+            padding: 15px;
+            text-align: left;
+            font-weight: 700;
+            color: #1e293b;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .premium-table td {
+            padding: 15px;
+            border-bottom: 1px solid #e2e8f0;
+            color: #475569;
+        }
+
+        .premium-table tbody tr:hover {
+            background: #f8fafc;
+        }
+
+        /* Premium Badges */
+        .badge-premium {
+            padding: 6px 12px;
+            border-radius: 30px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .badge-premium-approved {
+            background: linear-gradient(135deg, #10b98120, #05966920);
+            color: #059669;
+            border: 1px solid #10b981;
+        }
+
+        .badge-premium-pending {
+            background: linear-gradient(135deg, #f59e0b20, #d9770620);
+            color: #d97706;
+            border: 1px solid #f59e0b;
+        }
+
+        .badge-premium-restricted {
+            background: linear-gradient(135deg, #ef444420, #dc262620);
+            color: #dc2626;
+            border: 1px solid #ef4444;
+        }
+
+        .badge-premium-active {
+            background: linear-gradient(135deg, #3b82f620, #2563eb20);
+            color: #2563eb;
+            border: 1px solid #3b82f6;
+        }
+
+        /* Action Buttons */
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+
+        .action-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: white;
+            font-size: 14px;
+        }
+
+        .action-btn.edit {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+        }
+
+        .action-btn.delete {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+        }
+
+        .action-btn.approve {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+
+        .action-btn.restrict {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+        }
+
+        .action-btn.view {
+            background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+        }
+
+        .action-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Premium Filter Bar */
+        .filter-bar-premium {
+            background: #f8fafc;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+
+        .filter-group-premium {
+            flex: 1;
+            min-width: 150px;
+        }
+
+        .filter-group-premium label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+        }
+
+        /* Premium Modal */
+        .modal-premium {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+            /* Dark Mode Styles */
+            body.dark-mode {
+                background: linear-gradient(135deg, #232946 0%, #121629 100%) !important;
+                color: #f4f4f4 !important;
+            }
+            .glass-card.dark-mode,
+            .premium-header.dark-mode,
+            .premium-content.dark-mode,
+            .premium-sidebar.dark-mode,
+            .premium-table.dark-mode,
+            .filter-bar-premium.dark-mode,
+            .modal-content-premium.dark-mode,
+            .stat-card-premium.dark-mode,
+            .quick-stats-premium.dark-mode,
+            .setting-card-premium.dark-mode,
+            .badge-premium.dark-mode,
+            .action-btn.dark-mode,
+            .form-control-premium.dark-mode,
+            .subject-tag.dark-mode,
+            .table-container-premium.dark-mode,
+            .stats-grid.dark-mode,
+            .recent-activity.dark-mode,
+            .dashboard-section.dark-mode {
+                background: #232946 !important;
+                color: #f4f4f4 !important;
+                border-color: #232946 !important;
+            }
+            .premium-table.dark-mode th,
+            .premium-table.dark-mode td {
+                background: #232946 !important;
+                color: #f4f4f4 !important;
+                border-color: #232946 !important;
+            }
+
+        .modal-content-premium {
+            background: white;
+            border-radius: 20px;
+            max-width: 600px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-header-premium {
+            padding: 20px 30px;
+            border-bottom: 2px solid #f1f5f9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header-premium h3 {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 20px;
+            color: #1e293b;
+        }
+
+        .modal-body-premium {
+            padding: 30px;
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #64748b;
+            transition: color 0.3s ease;
+        }
+
+        .close-modal:hover {
+            color: #ef4444;
+        }
+
+        /* Premium Settings Grid */
+        .settings-grid-premium {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 25px;
+        }
+
+        .setting-card-premium {
+            background: #f8fafc;
+            border-radius: 20px;
+            padding: 25px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .setting-card-premium h3 {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            color: #1e293b;
+            font-size: 18px;
+        }
+
+        .setting-card-premium h3 i {
+            color: #667eea;
+        }
+
+        .setting-item-premium {
+            margin-bottom: 20px;
+        }
+
+        .setting-item-premium label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #475569;
+        }
+
+        /* Toggle Switch */
+        .toggle-switch-premium {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+
+        .toggle-switch-premium input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider-premium {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #e2e8f0;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .toggle-slider-premium:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .toggle-slider-premium {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+        }
+
+        input:checked + .toggle-slider-premium:before {
+            transform: translateX(26px);
+        }
+
+        /* Subject Tags */
+        .subject-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+
+        .subject-tag {
+            background: #f1f5f9;
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            color: #475569;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .subject-tag i {
+            color: #ef4444;
+            cursor: pointer;
+        }
+
+        /* Print Styles */
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 10mm;
+            }
+
+            * {
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+            
+            body, html {
+                width: 100%;
+                height: 100%;
+            }
+            
+            body > * {
+                display: none !important;
+            }
+
+            #printContent {
+                display: block !important;
+                visibility: visible !important;
+            }
+
+            #printContent, #printContent * {
+                visibility: visible !important;
+            }
+            
+            .print-section {
+                position: static;
+                width: 100%;
+                padding: 12px !important;
+                background: white;
+                color: #000;
+                font-family: 'Arial', sans-serif;
+                line-height: 1.5;
+                margin: 0;
+                left: auto;
+                top: auto;
+            }
+            
+            #printSchoolName {
+                color: #1a237e !important;
+                margin: 0 0 10px 0 !important;
+                font-size: 26px !important;
+                page-break-after: avoid;
+            }
+            
+            #printTitle {
+                color: #667eea !important;
+                margin: 0 0 10px 0 !important;
+                font-size: 20px !important;
+                page-break-after: avoid;
+            }
+            
+            #printDetails {
+                color: #666 !important;
+                margin: 5px 0 !important;
+                font-size: 12px !important;
+                page-break-after: avoid;
+            }
+            
+            #printSummary {
+                display: table !important;
+                width: 100%;
+                margin-bottom: 30px !important;
+                page-break-after: avoid;
+            }
+            
+            .summary-card {
+                display: table-cell !important;
+                width: 25% !important;
+                padding: 15px !important;
+                text-align: center;
+                border: 1px solid #ddd !important;
+                background: #f9f9f9 !important;
+            }
+            
+            .summary-card h4 {
+                font-size: 12px !important;
+                color: #667eea !important;
+                margin-bottom: 5px !important;
+            }
+            
+            .summary-card .card-value {
+                font-size: 22px !important;
+                font-weight: bold !important;
+                color: #1a237e !important;
+            }
+            
+            #printContent {
+                page-break-inside: auto;
+                break-inside: auto;
+            }
+            
+            #printContent table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 12px;
+                font-size: 8.5px !important;
+                page-break-inside: auto;
+                table-layout: fixed;
+            }
+            
+            #printContent table thead {
+                background: #f4f4f4 !important;
+                border-bottom: 2px solid #667eea !important;
+                page-break-after: avoid;
+            }
+            
+            #printContent table th {
+                padding: 4px !important;
+                text-align: center;
+                font-weight: bold !important;
+                color: #1a237e !important;
+                border: 1px solid #ddd !important;
+                word-break: break-word;
+            }
+            
+            #printContent table td {
+                padding: 3px 4px !important;
+                border: 1px solid #ddd !important;
+                page-break-inside: avoid;
+                text-align: center;
+                word-break: break-word;
+            }
+
+            #printContent table.exam-results-print-table th:nth-child(1),
+            #printContent table.exam-results-print-table td:nth-child(1),
+            #printContent table.exam-results-print-table th:nth-child(3),
+            #printContent table.exam-results-print-table td:nth-child(3),
+            #printContent table.exam-results-print-table th:nth-child(6),
+            #printContent table.exam-results-print-table td:nth-child(6) {
+                text-align: left;
+            }
+            
+            #printContent table tbody tr {
+                page-break-inside: avoid;
+            }
+            
+            #printContent table tbody tr:nth-child(even) {
+                background-color: #f9f9f9 !important;
+            }
+            
+            .grade-badge {
+                padding: 4px 8px;
+                border-radius: 4px;
+                font-weight: bold;
+                font-size: 12px;
+                display: inline-block;
+            }
+            
+            .grade-a {
+                background: #d4edda;
+                color: #155724;
+            }
+            
+            .grade-b {
+                background: #d1ecf1;
+                color: #0c5460;
+            }
+            
+            .grade-c {
+                background: #fff3cd;
+                color: #856404;
+            }
+            
+            .grade-f {
+                background: #f8d7da;
+                color: #721c24;
+            }
+            
+            .no-print {
+                display: none !important;
+            }
+            
+            page-break {
+                page-break-after: always;
+            }
+        }
+
+        /* Loading Spinner */
+        .spinner-premium {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f1f5f9;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Toast Notifications */
+        .toast-premium {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            border-radius: 12px;
+            color: white;
+            font-weight: 600;
+            z-index: 9999;
+            animation: slideInRight 0.3s ease;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .toast-premium.success {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+
+        .toast-premium.error {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+        }
+
+        .toast-premium.warning {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+        }
+
+        .toast-premium.info {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Hidden Class */
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body data-page="admin-dashboard">
+    <div class="premium-container">
+        <!-- Premium Header -->
+        <header class="premium-header glass-card">
+            <div class="admin-info-premium">
+                <div class="logo-premium">
+                    <div class="logo-icon-premium">
+                        <img src="scholaxia logo.jpeg" alt="Scholaxia Logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <i class="fas fa-graduation-cap"></i>
+                    </div>
+                    <div class="logo-text-premium">
+                        <h1>Scholaxia Admin Panel</h1>
+                        <p id="adminRoleDisplay">Administrator Dashboard</p>
+                    </div>
+                </div>
+                <div class="admin-details-premium">
+                    <div class="admin-welcome-premium">
+                        <i class="fas fa-user-circle"></i>
+                        <div>
+                            <strong id="adminName">Loading...</strong>
+                            <span id="schoolInfo">Super Admin</span>
+                        </div>
+                    </div>
+                    <button class="btn-premium btn-premium-danger" onclick="logout()">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </button>
+                        <button id="themeToggleBtn" class="btn-premium btn-premium-outline" style="margin-left:10px;" onclick="toggleTheme()">
+                            <i class="fas fa-moon"></i>
+                        </button>
+            </div>
+        </header>
+
+        <!-- Dashboard Layout -->
+        <script>
+        // Theme Toggle Logic
+        function toggleTheme() {
+            const body = document.body;
+            const btn = document.getElementById('themeToggleBtn');
+            body.classList.toggle('dark-mode');
+            // Toggle all main containers
+            document.querySelectorAll('.glass-card, .premium-header, .premium-content, .premium-sidebar, .premium-table, .filter-bar-premium, .modal-content-premium, .stat-card-premium, .quick-stats-premium, .setting-card-premium, .badge-premium, .action-btn, .form-control-premium, .subject-tag, .table-container-premium, .stats-grid, .recent-activity, .dashboard-section').forEach(el => {
+                el.classList.toggle('dark-mode');
+            });
+            // Update button icon
+            if (body.classList.contains('dark-mode')) {
+                btn.innerHTML = '<i class="fas fa-sun"></i>';
+            } else {
+                btn.innerHTML = '<i class="fas fa-moon"></i>';
+            }
+            // Save theme preference
+            localStorage.setItem('scholaxiaTheme', body.classList.contains('dark-mode') ? 'dark' : 'light');
+        }
+        // On load, apply saved theme
+        window.addEventListener('DOMContentLoaded', function() {
+            const savedTheme = localStorage.getItem('scholaxiaTheme');
+            const btn = document.getElementById('themeToggleBtn');
+            if (savedTheme === 'dark') {
+                document.body.classList.add('dark-mode');
+                document.querySelectorAll('.glass-card, .premium-header, .premium-content, .premium-sidebar, .premium-table, .filter-bar-premium, .modal-content-premium, .stat-card-premium, .quick-stats-premium, .setting-card-premium, .badge-premium, .action-btn, .form-control-premium, .subject-tag, .table-container-premium, .stats-grid, .recent-activity, .dashboard-section').forEach(el => {
+                    el.classList.add('dark-mode');
+                });
+                if (btn) btn.innerHTML = '<i class="fas fa-sun"></i>';
+            } else {
+                if (btn) btn.innerHTML = '<i class="fas fa-moon"></i>';
+            }
+        });
+        </script>
+        <div class="dashboard-layout">
+            <!-- Premium Sidebar -->
+            <aside class="premium-sidebar glass-card">
+                <nav class="sidebar-nav-premium">
+                    <ul>
+                        <li>
+                            <a href="#" class="active" data-section="dashboard">
+                                <i class="fas fa-chart-pie"></i> Dashboard
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" data-section="register">
+                                <i class="fas fa-user-plus"></i> Register Student
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" data-section="students">
+                                <i class="fas fa-users"></i> Exam Students
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" data-section="confirm_registration">
+                                <i class="fas fa-id-card"></i> Confirm Registration
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" data-section="exam_schedule">
+                                <i class="fas fa-calendar-check"></i> Exam Schedule
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" data-section="practice_students">
+                                <i class="fas fa-user-graduate"></i> Practice Students
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" data-section="practice_payments">
+                                <i class="fas fa-money-bill-wave"></i> Practice Payments
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" data-section="past_questions_payments">
+                                <i class="fas fa-money-check-alt"></i> Past Questions Payments
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" data-section="practice_coupons">
+                                <i class="fas fa-ticket-alt"></i> Practice Coupons
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" data-section="results">
+                                <i class="fas fa-chart-bar"></i> Exam Results
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" data-section="manage_schools">
+                                <i class="fas fa-school"></i> Manage Schools
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" data-section="subjects_inventory">
+                                <i class="fas fa-book-open"></i> Access Subjects
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" data-section="retake">
+                                <i class="fas fa-redo-alt"></i> Grant Retake
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" data-section="settings">
+                                <i class="fas fa-cog"></i> System Settings
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" data-section="upload_pin">
+                                <i class="fas fa-ticket-alt"></i> Upload Pin
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" data-section="upload_past_questions">
+                                <i class="fas fa-upload"></i> Upload Past Questions
+                            </a>
+                        </li>
+                    </ul>
+                
+                <!-- Quick Stats -->
+                <div class="quick-stats-premium">
+                    <h4><i class="fas fa-bolt"></i> Quick Stats</h4>
+                    <div class="stat-item-premium">
+                        <span>Active Students</span>
+                        <strong id="statStudents">0</strong>
+                    </div>
+                    <div class="stat-item-premium">
+                        <span>Exam Registrations</span>
+                        <strong id="statRegistrations">0</strong>
+                    </div>
+                    <div class="stat-item-premium">
+                        <span>Pending Approvals</span>
+                        <strong id="statPending">0</strong>
+                    </div>
+                    <div class="stat-item-premium">
+                        <span>Results Available</span>
+                        <strong id="statResults">0</strong>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Main Content -->
+            <main class="premium-content glass-card">
+                                <!-- Retake Exam Section (now in correct dashboard area) -->
+                                <section id="retakeSection" class="dashboard-section hidden">
+                                    <div class="section-header-premium">
+                                        <h2><i class="fas fa-redo-alt"></i> Grant Exam Retake</h2>
+                                    </div>
+                                    <form id="retakeFetchForm" class="premium-form" style="margin-bottom: 24px;">
+                                        <div class="form-group-premium">
+                                            <label class="form-label-premium"><i class="fas fa-id-card"></i> Student Reg Number *</label>
+                                            <input type="text" id="retakeRegNumber" class="form-control-premium" placeholder="Enter registration number" required>
+                                        </div>
+                                        <div class="form-actions" style="margin-top: 18px;">
+                                            <button type="submit" class="btn-premium btn-premium-primary"><i class="fas fa-search"></i> Fetch Student</button>
+                                        </div>
+                                    </form>
+                                    <div id="retakeStudentInfo" class="glass-card" style="display:none; margin-bottom:20px; padding:20px;">
+                                        <!-- Example layout for fetched student info (will be filled by JS) -->
+                                        <!--
+                                        <div style="display:flex; align-items:center; gap:24px; margin-bottom:10px;">
+                                            <div style="font-size:2rem; color:#6366f1;"><i class="fas fa-user-circle"></i></div>
+                                            <div>
+                                                <div style="font-weight:700; font-size:1.1rem; color:#1e293b;">PIUS WISDOM CHRISTOPHER</div>
+                                                <div style="color:#64748b;">Reg Number: <b>SCHX/26/898265</b></div>
+                                                <div style="color:#059669;">Class: SS3</div>
+                                                <div style="color:#6366f1;">School: Queen of Apostle Seminary</div>
+                                            </div>
+                                        </div>
+                                        -->
+                                    </div>
+                                    <form id="retakeGrantForm" class="premium-form" style="display:none;">
+                                        <div class="form-group-premium">
+                                            <label class="form-label-premium"><i class="fas fa-book"></i> Registered Subjects</label>
+                                            <div id="retakeSubjectsList" style="display:flex; flex-wrap:wrap; gap:12px; margin-bottom:10px;"></div>
+                                            <small style="color:#64748b; margin-top:6px; display:block;">Select one or more subjects to grant retake. Student will see these subjects available on next login.</small>
+                                        </div>
+                                        <div class="form-actions" style="margin-top: 18px;">
+                                            <button type="submit" class="btn-premium btn-premium-success" style="min-width:220px;">
+                                                <i class="fas fa-check"></i> Grant Retake for Selected
+                                            </button>
+                                        </div>
+                                        <div id="retakeGrantStatus" style="margin-top:18px;"></div>
+                                    </form>
+                                </section>
+                <!-- Dashboard Section -->
+                <section id="dashboardSection" class="dashboard-section active">
+                    <div class="section-header-premium">
+                        <h2><i class="fas fa-tachometer-alt"></i> Dashboard Overview</h2>
+                        <div class="section-actions-premium">
+                            <button class="btn-premium btn-premium-outline" onclick="refreshAll()">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+                    <div class="glass-card" style="margin-bottom: 28px; border-left: 8px solid #10b981; background: linear-gradient(135deg, #ecfdf5 0%, #f0f9ff 100%); box-shadow: 0 4px 24px rgba(16,185,129,0.12); padding: 28px 24px; color: #065f46;">
+                        <h3 style="color: #065f46; font-size: 1.25rem; margin-bottom: 10px; display: flex; align-items: center; gap: 10px;"><i class="fas fa-check-circle" style="color:#10b981;"></i> Loretto Upload Complete</h3>
+                        <div style="font-size: 1rem; line-height: 1.6; margin-bottom: 16px;">
+                            All submitted examination questions for Loretto School have been uploaded successfully.
+                        </div>
+                        <button onclick="document.querySelector('.sidebar-nav-premium a[data-section=\"subjects_inventory\"]')?.click()" style="background: #10b981; color: #ffffff; border: none; border-radius: 8px; padding: 10px 18px; font-size: 0.95rem; cursor: pointer; box-shadow: 0 4px 12px rgba(16,185,129,0.2);">
+                            <i class="fas fa-book-open" style="margin-right: 8px;"></i> See Uploaded Questions
+                        </button>
+                    </div>
+                    <!-- Stats Cards -->
+                    <div class="stats-grid">
+                        <div class="stat-card-premium">
+                            <div class="stat-icon-premium" style="background: linear-gradient(135deg, #667eea, #764ba2);">
+                                <i class="fas fa-users"></i>
+                            </div>
+                            <div class="stat-info-premium">
+                                <h3 id="totalStudents">0</h3>
+                                <p>Total Students</p>
+                            </div>
+                        </div>
+                        <div class="stat-card-premium">
+                            <div class="stat-icon-premium" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+                                <i class="fas fa-file-alt"></i>
+                            </div>
+                            <div class="stat-info-premium">
+                                <h3 id="examRegistrations">0</h3>
+                                <p>Exam Registrations</p>
+                            </div>
+                        </div>
+                        <div class="stat-card-premium">
+                            <div class="stat-icon-premium" style="background: linear-gradient(135deg, #10b981, #059669);">
+                                <i class="fas fa-user-graduate"></i>
+                            </div>
+                            <div class="stat-info-premium">
+                                <h3 id="practiceUsers">0</h3>
+                                <p>Practice Users</p>
+                            </div>
+                        </div>
+                        <div class="stat-card-premium">
+                            <div class="stat-icon-premium" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
+                                <i class="fas fa-chart-bar"></i>
+                            </div>
+                            <div class="stat-info-premium">
+                                <h3 id="recentResults">0</h3>
+                                <p>Recent Results</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Recent Activity -->
+                    <div class="recent-activity" style="background: #f8fafc; border-radius: 15px; padding: 20px;">
+                        <h3 style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+                            <i class="fas fa-history" style="color: #667eea;"></i> Recent Activity
+                        </h3>
+                        <div class="activity-list" id="activityList">
+                            <!-- Dynamic content will be loaded here -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Register Student Section -->
+                <section id="registerSection" class="dashboard-section hidden">
+                    <div class="section-header-premium">
+                        <h2><i class="fas fa-user-plus"></i> Register Student for Exam</h2>
+                    </div>
+                    
+                    <form id="registerStudentForm" class="premium-form">
+                        <div class="form-grid">
+                            <div class="form-group-premium">
+                                <label class="form-label-premium">
+                                    <i class="fas fa-user"></i> First Name *
+                                </label>
+                                <input type="text" id="firstName" class="form-control-premium" required>
+                            </div>
+                            <div class="form-group-premium">
+                                <label class="form-label-premium">
+                                    <i class="fas fa-user"></i> Middle Name
+                                </label>
+                                <input type="text" id="middleName" class="form-control-premium">
+                            </div>
+                            <div class="form-group-premium">
+                                <label class="form-label-premium">
+                                    <i class="fas fa-user"></i> Surname *
+                                </label>
+                                <input type="text" id="surname" class="form-control-premium" required>
+                            </div>
+                        </div>
+                        
+                        <div class="form-grid">
+                            <div class="form-group-premium">
+                                <label class="form-label-premium">
+                                    <i class="fas fa-school"></i> School *
+                                </label>
+                                <select id="regSchoolSelect" class="form-control-premium" required>
+                                    <option value="">-- Select School --</option>
+                                </select>
+                            </div>
+                            <div class="form-group-premium">
+                                <label class="form-label-premium">
+                                    <i class="fas fa-graduation-cap"></i> Class Category *
+                                </label>
+                                <select id="classCategory" class="form-control-premium" onchange="updateClassOptions()" required>
+                                    <option value="">-- Select --</option>
+                                    <option value="jss">Junior Secondary (JSS 1-3)</option>
+                                    <option value="ss">Senior Secondary (SS 1-3)</option>
+                                </select>
+                            </div>
+                            <div class="form-group-premium">
+                                <label class="form-label-premium">
+                                    <i class="fas fa-layer-group"></i> Class *
+                                </label>
+                                <select id="studentClass" class="form-control-premium" required disabled>
+                                    <option value="">-- Select class category first --</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group-premium">
+                            <label class="form-label-premium">
+                                <i class="fas fa-book"></i> Subject *
+                            </label>
+                            <select id="studentSubject" class="form-control-premium" required>
+                                <option value="">-- Select subject --</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-grid">
+                            <div class="form-group-premium">
+                                <label class="form-label-premium">
+                                    <i class="fas fa-id-card"></i> Registration Number
+                                </label>
+                                <div class="input-group-premium">
+                                    <input type="text" id="regNumber" class="form-control-premium" readonly>
+                                    <button type="button" class="btn-premium btn-premium-outline" onclick="generateRegistrationNumber()">
+                                        <i class="fas fa-sync-alt"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="form-group-premium">
+                                <label class="form-label-premium">
+                                    <i class="fas fa-key"></i> Access Code
+                                </label>
+                                <input type="text" id="accessCode" class="form-control-premium" readonly>
+                            </div>
+                        </div>
+                        
+                        <div class="form-actions" style="display: flex; gap: 15px; margin-top: 30px;">
+                            <button type="submit" class="btn-premium btn-premium-primary">
+                                <i class="fas fa-save"></i> Register Student
+                            </button>
+                            <button type="reset" class="btn-premium btn-premium-outline">
+                                <i class="fas fa-redo-alt"></i> Clear Form
+                            </button>
+                        </div>
+                    </form>
+                </section>
+
+                <!-- Manage Exam Students Section -->
+                <section id="studentsSection" class="dashboard-section hidden">
+                    <div class="section-header-premium">
+                        <h2><i class="fas fa-users"></i> Manage Exam Students</h2>
+                        <div class="section-actions-premium">
+                            <button class="btn-premium btn-premium-success" id="printExamStudentsBtn">
+                                <i class="fas fa-print"></i> Print Exam Students
+                            </button>
+                            <button class="btn-premium btn-premium-info" id="previewExamStudentsBtn">
+                                <i class="fas fa-eye"></i> Preview Printout
+                            </button>
+                            <button class="btn-premium btn-premium-outline" onclick="loadStudentsList()">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                            <button class="btn-premium btn-premium-danger" onclick="deleteAllExamStudents()">
+                                <i class="fas fa-trash-alt"></i> Delete All Exam Students
+                            </button>
+                            <button class="btn-premium btn-premium-warning" onclick="deleteFilteredExamStudents()">
+                                <i class="fas fa-filter"></i> Delete Filtered Exam Students
+                            </button>
+                            <button class="btn-premium btn-premium-danger" onclick="restrictAllExamStudents()">
+                                <i class="fas fa-ban"></i> Restrict All Students
+                            </button>
+                            <button class="btn-premium btn-premium-success" onclick="unrestrictAllExamStudents()">
+                                <i class="fas fa-unlock"></i> Unrestrict All Students
+                            </button>
+                            <button class="btn-premium btn-premium-warning" onclick="restrictFilteredExamStudents()">
+                                <i class="fas fa-filter"></i> Restrict Filtered Students
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="filter-bar-premium">
+                        <div class="filter-group-premium">
+                            <label>School</label>
+                            <select id="studentSchoolFilter" class="form-control-premium">
+                                <option value="">All Schools</option>
+                            </select>
+                        </div>
+                        <div class="filter-group-premium">
+                            <label>Class</label>
+                            <select id="studentClassFilter" class="form-control-premium">
+                                <option value="">All Classes</option>
+                                <option value="jss1">JSS 1</option>
+                                <option value="jss2">JSS 2</option>
+                                <option value="jss3">JSS 3</option>
+                                <option value="ss1">SS 1</option>
+                                <option value="ss2">SS 2</option>
+                                <option value="ss3">SS 3</option>
+                            </select>
+                        </div>
+                        <div class="filter-group-premium">
+                            <label>Subject</label>
+                            <select id="studentSubjectFilter" class="form-control-premium">
+                                <option value="">All Subjects</option>
+                            </select>
+                        </div>
+                        <div class="filter-group-premium">
+                            <button class="btn-premium btn-premium-primary" onclick="loadStudentsList()">
+                                <i class="fas fa-filter"></i> Apply Filters
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Pending Approvals -->
+                    <div class="table-container-premium" style="margin-bottom: 30px;">
+                        <h4 style="padding: 15px; background: #f8fafc; border-bottom: 2px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                            <span>
+                                <i class="fas fa-clock" style="color: #f59e0b;"></i> Pending Approvals 
+                                <span class="badge-premium badge-premium-pending" id="pendingExamCount">0</span>
+                            </span>
+                            <button id="approveAllPendingExamBtn" class="btn-premium btn-premium-primary" onclick="approveAllPendingExamStudents()" style="padding: 8px 12px; font-size: 0.85rem;" disabled>
+                                <i class="fas fa-check-double"></i> Approve All
+                            </button>
+                        </h4>
+                        <table class="premium-table">
+                            <thead>
+                            <thead>
+                                <tr>
+                                    <th>Reg Number</th>
+                                    <th>Full Name</th>
+                                    <th>Class</th>
+                                    <th>School</th>
+                                    <th>Subject</th>
+                                    <th>Access Code</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pendingExamStudentsBody">
+                                <tr><td colspan="8" class="text-center">Loading pending approvals...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Approved Students -->
+                    <div class="table-container-premium">
+                        <h4 style="padding: 15px; background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                            <i class="fas fa-check-circle" style="color: #10b981;"></i> Approved Students 
+                            <span class="badge-premium badge-premium-approved" id="approvedExamCount">0</span>
+                        </h4>
+                        <table class="premium-table">
+                            <thead>
+                                <tr>
+                                    <th>Reg Number</th>
+                                    <th>Full Name</th>
+                                    <th>Class</th>
+                                    <th>School</th>
+                                    <th>Subject</th>
+                                    <th>Access Code</th>
+                                    <th>Status</th>
+                                    <th>Exam Taken</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="approvedExamStudentsBody">
+                                <tr><td colspan="9" class="text-center">Loading approved students...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Confirm Registration Details Section -->
+                <section id="confirm_registrationSection" class="dashboard-section hidden">
+                    <div class="section-header-premium">
+                        <h2><i class="fas fa-id-card"></i> Confirm Student Registration Details</h2>
+                        <div class="section-actions-premium">
+                            <button class="btn-premium btn-premium-outline" id="clearConfirmLookupBtn" type="button">
+                                <i class="fas fa-eraser"></i> Clear
+                            </button>
+                        </div>
+                    </div>
+
+                    <form id="confirmRegistrationForm" class="premium-form" style="margin-bottom: 20px; max-width: 100%;">
+                        <div class="form-grid">
+                            <div class="form-group-premium">
+                                <label class="form-label-premium">
+                                    <i class="fas fa-layer-group"></i> Category *
+                                </label>
+                                <select id="confirmRegCategory" class="form-control-premium" required>
+                                    <option value="exam">Exam Student</option>
+                                    <option value="practice">Practice Student</option>
+                                </select>
+                            </div>
+                            <div class="form-group-premium">
+                                <label class="form-label-premium">
+                                    <i class="fas fa-hashtag"></i> Registration Number *
+                                </label>
+                                <input type="text" id="confirmRegNumber" class="form-control-premium" placeholder="Enter student registration number" required>
+                            </div>
+                            <div class="form-group-premium" style="display:flex; align-items:flex-end;">
+                                <button type="submit" class="btn-premium btn-premium-primary" style="width:100%;">
+                                    <i class="fas fa-search"></i> Confirm Details
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+
+                    <div class="table-container-premium">
+                        <h4 style="padding: 15px; background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                            <i class="fas fa-user-check" style="color:#0ea5e9;"></i> Registration Record
+                        </h4>
+                        <div id="confirmRegistrationResult" style="padding:16px; color:#475569;">
+                            Enter registration number and category, then click "Confirm Details".
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Exam Schedule Section -->
+                <section id="exam_scheduleSection" class="dashboard-section hidden">
+                    <div class="section-header-premium">
+                        <h2><i class="fas fa-calendar-check"></i> Exam Schedule Management</h2>
+                        <div class="section-actions-premium">
+                            <button class="btn-premium btn-premium-success" onclick="printExamScheduleList()">
+                                <i class="fas fa-print"></i> Print Schedules
+                            </button>
+                            <button class="btn-premium btn-premium-outline" id="refreshExamScheduleBtn">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Modern Schedule Summary Card -->
+                    <div class="glass-card" style="margin-bottom: 28px; padding: 28px 32px; display: flex; gap: 32px; align-items: stretch; flex-wrap: wrap;">
+                        <div class="stat-card-premium" style="flex:1; min-width:220px;">
+                            <div class="stat-icon-premium" style="background: linear-gradient(135deg, #667eea, #764ba2);">
+                                <i class="fas fa-book"></i>
+                            </div>
+                            <div class="stat-info-premium">
+                                <h3 id="scheduleSummarySubjects">--</h3>
+                                <p>Subjects</p>
+                            </div>
+                        </div>
+                        <div class="stat-card-premium" style="flex:1; min-width:220px;">
+                            <div class="stat-icon-premium" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                            <div class="stat-info-premium">
+                                <h3 id="scheduleSummaryTime">--</h3>
+                                <p>Date & Time</p>
+                            </div>
+                        </div>
+                        <div class="stat-card-premium" style="flex:1; min-width:220px;">
+                            <div class="stat-icon-premium" style="background: linear-gradient(135deg, #10b981, #059669);">
+                                <i class="fas fa-hourglass-half"></i>
+                            </div>
+                            <div class="stat-info-premium">
+                                <h3 id="scheduleSummaryDuration">--</h3>
+                                <p>Duration</p>
+                            </div>
+                        </div>
+                        <div class="stat-card-premium" style="flex:1; min-width:220px;">
+                            <div class="stat-icon-premium" style="background: linear-gradient(135deg, #6366f1, #7c3aed);">
+                                <i class="fas fa-school"></i>
+                            </div>
+                            <div class="stat-info-premium">
+                                <h3 id="scheduleSummaryVenue">--</h3>
+                                <p>Venue/Class</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Assign Exam Subject Schedule Form -->
+                    <form id="examScheduleForm" class="premium-form" style="margin-bottom: 24px;">
+                        <div class="form-grid">
+                            <div class="form-group-premium">
+                                <label class="form-label-premium">
+                                    <i class="fas fa-school"></i> School *
+                                </label>
+                                <select id="scheduleSchoolSelect" class="form-control-premium" required>
+                                    <option value="">-- Select School --</option>
+                                </select>
+                            </div>
+                            <div class="form-group-premium">
+                                <label class="form-label-premium">
+                                    <i class="fas fa-layer-group"></i> Class Category *
+                                </label>
+                                <select id="scheduleClassCategory" class="form-control-premium" required>
+                                    <option value="">-- Select Category --</option>
+                                    <option value="junior">Junior Secondary</option>
+                                    <option value="senior">Senior Secondary</option>
+                                </select>
+                            </div>
+                            <div class="form-group-premium">
+                                <label class="form-label-premium">
+                                    <i class="fas fa-graduation-cap"></i> Class *
+                                </label>
+                                <select id="scheduleClassSelect" class="form-control-premium" required disabled>
+                                    <option value="">-- Select class category first --</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-grid">
+                            <div class="form-group-premium">
+                                <label class="form-label-premium">
+                                    <i class="fas fa-book"></i> Subjects for this slot *
+                                </label>
+                                <select id="scheduleSubjectSelect" class="form-control-premium" required disabled multiple size="8">
+                                    <option value="">-- Select class first to load subjects --</option>
+                                </select>
+                                <small class="schedule-form-help">Hold Ctrl (Windows) or Cmd (Mac) to select multiple subjects.</small>
+                            </div>
+                            <div class="form-group-premium">
+                                <label class="form-label-premium">
+                                    <i class="fas fa-list-ol"></i> Number of Questions *
+                                </label>
+                                <input type="number" id="scheduleQuestionCount" class="form-control-premium" min="1" max="200" value="40" required>
+                            </div>
+                            <div class="form-group-premium">
+                                <label class="form-label-premium">
+                                    <i class="fas fa-hourglass-half"></i> Exam Duration (Minutes) *
+                                </label>
+                                <input type="number" id="scheduleDurationMinutes" class="form-control-premium" min="1" max="300" value="60" required>
+                            </div>
+                        </div>
+
+                        <div class="form-grid">
+                            <div class="form-group-premium">
+                                <label class="form-label-premium">
+                                    <i class="fas fa-clock"></i> Start Date & Time *
+                                </label>
+                                <input type="datetime-local" id="scheduleStartAt" class="form-control-premium" required>
+                            </div>
+                            <div class="form-group-premium" style="display:flex; align-items:flex-end; gap:10px;">
+                                <button type="submit" class="btn-premium btn-premium-primary" style="width:100%;">
+                                    <i class="fas fa-save"></i> Save Schedule
+                                </button>
+                                <button type="button" id="clearExamScheduleBtn" class="btn-premium btn-premium-outline" style="white-space:nowrap;">
+                                    <i class="fas fa-times-circle"></i> Clear
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+
+                    <!-- Modern Schedule Table -->
+                    <div class="table-container-premium" style="margin-bottom: 24px;">
+                        <h4 style="padding: 15px; background: #f8fafc; border-bottom: 2px solid #e2e8f0; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                            <span><i class="fas fa-bell" style="color:#0ea5e9;"></i> Current Class Schedule</span>
+                            <span id="scheduleSummaryBadge" class="badge-premium badge-premium-pending">No schedule</span>
+                        </h4>
+                        <div id="currentScheduleInfo" style="padding: 0 0 15px 0; color:#475569;">
+                            <!-- Dynamic schedule info will be injected here -->
+                        </div>
+                        <div id="scheduleMetaInfo" style="padding: 0 15px 15px 15px;">
+                            <!-- Meta info (class, updated by, etc.) will be injected here by JS -->
+                        </div>
+                        <div id="scheduleSubjectSlots" style="padding: 0 15px 15px 15px;">
+                            <!-- Subject slots will be injected here by JS -->
+                        </div>
+                    </div>
+
+                    <div class="table-container-premium">
+                        <h4 style="padding: 15px; background: #f8fafc; border-bottom: 2px solid #e2e8f0; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                            <span><i class="fas fa-users" style="color:#6366f1;"></i> Registered Students in Selected Class</span>
+                            <span class="badge-premium badge-premium-approved" id="scheduleStudentsCount">0</span>
+                        </h4>
+                        <table class="premium-table">
+                            <thead>
+                                <tr>
+                                    <th><i class="fas fa-id-card"></i> Reg Number</th>
+                                    <th><i class="fas fa-user"></i> Student Name</th>
+                                    <th><i class="fas fa-check-circle"></i> Status</th>
+                                    <th><i class="fas fa-book"></i> Subjects Registered</th>
+                                </tr>
+                            </thead>
+                            <tbody id="scheduleStudentsBody">
+                                <tr><td colspan="4" class="text-center">Select school and class to load students...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Manage Practice Students Section -->
+                <section id="practice_studentsSection" class="dashboard-section hidden">
+                    <div class="section-header-premium">
+                        <h2><i class="fas fa-user-graduate"></i> Manage Practice Students</h2>
+                        <div class="section-actions-premium">
+                            <button class="btn-premium btn-premium-outline" onclick="loadPracticeStudents()">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                            <button class="btn-premium btn-premium-danger" onclick="deleteAllPracticeStudents()">
+                                <i class="fas fa-trash-alt"></i> Delete All
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Pending Practice Approvals -->
+                    <div class="table-container-premium" style="margin-bottom: 30px;">
+                        <h4 style="padding: 15px; background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                            <i class="fas fa-clock" style="color: #f59e0b;"></i> Pending Practice Approvals 
+                            <span class="badge-premium badge-premium-pending" id="pendingPracticeCount">0</span>
+                        </h4>
+                        <table class="premium-table">
+                            <thead>
+                                <tr>
+                                    <th>Reg Number</th>
+                                    <th>Access Code</th>
+                                    <th>Name</th>
+                                    <th>Class</th>
+                                    <th>Category</th>
+                                    <th>Phone</th>
+                                    <th>Email</th>
+                                    <th>Practice Type</th>
+                                    <th>Subjects</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="practicePendingBody">
+                                <tr><td colspan="10" class="text-center">Loading pending approvals...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Approved Practice Students -->
+                    <div class="table-container-premium">
+                        <h4 style="padding: 15px; background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                            <i class="fas fa-check-circle" style="color: #10b981;"></i> Approved Practice Students 
+                            <span class="badge-premium badge-premium-approved" id="approvedPracticeCount">0</span>
+                        </h4>
+                        <table class="premium-table">
+                            <thead>
+                                <tr>
+                                    <th>Reg Number</th>
+                                    <th>Access Code</th>
+                                    <th>Name</th>
+                                    <th>Class</th>
+                                    <th>Category</th>
+                                    <th>Phone</th>
+                                    <th>Email</th>
+                                    <th>Practice Type</th>
+                                    <th>Subjects</th>
+                                    <th>Restricted</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="practiceStudentsBody">
+                                <tr><td colspan="11" class="text-center">Loading approved students...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Past Questions Payments Section -->
+                <section id="past_questions_paymentsSection" class="dashboard-section hidden">
+                    <div class="section-header-premium">
+                        <h2><i class="fas fa-money-check-alt"></i> Past Questions Payments</h2>
+                        <div class="section-actions-premium">
+                            <button class="btn-premium btn-premium-outline" onclick="loadPastQuestionsPayments()">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stat-card-premium">
+                            <div class="stat-icon-premium" style="background: linear-gradient(135deg, #10b981, #059669);">
+                                <i class="fas fa-receipt"></i>
+                            </div>
+                            <div class="stat-info-premium">
+                                <h3 id="pastQuestionsPaymentsCount">0</h3>
+                                <p>Total Payments</p>
+                            </div>
+                        </div>
+                        <div class="stat-card-premium">
+                            <div class="stat-icon-premium" style="background: linear-gradient(135deg, #3b82f6, #2563eb);">
+                                <i class="fas fa-naira-sign"></i>
+                            </div>
+                            <div class="stat-info-premium">
+                                <h3 id="pastQuestionsPaymentsAmount">₦0</h3>
+                                <p>Total Amount</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-container-premium">
+                        <h4 style="padding: 15px; background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                            <i class="fas fa-list" style="color: #3b82f6;"></i> Payment Records
+                        </h4>
+                        <table class="premium-table">
+                            <thead>
+                                <tr>
+                                    <th>Email</th>
+                                    <th>Board</th>
+                                    <th>Year</th>
+                                    <th>Subjects</th>
+                                    <th>Amount</th>
+                                    <th>Pin</th>
+                                    <th>Status</th>
+                                    <th>Reference</th>
+                                    <th>Paid At</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pastQuestionsPaymentsBody">
+                                <tr><td colspan="9" class="text-center">Loading past questions payments...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Practice Payments Section -->
+                <section id="practice_paymentsSection" class="dashboard-section hidden">
+                    <div class="section-header-premium">
+                        <h2><i class="fas fa-money-bill-wave"></i> Practice Payments</h2>
+                        <div class="section-actions-premium">
+                            <button class="btn-premium btn-premium-outline" onclick="loadPracticePayments()">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stat-card-premium">
+                            <div class="stat-icon-premium" style="background: linear-gradient(135deg, #10b981, #059669);">
+                                <i class="fas fa-receipt"></i>
+                            </div>
+                            <div class="stat-info-premium">
+                                <h3 id="practicePaymentsCount">0</h3>
+                                <p>Total Payments</p>
+                            </div>
+                        </div>
+                        <div class="stat-card-premium">
+                            <div class="stat-icon-premium" style="background: linear-gradient(135deg, #3b82f6, #2563eb);">
+                                <i class="fas fa-naira-sign"></i>
+                            </div>
+                            <div class="stat-info-premium">
+                                <h3 id="practicePaymentsAmount">₦0</h3>
+                                <p>Total Amount</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-container-premium">
+                        <h4 style="padding: 15px; background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                            <i class="fas fa-list" style="color: #3b82f6;"></i> Payment Records
+                        </h4>
+                        <table class="premium-table">
+                            <thead>
+                                <tr>
+                                    <th>Student</th>
+                                    <th>School</th>
+                                    <th>Reg Number</th>
+                                    <th>Category</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                    <th>Reference</th>
+                                    <th>Paid At</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="practicePaymentsBody">
+                                <tr><td colspan="9" class="text-center">Loading practice payments...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Practice Coupons Section -->
+                <section id="practice_couponsSection" class="dashboard-section hidden">
+                    <div class="section-header-premium">
+                        <h2><i class="fas fa-ticket-alt"></i> Practice Coupon Codes</h2>
+                        <div class="section-actions-premium">
+                            <button class="btn-premium btn-premium-outline" onclick="loadPracticeCoupons()">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+
+                    <form id="practiceCouponForm" class="premium-form" style="margin-bottom: 30px;">
+                        <div class="form-grid">
+                            <div class="form-group-premium">
+                                <label class="form-label-premium">
+                                    <i class="fas fa-user"></i> Student Full Name *
+                                </label>
+                                <input type="text" id="couponStudentName" class="form-control-premium" required>
+                            </div>
+                            <div class="form-group-premium">
+                                <label class="form-label-premium">
+                                    <i class="fas fa-list"></i> Exam Categories *
+                                </label>
+                                <div id="couponExamCategoryOptions" style="display:grid; grid-template-columns:repeat(2, minmax(120px, 1fr)); gap:8px; border:1px solid #dbe3ef; border-radius:10px; background:#fff; padding:10px;">
+                                    <label style="display:flex; align-items:center; gap:8px;"><input type="checkbox" name="couponExamCategories" value="waec"> WAEC</label>
+                                    <label style="display:flex; align-items:center; gap:8px;"><input type="checkbox" name="couponExamCategories" value="neco"> NECO</label>
+                                    <label style="display:flex; align-items:center; gap:8px;"><input type="checkbox" name="couponExamCategories" value="jamb"> JAMB</label>
+                                    <label style="display:flex; align-items:center; gap:8px;"><input type="checkbox" name="couponExamCategories" value="others"> Others</label>
+                                </div>
+                                <small style="display:block; margin-top:6px; color:#64748b;">Select one or more categories.</small>
+                            </div>
+                            <div class="form-group-premium">
+                                <label class="form-label-premium">
+                                    <i class="fas fa-school"></i> School *
+                                </label>
+                                <select id="couponSchoolSelect" class="form-control-premium" required>
+                                    <option value="">-- Select School --</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-grid">
+                            <div class="form-group-premium">
+                                <label class="form-label-premium">
+                                    <i class="fas fa-layer-group"></i> Class Category *
+                                </label>
+                                <select id="couponClassCategory" class="form-control-premium" required>
+                                    <option value="">-- Select Category --</option>
+                                    <option value="junior">Junior Secondary</option>
+                                    <option value="senior">Senior Secondary</option>
+                                    <option value="others">Others</option>
+                                </select>
+                            </div>
+                            <div class="form-group-premium">
+                                <label class="form-label-premium">
+                                    <i class="fas fa-graduation-cap"></i> Class *
+                                </label>
+                                <select id="couponClassSelect" class="form-control-premium" required>
+                                    <option value="">-- Select Class --</option>
+                                </select>
+                            </div>
+                            <div class="form-group-premium">
+                                <label class="form-label-premium">
+                                    <i class="fas fa-ticket-alt"></i> Generated Coupon Code
+                                </label>
+                                <input type="text" id="generatedPracticeCouponCode" class="form-control-premium" readonly placeholder="Will appear after generation">
+                            </div>
+                        </div>
+
+                        <div class="form-grid">
+                            <div class="form-group-premium">
+                                <label class="form-label-premium">
+                                    <i class="fas fa-phone"></i> Phone Number (Optional)
+                                </label>
+                                <input type="text" id="couponPhone" class="form-control-premium">
+                            </div>
+                            <div class="form-group-premium">
+                                <label class="form-label-premium">
+                                    <i class="fas fa-envelope"></i> Email (Optional)
+                                </label>
+                                <input type="email" id="couponEmail" class="form-control-premium">
+                            </div>
+                        </div>
+
+                        <div class="form-group-premium" id="couponWaecSubjectsGroup" style="display:none;">
+                            <label class="form-label-premium">
+                                <i class="fas fa-book"></i> WAEC / NECO / Others Subjects *
+                            </label>
+                            <div id="couponWaecSubjectsContainer" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:8px; max-height:260px; overflow:auto; border:1px solid #dbe3ef; border-radius:10px; background:#fff; padding:10px;"></div>
+                            <small id="couponWaecSubjectsHelp" style="display:block; margin-top:6px; color:#64748b;">Select up to 9 subjects for WAEC/NECO/Others.</small>
+                        </div>
+
+                        <div class="form-group-premium" id="couponJambSubjectsGroup" style="display:none;">
+                            <label class="form-label-premium">
+                                <i class="fas fa-list-check"></i> JAMB Subject Combination *
+                            </label>
+                            <div id="couponJambSubjectsContainer" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:8px; max-height:260px; overflow:auto; border:1px solid #dbe3ef; border-radius:10px; background:#fff; padding:10px;"></div>
+                            <small id="couponJambSubjectsHelp" style="display:block; margin-top:6px; color:#64748b;">Select up to 4 subjects for JAMB.</small>
+                        </div>
+
+                        <div class="form-actions" style="display: flex; gap: 15px; margin-top: 20px;">
+                            <button type="submit" class="btn-premium btn-premium-primary">
+                                <i class="fas fa-magic"></i> Generate Coupon Code
+                            </button>
+                            <button type="reset" class="btn-premium btn-premium-outline" id="resetCouponFormBtn">
+                                <i class="fas fa-redo-alt"></i> Clear
+                            </button>
+                        </div>
+                    </form>
+
+                    <div class="table-container-premium">
+                        <h4 style="padding: 15px; background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                            <i class="fas fa-list" style="color: #6366f1;"></i> Generated Coupon Codes
+                        </h4>
+                        <table class="premium-table">
+                            <thead>
+                                <tr>
+                                    <th>Coupon Code</th>
+                                    <th>Student Name</th>
+                                    <th>Category</th>
+                                    <th>School</th>
+                                    <th>Class</th>
+                                    <th>Reg Number</th>
+                                    <th>Access Code</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="practiceCouponsBody">
+                                <tr><td colspan="10" class="text-center">Loading coupon codes...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Exam Results Section -->
+                <section id="resultsSection" class="dashboard-section hidden">
+                    <div class="section-header-premium">
+                        <h2><i class="fas fa-chart-bar"></i> Exam Results</h2>
+                    </div>
+                    
+                    <!-- Premium Filter Bar -->
+                    <div class="filter-bar-premium">
+                        <div class="filter-group-premium">
+                            <label>School</label>
+                            <select id="resultSchoolFilter" class="form-control-premium">
+                                <option value="">All Schools</option>
+                            </select>
+                        </div>
+                        <div class="filter-group-premium">
+                            <label>Class</label>
+                            <select id="resultClassFilter" class="form-control-premium">
+                                <option value="">All Classes</option>
+                                <option value="jss1">JSS 1</option>
+                                <option value="jss2">JSS 2</option>
+                                <option value="jss3">JSS 3</option>
+                                <option value="ss1">SS 1</option>
+                                <option value="ss2">SS 2</option>
+                                <option value="ss3">SS 3</option>
+                            </select>
+                        </div>
+                        <div class="filter-group-premium">
+                            <label>Subject</label>
+                            <select id="resultSubjectFilter" class="form-control-premium">
+                                <option value="">All Subjects</option>
+                            </select>
+                        </div>
+                        <div class="filter-group-premium">
+                            <label>From Date</label>
+                            <input type="date" id="resultDateFrom" class="form-control-premium">
+                        </div>
+                        <div class="filter-group-premium">
+                            <label>To Date</label>
+                            <input type="date" id="resultDateTo" class="form-control-premium">
+                        </div>
+                        <div class="filter-group-premium">
+                            <button class="btn-premium btn-premium-primary" onclick="filterResults()">
+                                <i class="fas fa-filter"></i> Apply Filters
+                            </button>
+                        </div>
+                        <div class="filter-group-premium">
+                            <button class="btn-premium btn-premium-success" onclick="printFilteredResults()">
+                                <i class="fas fa-print"></i> Print Results
+                            </button>
+                        </div>
+                        <div class="filter-group-premium">
+                            <button class="btn-premium btn-premium-info" onclick="exportResultsPDF()">
+                                <i class="fas fa-file-pdf"></i> Export PDF
+                            </button>
+                        </div>
+                        <div class="filter-group-premium">
+                            <button class="btn-premium btn-premium-danger" onclick="deleteFilteredExamResults()">
+                                <i class="fas fa-trash"></i> Delete Result
+                            </button>
+                        </div>
+                        <div class="filter-group-premium">
+                            <button class="btn-premium btn-premium-danger" onclick="deleteAllExamResults()">
+                                <i class="fas fa-trash-alt"></i> Delete All
+                            </button>
+                        </div>
+                        <div class="filter-group-premium">
+                            <button class="btn-premium btn-premium-warning" onclick="removeDuplicateRecords()">
+                                <i class="fas fa-broom"></i> Remove Duplicates
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="table-container-premium">
+                        <table class="premium-table" id="resultsTable">
+                            <thead>
+                                <tr>
+                                    <th>S/N</th>
+                                    <th>Student Name</th>
+                                    <th>Reg Number</th>
+                                    <th>School</th>
+                                    <th>Category</th>
+                                    <th>Class</th>
+                                    <th>Subject</th>
+                                    <th>Total Questions</th>
+                                    <th>Correct Answers</th>
+                                    <th>Total Score</th>
+                                    <th>Percentage</th>
+                                    <th>Grade</th>
+                                    <th>Date</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="resultsTableBody">
+                                <tr><td colspan="14" class="text-center">Loading results...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Manage Schools Data Section -->
+                <section id="manage_schoolsSection" class="dashboard-section hidden">
+                    <div class="section-header-premium">
+                        <h2><i class="fas fa-school"></i> Manage Schools Data</h2>
+                    </div>
+                    
+                    <!-- School Filter Bar -->
+                    <div class="filter-bar-premium">
+                        <div class="filter-group-premium">
+                            <label>Select School</label>
+                            <select id="manageSchoolFilter" class="form-control-premium" onchange="loadSchoolData()">
+                                <option value="">-- Select School --</option>
+                            </select>
+                        </div>
+                        <div class="filter-group-premium">
+                            <label>Class</label>
+                            <select id="manageClassFilter" class="form-control-premium" onchange="loadSchoolData()">
+                                <option value="">All Classes</option>
+                                <option value="jss1">JSS 1</option>
+                                <option value="jss2">JSS 2</option>
+                                <option value="jss3">JSS 3</option>
+                                <option value="ss1">SS 1</option>
+                                <option value="ss2">SS 2</option>
+                                <option value="ss3">SS 3</option>
+                            </select>
+                        </div>
+                        <div class="filter-group-premium">
+                            <label>Subject</label>
+                            <select id="manageSubjectFilter" class="form-control-premium" onchange="loadSchoolData()">
+                                <option value="">All Subjects</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- School Stats -->
+                    <div class="stats-grid" style="margin-bottom: 20px;">
+                        <div class="stat-card-premium">
+                            <div class="stat-icon-premium" style="background: linear-gradient(135deg, #667eea, #764ba2);">
+                                <i class="fas fa-users"></i>
+                            </div>
+                            <div class="stat-info-premium">
+                                <h3 id="schoolTotalStudents">0</h3>
+                                <p>Total Students</p>
+                            </div>
+                        </div>
+                        <div class="stat-card-premium">
+                            <div class="stat-icon-premium" style="background: linear-gradient(135deg, #10b981, #059669);">
+                                <i class="fas fa-check-circle"></i>
+                            </div>
+                            <div class="stat-info-premium">
+                                <h3 id="schoolApprovedStudents">0</h3>
+                                <p>Approved</p>
+                            </div>
+                        </div>
+                        <div class="stat-card-premium">
+                            <div class="stat-icon-premium" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                            <div class="stat-info-premium">
+                                <h3 id="schoolPendingStudents">0</h3>
+                                <p>Pending</p>
+                            </div>
+                        </div>
+                        <div class="stat-card-premium">
+                            <div class="stat-icon-premium" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
+                                <i class="fas fa-chart-bar"></i>
+                            </div>
+                            <div class="stat-info-premium">
+                                <h3 id="schoolResultsCount">0</h3>
+                                <p>Results</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- School Students -->
+                    <div class="table-container-premium" style="margin-bottom: 30px;">
+                        <h4 style="padding: 15px; background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                            <i class="fas fa-users"></i> Registered Students
+                        </h4>
+                        <table class="premium-table">
+                            <thead>
+                                <tr>
+                                    <th>Reg Number</th>
+                                    <th>Name</th>
+                                    <th>Class</th>
+                                    <th>Subject</th>
+                                    <th>Status</th>
+                                    <th>Exam Taken</th>
+                                </tr>
+                            </thead>
+                            <tbody id="schoolStudentsBody">
+                                <tr><td colspan="6" class="text-center">Select a school to view students</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- School Results -->
+                    <div class="table-container-premium">
+                        <h4 style="padding: 15px; background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                            <i class="fas fa-chart-bar"></i> Student Results
+                            <button class="btn-premium btn-premium-success btn-small" style="float: right;" onclick="printSchoolResults()">
+                                <i class="fas fa-print"></i> Print
+                            </button>
+                        </h4>
+                        <table class="premium-table">
+                            <thead>
+                                <tr>
+                                    <th>Student Name</th>
+                                    <th>Reg Number</th>
+                                    <th>Class</th>
+                                    <th>Subject</th>
+                                    <th>Score</th>
+                                    <th>Percentage</th>
+                                    <th>Grade</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody id="schoolResultsBody">
+                                <tr><td colspan="8" class="text-center">Select a school to view results</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Access Subjects Section -->
+                <section id="subjects_inventorySection" class="dashboard-section hidden">
+                    <div class="section-header-classic">
+                        <h2 style="font-family: 'Georgia', serif; font-size: 2rem; color: #2d3748; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">
+                            <i class="fas fa-book-open" style="color:#4a5568; margin-right:8px;"></i> Access Subjects
+                        </h2>
+                    </div>
+
+                    <div class="filter-bar-classic" style="display: flex; gap: 24px; margin-bottom: 18px;">
+                        <div style="display: flex; flex-direction: column;">
+                            <label style="font-family: 'Georgia', serif; color: #4a5568; margin-bottom: 4px;">School</label>
+                            <select id="accessSubjectSchool" style="font-family: 'Georgia', serif; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 10px; min-width: 180px;" onchange="loadAccessSubjects()">
+                                <option value="">-- Select School --</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; flex-direction: column;">
+                            <label style="font-family: 'Georgia', serif; color: #4a5568; margin-bottom: 4px;">Class</label>
+                            <select id="accessSubjectClass" style="font-family: 'Georgia', serif; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 10px; min-width: 140px;" onchange="loadAccessSubjects()">
+                                <option value="">-- Select Class --</option>
+                                <option value="JSS1">JSS 1</option>
+                                <option value="JSS2">JSS 2</option>
+                                <option value="JSS3">JSS 3</option>
+                                <option value="SS1">SS 1</option>
+                                <option value="SS2">SS 2</option>
+                                <option value="SS3">SS 3</option>
+                            </select>
+                        </div>
+                        <div style="align-self: flex-end;">
+                            <button style="font-family: 'Georgia', serif; background: #e2e8f0; color: #2d3748; border: none; border-radius: 6px; padding: 8px 16px; font-size: 1rem; box-shadow: 0 2px 6px #e2e8f0;" onclick="printAccessSubjectsList()">
+                                <i class="fas fa-print" style="color:#4a5568;"></i> Print Subjects List
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="accessSubjectsSummary" style="font-family: 'Georgia', serif; padding: 14px 18px; margin-bottom: 18px; background: #f7fafc; border-radius: 8px; color: #2d3748; border: 1px solid #e2e8f0;">
+                        <span style="font-size: 1.1rem;">Select school and class to load available subjects from uploaded question files.</span>
+                    </div>
+
+                    <div class="table-container-classic" style="background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #e2e8f0; padding: 18px;">
+                        <table style="width:100%; border-collapse: collapse; font-family: 'Georgia', serif;">
+                            <thead>
+                                <tr style="background: #f7fafc; color: #2d3748;">
+                                    <th style="padding: 10px 8px; border-bottom: 2px solid #e2e8f0; text-align:left;">S/N</th>
+                                    <th style="padding: 10px 8px; border-bottom: 2px solid #e2e8f0; text-align:left;">Subject</th>
+                                    <th style="padding: 10px 8px; border-bottom: 2px solid #e2e8f0; text-align:left;">Questions</th>
+                                    <th style="padding: 10px 8px; border-bottom: 2px solid #e2e8f0; text-align:left;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="accessSubjectsBody">
+                                <tr><td colspan="4" style="text-align:center; color:#64748b; padding:18px;">Select school and class to load subjects</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Modal for Subject Details -->
+                    <div id="subjectDetailsModal" class="modal-premium" style="display:none;">
+                        <div class="modal-content-premium">
+                            <div class="modal-header-premium">
+                                <h3><i class="fas fa-book"></i> Subject Details</h3>
+                                <button class="close-modal" onclick="closeSubjectDetailsModal()">&times;</button>
+                            </div>
+                            <div class="modal-body-premium" id="subjectDetailsContent">
+                                <!-- Subject details will be loaded here -->
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- System Settings Section -->
+                <section id="settingsSection" class="dashboard-section hidden">
+                    <div class="section-header-premium">
+                        <h2><i class="fas fa-cog"></i> System Settings</h2>
+                    </div>
+                    
+                    <div class="settings-grid-premium">
+                        <!-- Portal Controls -->
+                        <div class="setting-card-premium">
+                            <h3><i class="fas fa-toggle-on"></i> Portal Controls</h3>
+                            <div class="setting-item-premium">
+                                <label>Main Exam Portal</label>
+                                <div style="display: flex; align-items: center; gap: 15px;">
+                                    <label class="toggle-switch-premium">
+                                        <input type="checkbox" id="examPortalToggle" checked>
+                                        <span class="toggle-slider-premium"></span>
+                                    </label>
+                                    <span id="examPortalStatus" class="badge-premium badge-premium-active">Active</span>
+                                </div>
+                            </div>
+                            <div class="setting-item-premium">
+                                <label>Practice Portal</label>
+                                <div style="display: flex; align-items: center; gap: 15px;">
+                                    <label class="toggle-switch-premium">
+                                        <input type="checkbox" id="practicePortalToggle" checked>
+                                        <span class="toggle-slider-premium"></span>
+                                    </label>
+                                    <span id="practicePortalStatus" class="badge-premium badge-premium-active">Active</span>
+                                </div>
+                            </div>
+                            <div class="setting-item-premium">
+                                <label>School Exam Registration</label>
+                                <div style="display: flex; align-items: center; gap: 15px;">
+                                    <label class="toggle-switch-premium">
+                                        <input type="checkbox" id="schoolRegistrationToggle" checked>
+                                        <span class="toggle-slider-premium"></span>
+                                    </label>
+                                    <span id="schoolRegistrationStatus" class="badge-premium badge-premium-active">Open</span>
+                                </div>
+                            </div>
+                            <button class="btn-premium btn-premium-primary" onclick="savePortalSettings()">
+                                <i class="fas fa-save"></i> Save Changes
+                            </button>
+                        </div>
+
+                        <!-- Exam Duration Settings -->
+                        <div class="setting-card-premium">
+                            <h3><i class="fas fa-clock"></i> Exam Duration Settings</h3>
+                            <div class="setting-item-premium">
+                                <label>Exam Type</label>
+                                <select id="examTypeSelect" class="form-control-premium" onchange="loadDurationSubjects()">
+                                    <option value="waec">WAEC</option>
+                                    <option value="jamb">JAMB</option>
+                                    <option value="practice">Practice</option>
+                                    <option value="school">School Exam</option>
+                                </select>
+                            </div>
+                            <div class="setting-item-premium">
+                                <label>Subject</label>
+                                <select id="durationSubjectSelect" class="form-control-premium">
+                                    <option value="">Select Subject</option>
+                                </select>
+                            </div>
+                            <div class="setting-item-premium">
+                                <label>Duration (Minutes)</label>
+                                <input type="number" id="durationMinutes" class="form-control-premium" min="1" max="300" value="60">
+                            </div>
+                            <button class="btn-premium btn-premium-primary" onclick="saveExamDuration()">
+                                <i class="fas fa-save"></i> Set Duration
+                            </button>
+                        </div>
+
+                        <!-- JAMB Subject Combination -->
+                        <div class="setting-card-premium">
+                            <h3><i class="fas fa-layer-group"></i> JAMB Subject Combination</h3>
+                            <div class="setting-item-premium">
+                                <label>Select 4 Subjects</label>
+                                <select id="jambSubject1" class="form-control-premium" style="margin-bottom: 10px;">
+                                    <option value="">Subject 1</option>
+                                </select>
+                                <select id="jambSubject2" class="form-control-premium" style="margin-bottom: 10px;">
+                                    <option value="">Subject 2</option>
+                                </select>
+                                <select id="jambSubject3" class="form-control-premium" style="margin-bottom: 10px;">
+                                    <option value="">Subject 3</option>
+                                </select>
+                                <select id="jambSubject4" class="form-control-premium" style="margin-bottom: 10px;">
+                                    <option value="">Subject 4</option>
+                                </select>
+                            </div>
+                            <button class="btn-premium btn-premium-primary" onclick="saveJAMBCombination()">
+                                <i class="fas fa-save"></i> Save Combination
+                            </button>
+                        </div>
+
+                        <!-- Practice Settings -->
+                        <div class="setting-card-premium">
+                            <h3><i class="fas fa-sliders-h"></i> Practice Settings</h3>
+                            <div class="setting-item-premium">
+                                <label>Questions per Practice</label>
+                                <input type="number" id="practiceQuestions" class="form-control-premium" value="20" min="5" max="100">
+                            </div>
+                            <div class="setting-item-premium">
+                                <label>Allow Hints</label>
+                                <div style="display: flex; align-items: center; gap: 15px;">
+                                    <label class="toggle-switch-premium">
+                                        <input type="checkbox" id="allowHints" checked>
+                                        <span class="toggle-slider-premium"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="setting-item-premium">
+                                <label>Show Answers</label>
+                                <div style="display: flex; align-items: center; gap: 15px;">
+                                    <label class="toggle-switch-premium">
+                                        <input type="checkbox" id="showAnswers" checked>
+                                        <span class="toggle-slider-premium"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <button class="btn-premium btn-premium-primary" onclick="savePracticeSettings()">
+                                <i class="fas fa-save"></i> Save Settings
+                            </button>
+                        </div>
+
+                        <!-- Backup Settings -->
+                        <div class="setting-card-premium">
+                            <h3><i class="fas fa-database"></i> Data Management</h3>
+                            <div class="setting-item-premium">
+                                <button class="btn-premium btn-premium-primary" style="width: 100%; margin-bottom: 10px;" onclick="backupData()">
+                                    <i class="fas fa-download"></i> Download Backup
+                                </button>
+                            </div>
+                            <div class="setting-item-premium">
+                                <button class="btn-premium btn-premium-success" style="width: 100%; margin-bottom: 10px;" onclick="exportResults()">
+                                    <i class="fas fa-file-excel"></i> Export Results (Excel)
+                                </button>
+                            </div>
+                            <div class="setting-item-premium">
+                                <button class="btn-premium btn-premium-warning" style="width: 100%;" onclick="clearOldData()">
+                                    <i class="fas fa-trash-alt"></i> Clear Old Data
+                                </button>
+                            </div>
+                            <div class="setting-item-premium">
+                                <button class="btn-premium btn-premium-danger" style="width: 100%;" onclick="removeDuplicateRecords()">
+                                    <i class="fas fa-broom"></i> Remove Duplicate Records
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Upload Pin Section -->
+                <section id="upload_pinSection" class="dashboard-section hidden">
+                    <div class="section-header-premium">
+                        <h2><i class="fas fa-ticket-alt"></i> Upload Pin to Students</h2>
+                    </div>
+
+                    <!-- Coming Soon Notice -->
+                    <div class="glass-card" style="margin-bottom: 25px; padding: 40px; background: linear-gradient(135deg, #fbbf24, #f59e0b); border-radius: 16px; box-shadow: 0 10px 30px rgba(251, 191, 36, 0.15); text-align: center;">
+                        <i class="fas fa-rocket" style="font-size: 60px; color: white; margin-bottom: 20px; display: block;"></i>
+                        <h3 style="color: white; font-size: 1.8rem; margin: 15px 0;">Coming Soon</h3>
+                        <p style="color: rgba(255, 255, 255, 0.9); font-size: 1rem; margin: 10px 0;">The pin upload system is currently in development. This feature will allow you to deliver exam pins directly to students who have made purchases.</p>
+                        <p style="color: rgba(255, 255, 255, 0.8); font-size: 0.9rem; margin-top: 15px;">Expected Launch: Q2 2026</p>
+                    </div>
+
+                    <!-- Statistics Cards -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                        <div class="glass-card" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; padding: 25px; text-align: center;">
+                            <div style="color: rgba(255, 255, 255, 0.8); font-size: 0.9rem; margin-bottom: 10px;">Pending Deliveries</div>
+                            <div style="color: white; font-size: 2.5rem; font-weight: 700;">-</div>
+                        </div>
+                        <div class="glass-card" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); border: none; padding: 25px; text-align: center;">
+                            <div style="color: rgba(255, 255, 255, 0.8); font-size: 0.9rem; margin-bottom: 10px;">Pins Delivered</div>
+                            <div style="color: white; font-size: 2.5rem; font-weight: 700;">-</div>
+                        </div>
+                        <div class="glass-card" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); border: none; padding: 25px; text-align: center;">
+                            <div style="color: rgba(255, 255, 255, 0.8); font-size: 0.9rem; margin-bottom: 10px;">Total Revenue</div>
+                            <div style="color: white; font-size: 2.5rem; font-weight: 700;">₦-</div>
+                        </div>
+                    </div>
+
+                    <!-- Feature Preview -->
+                    <div class="glass-card" style="background: #f0fdf4; border-left: 4px solid #10b981; padding: 25px;">
+                        <h3 style="color: #059669; margin: 0 0 15px 0;"><i class="fas fa-info-circle"></i> What You'll Be Able To Do:</h3>
+                        <ul style="margin: 0; padding-left: 20px; color: #047857; line-height: 2;">
+                            <li>Upload exam pins for students who have purchased</li>
+                            <li>Track pending pin deliveries</li>
+                            <li>View payment details from students</li>
+                            <li>Manage delivery history</li>
+                            <li>Generate delivery reports</li>
+                        </ul>
+                    </div>
+                </section>
+
+                <!-- Upload Past Questions Section -->
+                <section id="upload_past_questionsSection" class="dashboard-section hidden">
+                    <div class="section-header-premium">
+                        <h2><i class="fas fa-upload"></i> Upload Past Questions</h2>
+                        <div class="section-actions-premium">
+                            <button class="btn-premium btn-premium-outline" onclick="loadUploadedQuestions()">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Upload Guidance -->
+                    <div class="glass-card" style="margin-bottom: 25px; padding: 25px; background: linear-gradient(135deg, #f0fdf4, #dcfce7); border-left: 5px solid #059669;">
+                        <div style="display: flex; align-items: center; gap: 15px; justify-content: center; text-align: center;">
+                            <div>
+                                <h3 style="color: #059669; margin: 0 0 10px 0; font-size: 1.3rem;">
+                                    <i class="fas fa-cloud-upload-alt" style="margin-right: 10px;"></i>Upload Live Content
+                                </h3>
+                                <p style="color: #047857; margin: 0; font-size: 0.95rem;">
+                                    Upload PDFs for past questions and materials by exam board, year range, and subject. Students can only download assets that match what you upload.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Upload Form -->
+                    <div class="glass-card" style="margin-bottom: 25px; padding: 25px;">
+                        <h3 style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; color: #1e293b;">
+                            <i class="fas fa-file-upload" style="color: #667eea;"></i> Upload New Questions
+                        </h3>
+
+                        <form id="uploadQuestionsForm" class="premium-form">
+                            <div class="form-grid">
+                                <div class="form-group-premium">
+                                    <label class="form-label-premium">
+                                        <i class="fas fa-layer-group"></i> Content Type *
+                                    </label>
+                                    <select id="uploadAssetType" class="form-control-premium" required>
+                                        <option value="">-- Select Type --</option>
+                                        <option value="past_question">Past Question PDF</option>
+                                        <option value="material">Study Material PDF</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group-premium">
+                                    <label class="form-label-premium">
+                                        <i class="fas fa-graduation-cap"></i> Exam Board *
+                                    </label>
+                                    <select id="uploadExamBoard" class="form-control-premium" required>
+                                        <option value="">-- Select Exam Board --</option>
+                                        <option value="jamb">JAMB</option>
+                                        <option value="waec">WAEC</option>
+                                        <option value="neco">NECO</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group-premium">
+                                    <label class="form-label-premium">
+                                        <i class="fas fa-book"></i> Subject *
+                                    </label>
+                                    <select id="uploadSubject" class="form-control-premium" required>
+                                        <option value="">-- Select Subject --</option>
+                                        <!-- Subjects will be populated based on exam board -->
+                                    </select>
+                                </div>
+
+                                <div class="form-group-premium">
+                                    <label class="form-label-premium">
+                                        <i class="fas fa-calendar"></i> Year Range *
+                                    </label>
+                                    <select id="uploadYearRange" class="form-control-premium" required>
+                                        <option value="">-- Select Year Range --</option>
+                                        <option value="2005-2015">2005 - 2015</option>
+                                        <option value="2016-2025">2016 - 2025</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group-premium">
+                                    <label class="form-label-premium">
+                                        <i class="fas fa-file-pdf"></i> PDF File *
+                                    </label>
+                                    <input type="file" id="uploadFile" class="form-control-premium" accept=".pdf" required>
+                                    <small style="color: #64748b; margin-top: 5px; display: block;">
+                                        Only PDF files are accepted. Maximum size: 10MB
+                                    </small>
+                                </div>
+                            </div>
+
+                            <div class="form-group-premium">
+                                <label class="form-label-premium">
+                                    <i class="fas fa-sticky-note"></i> Description (Optional)
+                                </label>
+                                <textarea id="uploadDescription" class="form-control-premium" rows="3" placeholder="Brief description of the question paper..."></textarea>
+                            </div>
+
+                            <div class="form-actions" style="display: flex; gap: 15px; margin-top: 25px;">
+                                <button type="submit" class="btn-premium btn-premium-primary">
+                                    <i class="fas fa-upload"></i> Upload File
+                                </button>
+                                <button type="reset" class="btn-premium btn-premium-outline">
+                                    <i class="fas fa-redo-alt"></i> Clear Form
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Upload Progress -->
+                    <div id="uploadProgress" class="glass-card" style="display: none; margin-bottom: 25px; padding: 20px;">
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <div class="spinner-premium"></div>
+                            <div>
+                                <strong>Uploading...</strong>
+                                <div id="uploadStatus" style="color: #64748b; margin-top: 5px;">Preparing file for upload</div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 15px;">
+                            <div style="width: 100%; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                                <div id="uploadProgressBar" style="width: 0%; height: 100%; background: linear-gradient(135deg, #667eea, #764ba2); transition: width 0.3s ease;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Uploaded Questions List -->
+                    <div class="table-container-premium">
+                        <h4 style="padding: 15px; background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                            <i class="fas fa-list" style="color: #667eea;"></i> Uploaded Past Questions
+                            <span class="badge-premium badge-premium-active" id="totalUploadedCount">0</span>
+                        </h4>
+                        <table class="premium-table">
+                            <thead>
+                                <tr>
+                                    <th><i class="fas fa-layer-group"></i> Type</th>
+                                    <th><i class="fas fa-graduation-cap"></i> Exam Board</th>
+                                    <th><i class="fas fa-book"></i> Subject</th>
+                                    <th><i class="fas fa-calendar"></i> Year Range</th>
+                                    <th><i class="fas fa-file"></i> File Name</th>
+                                    <th><i class="fas fa-weight-hanging"></i> Size</th>
+                                    <th><i class="fas fa-sticky-note"></i> Description</th>
+                                    <th><i class="fas fa-clock"></i> Uploaded</th>
+                                    <th><i class="fas fa-download"></i> Downloads</th>
+                                    <th><i class="fas fa-cogs"></i> Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="uploadedQuestionsBody">
+                                <tr><td colspan="10" class="text-center">Loading uploaded questions...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <!-- Edit Student Modal -->
+    <div id="editStudentModal" class="modal-premium" style="display: none;">
+        <div class="modal-content-premium">
+            <div class="modal-header-premium">
+                <h3><i class="fas fa-edit"></i> Edit Student Details</h3>
+                <button class="close-modal" onclick="closeEditModal()">&times;</button>
+            </div>
+            <div class="modal-body-premium">
+                <form id="editStudentForm">
+                    <input type="hidden" id="editStudentId">
+                    <input type="hidden" id="editStudentType">
+                    
+                    <div class="form-group-premium">
+                        <label class="form-label-premium">First Name</label>
+                        <input type="text" id="editFirstName" class="form-control-premium" required>
+                    </div>
+                    
+                    <div class="form-group-premium">
+                        <label class="form-label-premium">Middle Name</label>
+                        <input type="text" id="editMiddleName" class="form-control-premium">
+                    </div>
+                    
+                    <div class="form-group-premium">
+                        <label class="form-label-premium">Surname</label>
+                        <input type="text" id="editSurname" class="form-control-premium" required>
+                    </div>
+                    
+                    <div class="form-group-premium">
+                        <label class="form-label-premium">Class</label>
+                        <select id="editClass" class="form-control-premium" required>
+                            <option value="jss1">JSS 1</option>
+                            <option value="jss2">JSS 2</option>
+                            <option value="jss3">JSS 3</option>
+                            <option value="ss1">SS 1</option>
+                            <option value="ss2">SS 2</option>
+                            <option value="ss3">SS 3</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group-premium">
+                        <label class="form-label-premium">Subjects</label>
+                        <div id="editSubjectCheckboxes" class="subject-checkboxes" style="display: flex; flex-wrap: wrap; gap: 8px;">
+                            <!-- Subject checkboxes will be rendered here -->
+                        </div>
+                    </div>
+                    
+                    <div class="form-group-premium">
+                        <label class="form-label-premium">School</label>
+                        <select id="editSchool" class="form-control-premium" required>
+                            <option value="">Select School</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-actions" style="display: flex; gap: 15px; margin-top: 20px;">
+                        <button type="submit" class="btn-premium btn-premium-primary">
+                            <i class="fas fa-save"></i> Update Student
+                        </button>
+                        <button type="button" class="btn-premium btn-premium-outline" onclick="closeEditModal()">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Print Template (Hidden) -->
+    <div id="printContent" style="display: none;">
+        <div class="print-section" id="printPreviewSection" style="max-width: 100%; padding: 40px;">
+            <!-- Premium Header -->
+            <div style="text-align: center; margin-bottom: 40px; border-bottom: 3px solid #667eea; padding-bottom: 20px;">
+                <h1 id="printSchoolName" style="color: #1a237e; margin: 0 0 5px 0; font-size: 28px;">Scholaxia CBT Platform</h1>
+                <h2 id="printTitle" style="color: #667eea; margin: 0 0 10px 0; font-size: 22px;">Exam Students List</h2>
+                <p id="printDetails" style="color: #666; margin: 5px 0; font-size: 14px;"></p>
+                <p style="color: #666; margin: 5px 0; font-size: 14px;">Date: <span id="printDate"></span> | Printed by: Scholaxia CBT</p>
+            </div>
+            <div id="printSummary" style="margin-bottom: 30px; display: none;"></div>
+            <div id="printContentTable"></div>
+            <!-- Footer -->
+            <div style="text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; color: #999; font-size: 12px;">
+                <p>This report is confidential and intended for authorized use only. © 2026 Scholaxia CBT Platform. All rights reserved.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loader -->
+    <div id="adminLoader" style="display: none;">
+        <div class="modal-premium" style="background: rgba(0,0,0,0.5);">
+            <div class="loader-content" style="background: white; padding: 30px; border-radius: 20px; display: flex; align-items: center; gap: 20px;">
+                <div class="spinner-premium"></div>
+                <div id="loaderMessage">Processing...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PDF Generation Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+    <!-- Firebase and Admin Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script type="module" src="firebase-config.js"></script>
+    <script nomodule src="legacy-browser-support.js"></script>
+    <script type="module" src="admin.js"></script>
+
+    <script>
+        // Preview Printout logic
+        function previewExamStudentsPrintout() {
+            // Call the print logic but show the printContent section instead of printing
+            const printContent = document.getElementById('printContent');
+            printContent.style.display = 'block';
+            // Optionally scroll to printContent
+            printContent.scrollIntoView({ behavior: 'smooth' });
+        }
+        function hidePrintPreview() {
+            const printContent = document.getElementById('printContent');
+            printContent.style.display = 'none';
+        }
+        // Add event listener for preview button
+        document.addEventListener('DOMContentLoaded', function() {
+            const previewBtn = document.getElementById('previewExamStudentsBtn');
+            if (previewBtn) {
+                previewBtn.addEventListener('click', function() {
+                    previewExamStudentsPrintout();
+                });
+            }
+        });
+    // Ensure the older print button works reliably
+    function bindPrintButton() {
+        const btn = document.getElementById('printExamStudentsBtn');
+        if (btn) {
+            btn.addEventListener('click', function() {
+                console.log('Print Exam Students button clicked');
+                if (typeof window.printExamStudentsList === 'function') {
+                    window.printExamStudentsList();
+                } else {
+                    alert('Print function not available. Please reload or check admin.js loading.');
+                }
+            });
+        }
+    }
+    document.addEventListener('DOMContentLoaded', bindPrintButton);
+    setTimeout(bindPrintButton, 1500); // Fallback in case admin.js loads after DOMContentLoaded
+    </script>
+    
+    <script>
+        // Schools List
+        const SCHOOLS = [
+            "Scholaxia Academy",
+            "Loyola Jesuit College, Abuja",
+            "Christ the King College, Onitsha",
+            "Stella Maris College, Port Harcourt",
+            "Queen of Apostle Seminary, Afaha-Obong, Abak",
+            "Maria Regina Model Comprehensive Secondary School, Nnewi",
+            "Holy Family College, Abak",
+            "Holy Rosary College, Enugu",
+            "Regina Pacis College, Abuja",
+            "Loretto girls Juniorate (Iwuru Obio Ntan, C.R.S)",
+            "Louisville Girls High School, Ijebu-Itele",
+            "Loretto Special Science School, Adazi-Nnukwu",
+            "Loretto girls Juniorate (Afaha-Obong, Abak)",
+            "Hillcrest College, Calabar",
+            "Vatical Secondary School, Obudu",
+            "Tower of Ivory Schools, Abak",
+            "Presentation National High School, Benin City",
+            "Lumen Christi International High School (near Benin City)",
+            "Chrisland Schools, Lagos",
+            "Greensprings School",
+            "Atlantic Hall, Epe",
+            "Corona Secondary School, Agbara",
+            "Talent Group of schools (Betem, C.R.S)",
+            "Patfon School, Itu, Aks"
+        ];
+
+        // Subjects List
+        const SUBJECTS = [
+            "English Language",
+            "Mathematics",
+            "Biology",
+            "Chemistry",
+            "Physics",
+            "Agricultural Science",
+            "Geography",
+            "Economics",
+            "Commerce",
+            "Financial Accounting",
+            "Government",
+            "Nigerian History",
+            "Christian Religious Studies",
+            "Islamic Studies",
+            "French",
+            "Civic Education",
+            "Further Mathematics",
+            "Literature in English",
+            "Marketing",
+            "Food & Nutrition",
+            "Livestock Farming",
+            "Computer Hardware & GSM Repairs",
+            "Digital Technologies",
+            "Intermediate Science",
+            "Basic Technology",
+            "Social Studies",
+            "Physical and Health Education",
+            "Social and Citizenship Studies",
+            "Business Studies",
+            "Home Economics",
+            "Music",
+            "Cultural & Creative Arts",
+            "Religious Studies",
+            "Igbo",
+            "Hausa",
+            "Yoruba",
+            "Ibibio"
+        ];
+
+        // JAMB Subjects
+        const JAMB_SUBJECTS = [
+            "Use of English",
+            "Mathematics",
+            "Physics",
+            "Chemistry",
+            "Biology",
+            "Economics",
+            "Commerce",
+            "Accounting",
+            "Government",
+            "Literature in English",
+            "Christian Religious Studies",
+            "Islamic Studies",
+            "Geography",
+            "History",
+            "Yoruba",
+            "Igbo",
+            "Hausa",
+            "French"
+        ];
+
+        // Initialize schools in all dropdowns
+        function initializeSchools() {
+            const schoolSelects = [
+                'regSchoolSelect',
+                'couponSchoolSelect',
+                'resultSchoolFilter',
+                'practiceSchoolFilter',
+                'manageSchoolFilter',
+                'editSchool'
+            ];
+            
+            schoolSelects.forEach(selectId => {
+                const select = document.getElementById(selectId);
+                if (select) {
+                    select.innerHTML = '<option value="">-- Select School --</option>';
+                    SCHOOLS.forEach(school => {
+                        const option = document.createElement('option');
+                        option.value = school;
+                        option.textContent = school;
+                        select.appendChild(option);
+                    });
+                }
+            });
+        }
+
+        // Initialize subjects in dropdowns
+        function initializeSubjects() {
+            const subjectSelects = [
+                'studentSubject',
+                'filterSubject',
+                'resultSubjectFilter',
+                'practiceSubjectFilter',
+                'manageSubjectFilter',
+                'editSubject',
+                'durationSubjectSelect',
+                'jambSubject1',
+                'jambSubject2',
+                'jambSubject3',
+                'jambSubject4'
+            ];
+            
+            subjectSelects.forEach(selectId => {
+                const select = document.getElementById(selectId);
+                if (select) {
+                    if (selectId.includes('jamb')) {
+                        select.innerHTML = '<option value="">Select Subject</option>';
+                        JAMB_SUBJECTS.forEach(subject => {
+                            const option = document.createElement('option');
+                            option.value = subject;
+                            option.textContent = subject;
+                            select.appendChild(option);
+                        });
+                    } else {
+                        select.innerHTML = '<option value="">Select Subject</option>';
+                        SUBJECTS.forEach(subject => {
+                            const option = document.createElement('option');
+                            option.value = subject;
+                            option.textContent = subject;
+                            select.appendChild(option);
+                        });
+                    }
+                }
+            });
+        }
+
+        // Call initialization when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeSchools();
+            initializeSubjects();
+        });
+
+        // Navigation
+        document.querySelectorAll('.sidebar-nav-premium a').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                // Remove active class from all links and sections
+                document.querySelectorAll('.sidebar-nav-premium a').forEach(l => l.classList.remove('active'));
+                document.querySelectorAll('.dashboard-section').forEach(s => s.classList.add('hidden'));
+                // Add active class to clicked link
+                this.classList.add('active');
+                // Show corresponding section
+                const section = this.dataset.section;
+                document.getElementById(section + 'Section').classList.remove('hidden');
+                // Load section data if needed
+                switch(section) {
+                    case 'students':
+                        loadStudentsList();
+                        break;
+                    case 'practice_students':
+                        loadPracticeStudents();
+                        break;
+                    case 'practice_payments':
+                        if (typeof loadPracticePayments === 'function') loadPracticePayments();
+                        break;
+                    case 'practice_coupons':
+                        loadPracticeCoupons();
+                        break;
+                    case 'results':
+                        loadExamResults();
+                        break;
+                    case 'manage_schools':
+                        loadSchoolData();
+                        break;
+                    case 'past_questions_payments':
+                        if (typeof loadPastQuestionsPayments === 'function') loadPastQuestionsPayments();
+                        break;
+                }
+            });
+        });
+
+        // Update class options based on category
+        window.updateClassOptions = function() {
+            const category = document.getElementById('classCategory').value;
+            const classSelect = document.getElementById('studentClass');
+            
+            classSelect.innerHTML = '';
+            classSelect.disabled = !category;
+            
+            if (!category) {
+                classSelect.innerHTML = '<option value="">-- Select class category first --</option>';
+                return;
+            }
+            
+            const options = category === 'jss' 
+                ? ['JSS 1', 'JSS 2', 'JSS 3']
+                : ['SS 1', 'SS 2', 'SS 3'];
+            
+            options.forEach(className => {
+                const option = document.createElement('option');
+                option.value = className.toLowerCase().replace(' ', '');
+                option.textContent = className;
+                classSelect.appendChild(option);
+            });
+        };
+
+        // Generate registration number
+        window.generateRegistrationNumber = function() {
+            const year = new Date().getFullYear();
+            const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+            document.getElementById('regNumber').value = `SCH${year}${random}`;
+            document.getElementById('accessCode').value = Math.random().toString(36).substring(2, 10).toUpperCase();
+        };
+
+        // Show toast notification
+        window.showToast = function(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast-premium ${type}`;
+            toast.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i> ${message}`;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        };
+
+        // Show/hide loader
+        window.showLoader = function(message = 'Processing...') {
+            document.getElementById('loaderMessage').textContent = message;
+            document.getElementById('adminLoader').style.display = 'block';
+        };
+
+        window.hideLoader = function() {
+            document.getElementById('adminLoader').style.display = 'none';
+        };
+
+        // Close edit modal
+        window.closeEditModal = function() {
+            document.getElementById('editStudentModal').style.display = 'none';
+        };
+
+        // Logout function
+        window.logout = function() {
+            if (confirm('Are you sure you want to logout?')) {
+                window.location.href = 'login.html';
+            }
+        };
+
+        // Refresh all data using the module-provided refresh function if available.
+        window.refreshAll = async function() {
+            showLoader('Refreshing data...');
+
+            const waitForModuleRefresh = async () => {
+                const start = Date.now();
+                while (Date.now() - start < 5000) {
+                    if (typeof window._refreshAll === 'function') return window._refreshAll();
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                return null;
+            };
+
+            const moduleRefresh = typeof window._refreshAll === 'function'
+                ? window._refreshAll()
+                : await waitForModuleRefresh();
+
+            if (moduleRefresh === null) {
+                console.warn('refreshAll: module refresh function not available yet');
+                showToast('Refresh is not ready yet. Please wait a moment and try again.', 'warning');
+                hideLoader();
+                return;
+            }
+
+            try {
+                await moduleRefresh;
+            } catch (error) {
+                console.error('refreshAll: module refresh failed', error);
+                showToast('Refresh failed: ' + (error?.message || error), 'error');
+            } finally {
+                hideLoader();
+            }
+        };
+
+        // Upload Past Questions Functions
+        let uploadedQuestions = [];
+        const UPLOAD_SUBJECTS = {
+            jamb: [
+                'English Language', 'Mathematics', 'Physics', 'Chemistry', 'Biology',
+                'History', 'Government', 'Economics', 'Literature', 'Geography',
+                'Commerce', 'Accounting', 'Agricultural Science', 'Christian Religious Studies',
+                'Islamic Religious Studies', 'French', 'Arabic'
+            ],
+            waec: [
+                'English Language', 'Mathematics', 'Biology', 'Chemistry', 'Physics',
+                'Literature', 'History', 'Geography', 'Economics', 'Government',
+                'Commerce', 'Accounting', 'Agricultural Science', 'Christian Religious Studies',
+                'Islamic Religious Studies', 'French', 'Arabic', 'Further Mathematics'
+            ],
+            neco: [
+                'English Language', 'Mathematics', 'Biology', 'Chemistry', 'Physics',
+                'Literature', 'History', 'Geography', 'Economics', 'Government',
+                'Commerce', 'Accounting', 'Agricultural Science', 'Christian Religious Studies',
+                'Islamic Religious Studies', 'French', 'Arabic', 'Further Mathematics'
+            ]
+        };
+
+        const normalizeBoard = (board) => String(board || '').trim().toUpperCase();
+        const normalizeType = (type) => (type === 'material' ? 'material' : 'past_question');
+        const subjectSlug = (subject) => String(subject || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+        const safeFileName = (name) => String(name || 'file.pdf').replace(/[^a-zA-Z0-9._-]/g, '_');
+
+        async function waitForFirebaseReady() {
+            if (window.__firebase_ready) return;
+            await new Promise(resolve => window.addEventListener('firebase-ready', resolve, { once: true }));
+        }
+
+        // Initialize upload form
+        function initializeUploadForm() {
+            // Handle exam board change
+            document.getElementById('uploadExamBoard').addEventListener('change', function() {
+                populateSubjects(this.value);
+            });
+        }
+
+        // Populate subjects based on exam board
+        function populateSubjects(examBoard) {
+            const subjectSelect = document.getElementById('uploadSubject');
+            subjectSelect.innerHTML = '<option value="">-- Select Subject --</option>';
+
+            const subjects = UPLOAD_SUBJECTS[String(examBoard || '').toLowerCase()] || [];
+
+            subjects.forEach(subject => {
+                const option = document.createElement('option');
+                option.value = subject;
+                option.textContent = subject;
+                subjectSelect.appendChild(option);
+            });
+        }
+
+        // Handle file upload
+        document.getElementById('uploadQuestionsForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const assetType = normalizeType(document.getElementById('uploadAssetType').value);
+            const examBoard = document.getElementById('uploadExamBoard').value;
+            const subject = document.getElementById('uploadSubject').value;
+            const yearRange = document.getElementById('uploadYearRange').value;
+            const file = document.getElementById('uploadFile').files[0];
+            const description = document.getElementById('uploadDescription').value;
+
+            if (!assetType || !examBoard || !subject || !yearRange || !file) {
+                showToast('Please fill all required fields', 'error');
+                return;
+            }
+
+            // Validate file type
+            if (file.type !== 'application/pdf') {
+                showToast('Only PDF files are allowed', 'error');
+                return;
+            }
+
+            // Validate file size (10MB max)
+            if (file.size > 10 * 1024 * 1024) {
+                showToast('File size must be less than 10MB', 'error');
+                return;
+            }
+
+            showLoader('Uploading past questions...');
+
+            try {
+                await waitForFirebaseReady();
+                const fns = window.firestoreFns || {};
+                const sFns = window.storageFns || {};
+                const db = window.dbMod || window.db;
+                const storage = window.storage;
+                const { collection, doc, setDoc, serverTimestamp } = fns;
+                const { ref, uploadBytesResumable, getDownloadURL } = sFns;
+
+                if (!db || !storage || typeof setDoc !== 'function' || typeof uploadBytesResumable !== 'function') {
+                    throw new Error('Firebase services are not ready.');
+                }
+
+                // Show upload progress
+                document.getElementById('uploadProgress').style.display = 'block';
+                document.getElementById('uploadStatus').textContent = 'Preparing file for upload...';
+                document.getElementById('uploadProgressBar').style.width = '5%';
+
+                const boardUpper = normalizeBoard(examBoard);
+                const path = `past_question_assets/${assetType}/${boardUpper}/${yearRange}/${subjectSlug(subject)}/${Date.now()}_${safeFileName(file.name)}`;
+                const storageRef = ref(storage, path);
+
+                const uploadTask = uploadBytesResumable(storageRef, file, { contentType: file.type || 'application/pdf' });
+
+                await new Promise((resolve, reject) => {
+                    uploadTask.on('state_changed',
+                        (snapshot) => {
+                            const progress = snapshot.totalBytes
+                                ? Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 90)
+                                : 0;
+                            document.getElementById('uploadStatus').textContent = `Uploading to server... ${progress}%`;
+                            document.getElementById('uploadProgressBar').style.width = `${Math.max(8, progress)}%`;
+                        },
+                        (error) => reject(error),
+                        () => resolve()
+                    );
+                });
+
+                document.getElementById('uploadStatus').textContent = 'Processing file...';
+                document.getElementById('uploadProgressBar').style.width = '94%';
+                const fileUrl = await getDownloadURL(storageRef);
+
+                document.getElementById('uploadStatus').textContent = 'Finalizing upload...';
+                document.getElementById('uploadProgressBar').style.width = '100%';
+
+                const assetsCol = collection(db, 'past_question_assets');
+                const assetDocRef = doc(assetsCol);
+
+                const questionRecord = {
+                    id: assetDocRef.id,
+                    assetType,
+                    examBoard: boardUpper,
+                    subject: subject,
+                    yearRange,
+                    fileName: file.name,
+                    fileSize: file.size,
+                    fileSizeText: formatFileSize(file.size),
+                    description: description || 'No description provided',
+                    uploadedAt: serverTimestamp(),
+                    uploadedBy: window.currentAdmin?.username || 'Unknown',
+                    downloads: 0,
+                    fileUrl,
+                    storagePath: path,
+                    status: 'active'
+                };
+
+                await setDoc(assetDocRef, questionRecord);
+
+                // Hide progress and reset form
+                document.getElementById('uploadProgress').style.display = 'none';
+                document.getElementById('uploadQuestionsForm').reset();
+                document.getElementById('uploadSubject').innerHTML = '<option value="">-- Select Subject --</option>';
+
+                showToast('File uploaded successfully!', 'success');
+                await loadUploadedQuestions();
+
+            } catch (error) {
+                console.error('Upload error:', error);
+                const uploadCode = String(error && error.code ? error.code : '');
+                if (uploadCode.includes('storage/unauthorized')) {
+                    showToast('Upload failed: Firebase Storage permissions denied. Check Storage rules/auth.', 'error');
+                } else if (uploadCode.includes('storage/retry-limit-exceeded') || uploadCode.includes('network')) {
+                    showToast('Upload failed: Network issue or timeout. Try smaller file or stronger internet.', 'error');
+                } else {
+                    showToast('Upload failed: ' + (error.message || 'Please try again.'), 'error');
+                }
+            } finally {
+                hideLoader();
+                document.getElementById('uploadProgress').style.display = 'none';
+            }
+        });
+
+        // Load uploaded questions
+        window.loadUploadedQuestions = async function() {
+            try {
+                await waitForFirebaseReady();
+                const fns = window.firestoreFns || {};
+                const db = window.dbMod || window.db;
+                const { collection, getDocs } = fns;
+
+                if (!db || typeof getDocs !== 'function') {
+                    throw new Error('Firebase unavailable');
+                }
+
+                const snap = await getDocs(collection(db, 'past_question_assets'));
+                uploadedQuestions = snap.docs
+                    .map((d) => ({ id: d.id, ...(d.data() || {}) }))
+                    .sort((a, b) => {
+                        const ta = a.uploadedAt && typeof a.uploadedAt.toDate === 'function' ? a.uploadedAt.toDate().getTime() : 0;
+                        const tb = b.uploadedAt && typeof b.uploadedAt.toDate === 'function' ? b.uploadedAt.toDate().getTime() : 0;
+                        return tb - ta;
+                    });
+            } catch (err) {
+                console.error('loadUploadedQuestions error:', err);
+                showToast('Could not load uploaded files.', 'error');
+                uploadedQuestions = [];
+            }
+
+            const tbody = document.getElementById('uploadedQuestionsBody');
+            const countElement = document.getElementById('totalUploadedCount');
+
+            if (uploadedQuestions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="10" class="text-center">No files uploaded yet</td></tr>';
+                countElement.textContent = '0';
+                return;
+            }
+
+            countElement.textContent = uploadedQuestions.length;
+
+            tbody.innerHTML = uploadedQuestions.map(question => `
+                <tr>
+                    <td><span class="badge-premium badge-premium-pending">${question.assetType === 'material' ? 'Material' : 'Past Question'}</span></td>
+                    <td><span class="badge-premium badge-premium-active">${question.examBoard}</span></td>
+                    <td>${question.subject}</td>
+                    <td>${question.yearRange || '-'}</td>
+                    <td>${question.fileName}</td>
+                    <td>${question.fileSizeText || formatFileSize(Number(question.fileSize || 0))}</td>
+                    <td>${question.description}</td>
+                    <td>${formatDate(question.uploadedAt)}</td>
+                    <td>${Number(question.downloads || 0)}</td>
+                    <td>
+                        <div class="action-buttons">
+                            <button class="action-btn view" onclick="viewQuestion('${question.id}')" title="View">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="action-btn edit" onclick="downloadQuestion('${question.id}')" title="Download">
+                                <i class="fas fa-download"></i>
+                            </button>
+                            <button class="action-btn delete" onclick="deleteQuestion('${question.id}')" title="Delete">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        };
+
+        // View question
+        window.viewQuestion = async function(id) {
+            const question = uploadedQuestions.find(q => q.id === id);
+            if (question) {
+                await incrementAssetDownloadCount(id, question.downloads);
+                window.open(question.fileUrl, '_blank');
+            }
+        };
+
+        // Download question
+        window.downloadQuestion = async function(id) {
+            const question = uploadedQuestions.find(q => q.id === id);
+            if (question) {
+                await incrementAssetDownloadCount(id, question.downloads);
+
+                // Create download link
+                const link = document.createElement('a');
+                link.href = question.fileUrl;
+                link.download = question.fileName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        };
+
+        async function incrementAssetDownloadCount(id, currentCount) {
+            try {
+                await waitForFirebaseReady();
+                const fns = window.firestoreFns || {};
+                const db = window.dbMod || window.db;
+                const { doc, updateDoc } = fns;
+                if (!db || typeof updateDoc !== 'function') return;
+                await updateDoc(doc(db, 'past_question_assets', id), {
+                    downloads: Number(currentCount || 0) + 1
+                });
+            } catch (e) {
+                console.warn('incrementAssetDownloadCount failed', e);
+            } finally {
+                await loadUploadedQuestions();
+            }
+        }
+
+        // Delete question
+        window.deleteQuestion = async function(id) {
+            if (confirm('Are you sure you want to delete this uploaded file?')) {
+                const question = uploadedQuestions.find(q => q.id === id);
+                try {
+                    await waitForFirebaseReady();
+                    const fns = window.firestoreFns || {};
+                    const sFns = window.storageFns || {};
+                    const db = window.dbMod || window.db;
+                    const storage = window.storage;
+                    const { doc, deleteDoc } = fns;
+                    const { ref, deleteObject } = sFns;
+
+                    if (question && question.storagePath && storage && typeof deleteObject === 'function') {
+                        await deleteObject(ref(storage, question.storagePath));
+                    }
+                    if (db && typeof deleteDoc === 'function') {
+                        await deleteDoc(doc(db, 'past_question_assets', id));
+                    }
+                    showToast('File deleted successfully', 'success');
+                } catch (err) {
+                    console.error('deleteQuestion error:', err);
+                    showToast('Delete failed. Please try again.', 'error');
+                }
+                await loadUploadedQuestions();
+            }
+        };
+
+        // Format file size
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Format date
+        function formatDate(dateString) {
+            const date = dateString && typeof dateString.toDate === 'function'
+                ? dateString.toDate()
+                : new Date(dateString);
+            if (Number.isNaN(date.getTime())) return '-';
+            return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        }
+
+        // Initialize upload form when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeUploadForm();
+            loadUploadedQuestions();
+        });
+
+    </script>
+</body>
+</html>

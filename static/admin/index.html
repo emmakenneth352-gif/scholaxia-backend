@@ -1235,11 +1235,23 @@
         <h2>Video Tutorials</h2>
         <button class="btn-sm" onclick="loadAdminVideos()">Refresh</button>
       </div>
-      <p class="cbt-hint small">Paste a YouTube (or other https) link. Shown under <strong>Video Tutorials</strong> for <strong>students only</strong> — not Kids. Kids videos go under <strong>Kids Videos</strong>.</p>
+      <p class="cbt-hint small">Paste a YouTube (or other https) link. Choose the <strong>Category</strong> (skill) so it appears in the right tab of Video Tutorials. Students-only — not Kids. Kids videos go under <strong>Kids Videos</strong>.</p>
       <div class="panel" style="margin-bottom:1rem">
         <div class="form-grid">
           <label><span>Title *</span><input id="vid-title" placeholder="e.g. Mole concept — SS2 Chemistry" /></label>
           <label><span>Subject / topic</span><input id="vid-subject" placeholder="Chemistry" /></label>
+          <label><span>Category (skill) *</span>
+            <select id="vid-category">
+              <option value="academics" selected>Academics (school subjects)</option>
+              <option value="web design">Web Design</option>
+              <option value="app development">App Development</option>
+              <option value="software development">Software Development</option>
+              <option value="digital marketing">Digital Marketing</option>
+              <option value="graphics design">Graphics Design</option>
+              <option value="cyber security">Cyber Security</option>
+              <option value="data analysis">Data Analysis</option>
+            </select>
+          </label>
           <label><span>Tutor name</span><input id="vid-tutor" placeholder="e.g. Scholaxia" /></label>
           <label><span>Video URL *</span><input id="vid-url" placeholder="https://www.youtube.com/watch?v=…" /></label>
         </div>

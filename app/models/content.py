@@ -120,6 +120,10 @@ class Video(Base):
     exam_type: Mapped[str] = mapped_column(String(20), nullable=True)
     video_url: Mapped[str] = mapped_column(String(500), nullable=False)
     thumbnail_url: Mapped[str] = mapped_column(String(500), nullable=True)
+    # Skill/category bucket shown in Video Tutorials chips
+    # (academics | web design | app development | software development |
+    #  digital marketing | graphics design | cyber security | data analysis)
+    category: Mapped[str] = mapped_column(String(40), default="academics", nullable=False, server_default="academics")
     duration_seconds: Mapped[int] = mapped_column(Integer, nullable=True)
     uploaded_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     # student = student site Video Tutorials; kind = Kids app only

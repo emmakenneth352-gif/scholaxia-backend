@@ -47,6 +47,7 @@ async def ensure_videos_table() -> None:
         """,
         "ALTER TABLE videos ADD COLUMN IF NOT EXISTS tutor_name VARCHAR(150)",
         "ALTER TABLE videos ADD COLUMN IF NOT EXISTS audience VARCHAR(20) NOT NULL DEFAULT 'student'",
+        "ALTER TABLE videos ADD COLUMN IF NOT EXISTS category VARCHAR(40) NOT NULL DEFAULT 'academics'",
         "CREATE INDEX IF NOT EXISTS ix_videos_subject ON videos (subject)",
         "CREATE INDEX IF NOT EXISTS ix_videos_created_at ON videos (created_at)",
         "CREATE INDEX IF NOT EXISTS ix_videos_audience ON videos (audience)",
@@ -71,6 +72,7 @@ def _video_dict(row: Video) -> dict:
         "exam_type": row.exam_type,
         "video_url": row.video_url,
         "thumbnail_url": row.thumbnail_url,
+        "category": (getattr(row, "category", None) or "academics"),
         "duration_seconds": row.duration_seconds,
         "audience": getattr(row, "audience", None) or "student",
         "created_at": row.created_at.isoformat() if row.created_at else None,
@@ -84,6 +86,7 @@ class VideoCreate(BaseModel):
     exam_type: Optional[str] = None
     video_url: str = Field(..., min_length=8, max_length=500)
     thumbnail_url: Optional[str] = None
+    category: str = "academics"
     audience: str = "student"  # student | kind
 
 
@@ -172,6 +175,7 @@ async def create_video(
         exam_type=payload.exam_type,
         video_url=url,
         thumbnail_url=payload.thumbnail_url,
+        category=(payload.category or "academics").strip().lower(),
         audience=aud,
         uploaded_by=uploaded_by,
     )

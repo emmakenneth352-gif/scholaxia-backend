@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exam Registration | Scholaxia Premium CBT</title>
+    <meta name="description" content="Register students for official school examinations on the Scholaxia CBT platform.">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --background: #000000;
+            --foreground: #f3f4f6;
+            --primary: #22c55e;
+            --primary-hover: #16a34a;
+            --primary-light: #052e16;
+            --card: #0f1729;
+            --muted: #1f2937;
+            --muted-foreground: #9ca3af;
+            --border: #1e3a2f;
+            --border-light: #14532d;
+            --danger: #ef4444;
+            --danger-bg: #3f1d1d;
+            --success: #22c55e;
+            --success-bg: #052e16;
+            --warning: #f59e0b;
+            --warning-bg: #422006;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: "Inter", system-ui, sans-serif;
+            background-color: var(--background);
+            color: var(--foreground);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow-x: hidden;
+            padding: 20px;
+        }
+
+        /* ── Background grid & orbs ── */
+        .page-grid {
+            position: fixed; inset: 0;
+            background-image: linear-gradient(rgba(34,197,94,0.07) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(34,197,94,0.07) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none; z-index: 0;
+        }
+        .orb { position: fixed; border-radius: 50%; pointer-events: none; z-index: 0; filter: blur(80px); animation: orbFloat 10s ease-in-out infinite; }
+        .orb-1 { width: 400px; height: 400px; background: rgba(34,197,94,0.07); top: -100px; left: -100px; }
+        .orb-2 { width: 300px; height: 300px; background: rgba(34,197,94,0.05); bottom: -80px; right: -80px; animation-delay: 4s; }
+        @keyframes orbFloat { 0%,100%{ transform:translate(0,0); } 50%{ transform:translate(20px,-20px); } }
+
+        /* ── Back link ── */
+        .back-link {
+            position: fixed; top: 20px; left: 20px; z-index: 20;
+            color: var(--muted-foreground); text-decoration: none; font-weight: 500;
+            font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px;
+            transition: color 0.2s;
+        }
+        .back-link:hover { color: white; }
+
+        /* ── Main wrapper ── */
+        .reg-wrapper {
+            position: relative; z-index: 10; width: 100%; max-width: 900px;
+            animation: fadeInUp 0.5s ease both;
+        }
+        @keyframes fadeInUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+
+        /* ── Green header banner ── */
+        .reg-header {
+            background: linear-gradient(135deg, #15803d 0%, #16a34a 45%, #22c55e 100%);
+            padding: 2.5rem 2rem; text-align: center; position: relative; overflow: hidden;
+            border-radius: 24px 24px 0 0;
+        }
+        .reg-header::before, .reg-header::after {
+            content: ''; position: absolute; width: 240px; height: 240px; border-radius: 50%;
+            background: rgba(255,255,255,0.12); filter: blur(22px);
+        }
+        .reg-header::before { top: -80px; right: -80px; }
+        .reg-header::after  { bottom: -80px; left: -80px; }
+
+        .brand-card { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+        .brand-circle {
+            width: 100px; height: 100px; border-radius: 50%; background: rgba(255,255,255,0.16);
+            border: 2px solid rgba(255,255,255,0.25); display: flex; align-items: center; justify-content: center;
+            padding: 8px; box-shadow: 0 20px 40px rgba(16,185,129,0.16); overflow: hidden;
+        }
+        .brand-circle img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+        .brand-copy h2 { color: white; margin: 0; font-size: 1.8rem; font-weight: 800; }
+        .brand-copy p { color: rgba(255,255,255,0.9); margin: 0; font-size: 0.9rem; }
+
+        /* ── Form body (dark) ── */
+        .reg-body {
+            background: var(--card); border: 1px solid var(--border); border-top: none;
+            border-radius: 0 0 24px 24px; padding: 2rem;
+        }
+
+        /* ── Info banner (dark) ── */
+        .info-banner {
+            background: rgba(34,197,94,0.06); border: 1px solid rgba(34,197,94,0.15);
+            border-radius: 16px; padding: 1.25rem; display: flex; gap: 1rem; align-items: flex-start; margin-bottom: 1.75rem;
+        }
+        .info-banner .info-icon {
+            width: 48px; height: 48px; border-radius: 14px; background: rgba(34,197,94,0.1);
+            border: 1px solid rgba(34,197,94,0.2); display: flex; align-items: center; justify-content: center;
+            color: var(--primary); flex-shrink: 0; font-size: 1.2rem;
+        }
+        .info-banner h3 { font-size: 0.95rem; font-weight: 700; color: var(--primary); margin-bottom: 0.25rem; }
+        .info-banner p { font-size: 0.82rem; color: var(--muted-foreground); line-height: 1.5; margin: 0; }
+
+        /* ── Notice banner (dark) ── */
+        .notice-banner {
+            background: rgba(34,197,94,0.05); border: 1px solid rgba(34,197,94,0.2);
+            border-radius: 16px; padding: 1.5rem; margin-bottom: 1.75rem; position: relative; overflow: hidden;
+        }
+        .notice-banner .watermark {
+            position: absolute; right: 20px; top: 20px; opacity: 0.04; font-size: 5rem; pointer-events: none; color: var(--primary);
+        }
+        .notice-banner h3 { color: var(--primary); font-size: 1.1rem; font-weight: 700; margin-bottom: 0.6rem; }
+        .notice-banner p { color: var(--muted-foreground); font-size: 0.85rem; line-height: 1.6; margin-bottom: 0.5rem; }
+        .notice-banner .signature { margin-top: 1rem; }
+        .notice-banner .signature span { display: block; font-weight: 700; color: var(--primary); font-size: 0.9rem; }
+
+        /* ── Form rows ── */
+        .form-row {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.25rem; margin-bottom: 1.25rem;
+        }
+        .form-group { margin-bottom: 1.25rem; }
+        .form-label {
+            display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.5rem;
+            font-size: 0.8rem; font-weight: 600; color: #d1d5db; text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .form-label i { color: var(--primary); font-size: 0.8rem; }
+
+        .form-input, .form-select {
+            width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--border); background: #111827;
+            font-family: "Inter", sans-serif; font-size: 0.9rem; color: var(--foreground);
+            outline: none; transition: border-color 0.2s, box-shadow 0.2s; border-radius: 12px;
+        }
+        .form-select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%239ca3af' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat; background-position: right 1rem center; padding-right: 2.5rem;
+        }
+        .form-input:focus, .form-select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(34,197,94,0.2); }
+        .form-input::placeholder { color: var(--muted-foreground); opacity: 0.6; }
+        .form-input[readonly] { opacity: 0.7; cursor: not-allowed; }
+
+        .input-group { display: flex; gap: 0.75rem; }
+        .input-group .form-input { flex: 1; }
+        .input-group .btn-sm { white-space: nowrap; padding: 0.65rem 1.25rem; font-size: 0.82rem; }
+
+        /* ── Subjects grid ── */
+        .subjects-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.6rem;
+            margin-top: 0.75rem; padding: 1rem; background: var(--muted); border-radius: 14px; border: 1px solid var(--border);
+        }
+        .subject-item {
+            display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 0.85rem;
+            background: #111827; border-radius: 10px; border: 1px solid var(--border); transition: all 0.2s;
+        }
+        .subject-item:hover { border-color: var(--primary); }
+        .subject-item input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--primary); }
+        .subject-item label { font-size: 0.82rem; color: var(--foreground); cursor: pointer; flex: 1; }
+
+        /* ── Secret input ── */
+        .secret-wrapper { position: relative; }
+        .secret-wrapper .form-input { padding-right: 3rem; }
+        .secret-toggle {
+            position: absolute; right: 0.5rem; top: 50%; transform: translateY(-50%);
+            background: none; border: none; color: var(--muted-foreground); cursor: pointer;
+            width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s;
+        }
+        .secret-toggle:hover { background: rgba(34,197,94,0.1); color: var(--primary); }
+        .form-hint { margin-top: 0.4rem; font-size: 0.78rem; color: var(--muted-foreground); display: flex; align-items: center; gap: 0.4rem; }
+        .form-hint i { color: var(--primary); }
+
+        /* ── Confirmation box ── */
+        .confirm-box {
+            background: var(--muted); border: 1px solid var(--border); border-radius: 14px; padding: 1.25rem; margin: 1.5rem 0;
+        }
+        .confirm-box label { display: flex; align-items: center; gap: 0.75rem; cursor: pointer; }
+        .confirm-box input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--primary); }
+        .confirm-box span { font-weight: 600; color: var(--primary); }
+        .confirm-box small { display: block; margin-top: 0.75rem; margin-left: 2rem; color: var(--muted-foreground); line-height: 1.5; font-size: 0.8rem; }
+
+        /* ── Buttons ── */
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+            padding: 0.75rem 1.5rem; border-radius: 999px; font-weight: 600; font-size: 0.9rem;
+            transition: all 0.25s ease; cursor: pointer; border: none; text-decoration: none;
+        }
+        .btn-primary {
+            background: var(--primary); color: black;
+            box-shadow: 0 4px 14px rgba(34,197,94,0.25);
+        }
+        .btn-primary:hover:not(:disabled) { background: var(--primary-hover); transform: translateY(-1px); box-shadow: 0 8px 24px rgba(34,197,94,0.35); }
+        .btn-outline {
+            background: transparent; color: var(--muted-foreground); border: 1px solid var(--border);
+        }
+        .btn-outline:hover { background: rgba(34,197,94,0.08); color: var(--foreground); border-color: var(--primary); }
+        .btn-secondary {
+            background: var(--muted); color: var(--muted-foreground); border: 1px solid var(--border);
+        }
+        .btn-secondary:hover { background: #374151; color: var(--foreground); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn-sm { padding: 0.5rem 1rem; font-size: 0.8rem; }
+
+        .form-actions { display: flex; gap: 0.75rem; margin-top: 1.5rem; flex-wrap: wrap; }
+        .form-actions .btn-primary { flex: 2; min-width: 150px; }
+        .form-actions .btn-outline, .form-actions .btn-secondary { flex: 1; min-width: 120px; }
+
+        /* ── Alerts ── */
+        .alert {
+            border-radius: 12px; padding: 0; max-height: 0; overflow: hidden;
+            transition: max-height 0.25s, padding 0.2s, margin 0.2s;
+            font-weight: 500; font-size: 0.85rem; display: flex; align-items: flex-start; gap: 8px;
+            line-height: 1.5; margin-bottom: 1rem;
+        }
+        .alert.show { padding: 10px 14px; max-height: 200px; }
+        .alert-error { background: var(--danger-bg); color: var(--danger); border-left: 3px solid var(--danger); }
+        .alert-success { background: var(--success-bg); color: var(--success); border-left: 3px solid var(--success); }
+        .alert-warning { background: var(--warning-bg); color: var(--warning); border-left: 3px solid var(--warning); }
+        .alert i { flex-shrink: 0; margin-top: 1px; }
+
+        /* ── Spinner ── */
+        .spinner {
+            width: 18px; height: 18px; border: 2px solid rgba(0,0,0,0.3); border-top-color: black;
+            border-radius: 50%; animation: spin 0.7s linear infinite; display: none;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Modal (dark) ── */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(6px);
+            display: flex; align-items: center; justify-content: center; z-index: 10000;
+            animation: fadeIn 0.3s ease;
+        }
+        @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+        .modal {
+            background: var(--card); border: 1px solid var(--border); border-radius: 24px;
+            width: 90%; max-width: 560px; max-height: 90vh; overflow-y: auto;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.6); animation: modalUp 0.4s ease;
+        }
+        @keyframes modalUp { from { opacity:0; transform:translateY(30px); } to { opacity:1; transform:translateY(0); } }
+        .modal-header {
+            background: linear-gradient(135deg, #15803d, #16a34a, #22c55e);
+            padding: 1.5rem; display: flex; align-items: center; gap: 1rem; color: white;
+            border-radius: 24px 24px 0 0;
+        }
+        .modal-header i { font-size: 2rem; background: rgba(255,255,255,0.15); padding: 0.75rem; border-radius: 14px; }
+        .modal-header h2 { font-size: 1.3rem; margin: 0 0 0.15rem; }
+        .modal-header p { opacity: 0.85; margin: 0; font-size: 0.85rem; }
+        .modal-body { padding: 1.5rem; }
+        .credential-row {
+            display: flex; justify-content: space-between; align-items: center; padding: 0.85rem 1rem;
+            background: #111827; border-radius: 10px; margin-bottom: 0.75rem; border: 1px solid var(--border);
+        }
+        .credential-label { font-weight: 600; color: var(--primary); font-size: 0.85rem; }
+        .credential-value { font-family: monospace; font-size: 1rem; font-weight: 700; color: var(--foreground); letter-spacing: 1px; }
+        .subjects-list-box { background: var(--muted); border-radius: 12px; padding: 1rem; margin: 1rem 0; border: 1px solid var(--border); }
+        .subjects-list-box h4 { color: var(--primary); margin-bottom: 0.6rem; font-size: 0.9rem; }
+        .subjects-list-box ul { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 0.4rem; }
+        .subjects-list-box li { font-size: 0.8rem; color: var(--foreground); padding: 0.3rem 0.6rem; background: #111827; border-radius: 6px; border: 1px solid var(--border); }
+        .warning-box {
+            background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.2); border-radius: 12px;
+            padding: 1rem; display: flex; gap: 0.75rem; margin: 1rem 0;
+        }
+        .warning-box i { color: var(--danger); font-size: 1.1rem; margin-top: 1px; }
+        .warning-box strong { color: #fca5a5; display: block; margin-bottom: 0.15rem; font-size: 0.85rem; }
+        .warning-box p { color: var(--muted-foreground); font-size: 0.8rem; margin: 0; }
+        .modal-footer { display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.25rem; flex-wrap: wrap; }
+
+        /* ── Print container ── */
+        .print-container { display: none; }
+        @media print {
+            body * { visibility: hidden; }
+            .print-container, .print-container * { visibility: visible; }
+            .print-container {
+                display: block; position: fixed; inset: 0; background: white;
+                padding: 15px; font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.5;
+            }
+            .print-container h2 { font-size: 24px; }
+            .print-container h4 { font-size: 16px; }
+            .print-container p { font-size: 14px; }
+            .print-container span { font-size: 14px; }
+            @page { size: A4 portrait; margin: 8mm; }
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+
+        @media (max-width: 600px) {
+            .reg-header { padding: 1.75rem 1.25rem; border-radius: 20px 20px 0 0; }
+            .reg-body { padding: 1.5rem 1.25rem; border-radius: 0 0 20px 20px; }
+            .brand-copy h2 { font-size: 1.4rem; }
+            .brand-circle { width: 80px; height: 80px; }
+            .form-actions { flex-direction: column; }
+            .form-row { grid-template-columns: 1fr; }
+            .credential-row { flex-direction: column; gap: 0.5rem; text-align: center; }
+            .modal-footer { flex-direction: column; }
+            .back-link { top: 12px; left: 12px; font-size: 0.8rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Dark background with grid and orbs -->
+    <div class="page-grid"></div>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+
+    <!-- Back to Home -->
+    <a class='back-link' href='/'>
+        <i class="fas fa-arrow-left"></i> Back to Home
+    </a>
+
+    <!-- Registration Wrapper -->
+    <div class="reg-wrapper">
+
+        <!-- Green Header Banner -->
+        <div class="reg-header">
+            <div class="brand-card">
+                <div class="brand-circle">
+                    <img src="scholaxia logo.jpeg" alt="Scholaxia Logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    <i class="fas fa-graduation-cap" style="display:none; color:white; font-size:2.5rem;"></i>
+                </div>
+                <div class="brand-copy">
+                    <h2>Exam Registration</h2>
+                    <p>Register students for official school examinations</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Form Body -->
+        <div class="reg-body">
+
+            <!-- Notice Banner -->
+            <div class="notice-banner">
+                <div class="watermark"><i class="fas fa-print"></i></div>
+                <h3>Notice to School Administrators</h3>
+                <p>We are pleased to announce an upgrade to the registration print-out feature. School administrators can now conveniently print a student's registration information and provide it to the respective student.</p>
+                <p><strong style="color:#fca5a5;">Important:</strong> Ensure all students complete their registration at least <strong style="color:#fca5a5;">two weeks</strong> before the examination date for accurate processing.</p>
+                <div class="signature">
+                    <span>Sincerely,</span>
+                    <span>Scholaxia CBT Management</span>
+                </div>
+            </div>
+
+            <!-- Info Banner -->
+            <div class="info-banner">
+                <div class="info-icon"><i class="fas fa-info-circle"></i></div>
+                <div>
+                    <h3>School Administrator Registration</h3>
+                    <p>This form is for school administrators only. Please use the registration secret provided by the Scholaxia team.</p>
+                </div>
+            </div>
+
+            <!-- Registration Form -->
+            <form id="examRegistrationForm">
+                <!-- Personal Information Row -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="firstName" class="form-label"><i class="fas fa-user"></i> First Name *</label>
+                        <input type="text" id="firstName" class="form-input" placeholder="Enter first name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="middleName" class="form-label"><i class="fas fa-user"></i> Middle Name</label>
+                        <input type="text" id="middleName" class="form-input" placeholder="Enter middle name (optional)">
+                    </div>
+                    <div class="form-group">
+                        <label for="surname" class="form-label"><i class="fas fa-user"></i> Surname *</label>
+                        <input type="text" id="surname" class="form-input" placeholder="Enter surname" required>
+                    </div>
+                </div>
+
+                <!-- School Information Row -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="schoolSelect" class="form-label"><i class="fas fa-school"></i> School *</label>
+                        <select id="schoolSelect" class="form-select" required>
+                            <option value="">-- Select School --</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="classCategory" class="form-label"><i class="fas fa-layer-group"></i> Class Category *</label>
+                        <select id="classCategory" class="form-select" required>
+                            <option value="">-- Select Category --</option>
+                            <option value="jss">Junior Secondary School (JSS)</option>
+                            <option value="ss">Senior Secondary School (SS)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="studentClass" class="form-label"><i class="fas fa-graduation-cap"></i> Class *</label>
+                        <select id="studentClass" class="form-select" required disabled>
+                            <option value="">-- Select class category first --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Subjects Selection -->
+                <div class="form-group" id="subjectsContainer" style="display: none;">
+                    <label class="form-label"><i class="fas fa-book"></i> Select Subjects *</label>
+                    <div class="subjects-grid" id="subjectsGrid"></div>
+                    <div class="form-hint"><i class="fas fa-info-circle"></i> Select one or more subjects the student will be examined in.</div>
+                </div>
+
+                <!-- Generated Credentials Row -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="regNumber" class="form-label"><i class="fas fa-id-card"></i> Registration Number</label>
+                        <div class="input-group">
+                            <input type="text" id="regNumber" class="form-input" readonly>
+                            <button type="button" class="btn btn-outline btn-sm" onclick="generateRegNumber()">
+                                <i class="fas fa-sync-alt"></i> Generate
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="accessCode" class="form-label"><i class="fas fa-key"></i> Access Code</label>
+                        <input type="text" id="accessCode" class="form-input" readonly>
+                    </div>
+                </div>
+
+                <!-- Registration Secret -->
+                <div class="form-group">
+                    <label for="secretCode" class="form-label"><i class="fas fa-lock"></i> Registration Secret *</label>
+                    <div class="secret-wrapper">
+                        <input type="password" id="secretCode" class="form-input" placeholder="Enter registration secret" required>
+                        <button type="button" class="secret-toggle" onclick="toggleSecret()">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                    <div class="form-hint"><i class="fas fa-info-circle"></i> Use the secret code provided by Scholaxia administrator</div>
+                </div>
+
+                <!-- Confirmation Checkbox -->
+                <div class="confirm-box">
+                    <label>
+                        <input type="checkbox" id="confirmDetails" required>
+                        <span><i class="fas fa-check-circle"></i> I confirm that all student details are accurate</span>
+                    </label>
+                    <small><i class="fas fa-exclamation-triangle"></i> By checking this box, you confirm that the information provided is correct and that the selected subjects are what the student will be examined in.</small>
+                </div>
+
+                <!-- Alert Message -->
+                <div id="alertMessage" class="alert"></div>
+
+                <!-- Form Actions -->
+                <div class="form-actions">
+                    <button type="submit" id="submitBtn" class="btn btn-primary" disabled>
+                        <span id="btnText">Register Student</span>
+                        <span id="btnSpinner" class="spinner"></span>
+                    </button>
+                    <button type="reset" class="btn btn-outline">
+                        <i class="fas fa-undo-alt"></i> Clear Form
+                    </button>
+                    <a class='btn btn-secondary' href='/reprint-registration'>
+                        <i class="fas fa-print"></i> Reprint Form
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div id="successModal" class="modal-overlay" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <i class="fas fa-check-circle"></i>
+                <div>
+                    <h2>Registration Successful!</h2>
+                    <p>Student has been registered in the system</p>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div id="modalCredentials"></div>
+                <div class="subjects-list-box" id="modalSubjects"></div>
+                <div class="warning-box">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <div>
+                        <strong>Important:</strong>
+                        <p>The student must be approved by an administrator before they can access the exam portal. Share these credentials with the student securely.</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline btn-sm" id="copyCredentialsBtn">
+                        <i class="fas fa-copy"></i> Copy Credentials
+                    </button>
+                    <button class="btn btn-primary btn-sm" id="printRegistrationBtn">
+                        <i class="fas fa-print"></i> Print Registration Form
+                    </button>
+                    <button class="btn btn-primary btn-sm" id="closeModalBtn">
+                        <i class="fas fa-check"></i> Done
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Print Container -->
+    <div id="printFormContainer" class="print-container"></div>
+
+    <!-- Scripts -->
+    <script>
+        window.toggleSecret = function() {
+            const input = document.getElementById('secretCode');
+            const icon = document.querySelector('.secret-toggle i');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.replace('fa-eye', 'fa-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.replace('fa-eye-slash', 'fa-eye');
+            }
+        };
+    </script>
+    <script type="module">
+        import {
+            collection, doc, setDoc, query, where, getDocs, limit, serverTimestamp
+        } from './firebase-config.js';
+
+        const REGISTRATION_SECRET = '2026.com';
+
+        const JSS_SUBJECTS = [
+            'English Language','Mathematics','Intermediate Science','Basic Technology',
+            'Social Studies','Agricultural Science','Digital Technologies',
+            'Physical and Health Education','Social and Citizenship Studies','Business Studies',
+            'Home Economics','Music','Cultural & Creative Arts','French',
+            'Religious Studies','Igbo','Hausa','Yoruba','Ibibio','Livestock Farming'
+        ];
+        const SS_SUBJECTS = [
+            'English Language','Mathematics','Biology','Chemistry','Physics',
+            'Agricultural Science','Geography','Economics','Commerce',
+            'Financial Accounting','Government','Nigerian History',
+            'Christian Religious Studies','Islamic Studies','French','Civic Education',
+            'Further Mathematics','Literature in English','Marketing','Food & Nutrition',
+            'Livestock Farming','Computer Hardware & GSM Repairs','Digital Technologies',
+            'Physical and Health Education','Music'
+        ];
+
+        const SCHOOLS = {
+            'atlantichallepe':'Atlantic Hall, Epe','chrislandlagos':'Chrisland Schools, Lagos',
+            'coronaagbara':'Corona Secondary School, Agbara','ctkonitsha':'Christ the King College, Onitsha',
+            'greensprings':'Greensprings School','hillcrestcalabar':'Hillcrest College, Calabar',
+            'holyfamilyabak':'Holy Family College, Abak','holyrosaryenugu':'Holy Rosary College, Enugu',
+            'lorettoadazi':'Loretto Special Science School, Adazi-Nnukwu',
+            'lorettoafaha':'Loretto girls Juniorate (Afaha-Obong, Abak)',
+            'lorettoiwuru':'Loretto girls Juniorate (Iwuru Obio Ntan, C.R.S)',
+            'louisvilleijebu':'Louisville Girls High School, Ijebu-Itele',
+            'loyolaabuja':'Loyola Jesuit College, Abuja',
+            'lumenchristibenin':'Lumen Christi International High School (near Benin City)',
+            'mariareginannewi':'Maria Regina Model Comprehensive Secondary School, Nnewi',
+            'presentationbenin':'Presentation National High School, Benin City',
+            'reginapacisabuja':'Regina Pacis College, Abuja',
+            'scholaxia':'Scholaxia Academy',
+            'stellaph':'Stella Maris College, Port Harcourt',
+            'talentbetem':'Talent Group of schools (Betem, C.R.S)',
+            'towerofivoryabak':'Tower of Ivory Schools, Abak',
+            'vaticanobudu':'Vatican Secondary School, Obudu'
+        };
+
+        function getDb() { return window.dbMod || window.db || null; }
+
+        // ── DOM refs ──
+        const form = document.getElementById('examRegistrationForm');
+        const firstName = document.getElementById('firstName');
+        const middleName = document.getElementById('middleName');
+        const surname = document.getElementById('surname');
+        const schoolSelect = document.getElementById('schoolSelect');
+        const classCategory = document.getElementById('classCategory');
+        const studentClass = document.getElementById('studentClass');
+        const subjectsContainer = document.getElementById('subjectsContainer');
+        const subjectsGrid = document.getElementById('subjectsGrid');
+        const regNumber = document.getElementById('regNumber');
+        const accessCode = document.getElementById('accessCode');
+        const secretCode = document.getElementById('secretCode');
+        const confirmDetails = document.getElementById('confirmDetails');
+        const submitBtn = document.getElementById('submitBtn');
+        const btnText = document.getElementById('btnText');
+        const btnSpinner = document.getElementById('btnSpinner');
+        const alertMessage = document.getElementById('alertMessage');
+        const successModal = document.getElementById('successModal');
+        const modalCredentials = document.getElementById('modalCredentials');
+        const modalSubjects = document.getElementById('modalSubjects');
+
+        let currentStudentData = null;
+
+        let alertTimeoutId = null;
+        function showAlert(msg, type) {
+            alertMessage.style.display = 'flex';
+            alertMessage.className = `alert alert-${type} show`;
+            alertMessage.innerHTML = `<i class="fas fa-${type==='success'?'check-circle':type==='error'?'exclamation-circle':'info-circle'}"></i><span>${msg}</span>`;
+            if (alertTimeoutId) clearTimeout(alertTimeoutId);
+            alertTimeoutId = setTimeout(() => {
+                alertMessage.classList.remove('show');
+                alertMessage.style.display = 'none';
+            }, 5000);
+        }
+
+        function setLoading(loading) {
+            submitBtn.disabled = loading;
+            btnText.textContent = loading ? 'Registering...' : 'Register Student';
+            btnSpinner.style.display = loading ? 'inline-block' : 'none';
+        }
+
+        function getSelectedSubjects() {
+            return Array.from(document.querySelectorAll('input[name="subjects"]:checked')).map(cb => cb.value);
+        }
+
+        function createRandomRegNumber() {
+            const siteCode = 'SCHX';
+            const year = new Date().getFullYear().toString().slice(-2);
+            const randomPart = Math.floor(100000 + Math.random() * 900000).toString();
+            return `${siteCode}/${year}/${randomPart}`;
+        }
+
+        function createRandomAccessCode() {
+            return Math.random().toString(36).substring(2, 8).toUpperCase();
+        }
+
+        async function credentialExists(field, value) {
+            try {
+                const db = getDb();
+                if (!db) return false;
+                const q = query(collection(db, 'students'), where(field, '==', value), limit(1));
+                const snap = await getDocs(q);
+                return !snap.empty;
+            } catch (e) { return false; }
+        }
+
+        async function generateUniqueCredentials(maxAttempts = 25) {
+            for (let i = 0; i < maxAttempts; i++) {
+                const nr = createRandomRegNumber();
+                const ac = createRandomAccessCode();
+                const [regExists, accessExists] = await Promise.all([
+                    credentialExists('regNumber', nr),
+                    credentialExists('accessCode', ac)
+                ]);
+                if (!regExists && !accessExists) {
+                    regNumber.value = nr;
+                    accessCode.value = ac;
+                    return;
+                }
+            }
+            regNumber.value = createRandomRegNumber();
+            accessCode.value = createRandomAccessCode();
+        }
+
+        window.generateRegNumber = async function() {
+            await generateUniqueCredentials();
+        };
+
+        function populateSchools() {
+            schoolSelect.innerHTML = '<option value="">-- Select School --</option>';
+            Object.entries(SCHOOLS).sort((a,b) => String(a[1]).localeCompare(String(b[1]))).forEach(([id, name]) => {
+                const opt = document.createElement('option');
+                opt.value = id;
+                opt.textContent = name;
+                schoolSelect.appendChild(opt);
+            });
+        }
+
+        function updateClassOptions() {
+            const cat = classCategory.value;
+            studentClass.innerHTML = '<option value="">-- Select Class --</option>';
+            if (!cat) { studentClass.disabled = true; subjectsContainer.style.display = 'none'; return; }
+            studentClass.disabled = false;
+            const classes = cat === 'jss' ? ['JSS 1','JSS 2','JSS 3'] : ['SS 1','SS 2','SS 3'];
+            classes.forEach((cls, i) => {
+                const opt = document.createElement('option');
+                opt.value = `${cat}${i+1}`;
+                opt.textContent = cls;
+                studentClass.appendChild(opt);
+            });
+            subjectsGrid.innerHTML = '';
+            subjectsContainer.style.display = 'none';
+        }
+
+        function updateSubjects() {
+            const cat = classCategory.value;
+            const cls = studentClass.value;
+            if (!cat || !cls) { subjectsContainer.style.display = 'none'; return; }
+            const subjects = cat === 'jss' ? JSS_SUBJECTS : SS_SUBJECTS;
+            subjectsGrid.innerHTML = '';
+            subjects.forEach(sub => {
+                const item = document.createElement('div');
+                item.className = 'subject-item';
+                const id = `sub_${sub.replace(/[^a-z0-9]/gi,'_')}`;
+                item.innerHTML = `<input type="checkbox" id="${id}" name="subjects" value="${sub}"><label for="${id}">${sub}</label>`;
+                subjectsGrid.appendChild(item);
+            });
+            subjectsContainer.style.display = 'block';
+        }
+
+        function validateForm() {
+            if (!confirmDetails.checked) { showAlert('Please confirm that student details are accurate','error'); return false; }
+
+            if (!firstName.value.trim()) { showAlert('First name is required','error'); return false; }
+            if (!surname.value.trim()) { showAlert('Surname is required','error'); return false; }
+            if (!schoolSelect.value) { showAlert('Please select a school','error'); return false; }
+            if (!classCategory.value) { showAlert('Please select class category','error'); return false; }
+            if (!studentClass.value) { showAlert('Please select class','error'); return false; }
+            if (getSelectedSubjects().length === 0) { showAlert('Please select at least one subject','error'); return false; }
+            if (!regNumber.value) { showAlert('Registration number is required','error'); return false; }
+            if (!accessCode.value) { showAlert('Access code is required','error'); return false; }
+            if (secretCode.value !== REGISTRATION_SECRET) { showAlert('Invalid registration secret code','error'); return false; }
+            return true;
+        }
+
+        function printRegistrationForm(student) {
+            const fullName = `${student.firstName} ${student.middleName||''} ${student.surname}`.trim();
+            const subjectsHtml = student.subjects.map(s => `<span style="background:#f0fdf4;color:#15803d;padding:6px 14px;border-radius:8px;font-size:14px;font-weight:600;border:1px solid #bbf7d0;">${s.name}</span>`).join(' ');
+            const html = `
+                <div style="max-width:700px;margin:0 auto;background:white;border-radius:16px;overflow:hidden;font-family:Inter,sans-serif;">
+                    <div style="background:linear-gradient(135deg,#15803d,#16a34a);padding:25px;text-align:center;color:white;">
+                        <img src="scholaxia logo.jpeg" style="width:60px;height:60px;border-radius:50%;border:2px solid white;margin-bottom:10px;" alt="Logo">
+                        <h2 style="margin:0;font-size:24px;">Scholaxia Exam Registration</h2>
+                        <p style="margin:4px 0 0;opacity:0.9;font-size:15px;">Official Examination Registration Slip</p>
+                    </div>
+                    <div style="padding:25px;">
+                        <div style="margin-bottom:20px;border-bottom:2px solid #e2e8f0;padding-bottom:15px;">
+                            <h4 style="color:#15803d;margin:0 0 10px;">📋 Student Information</h4>
+                            <p style="margin:4px 0;color:black;font-weight:bold;"><strong>Full Name:</strong> <span style="color:black;font-weight:bold;">${fullName}</span></p>
+                            <p style="margin:4px 0;color:black;font-weight:bold;"><strong>School:</strong> <span style="color:black;font-weight:bold;">${student.schoolName}</span></p>
+                            <p style="margin:4px 0;color:black;font-weight:bold;"><strong>Class:</strong> <span style="color:black;font-weight:bold;">${student.class.toUpperCase()}</span></p>
+                            <p style="margin:4px 0;color:black;font-weight:bold;"><strong>Date:</strong> <span style="color:black;font-weight:bold;">${new Date().toLocaleString()}</span></p>
+                        </div>
+                        <div style="margin-bottom:20px;background:#f0fdf4;border:2px solid #bbf7d0;border-radius:12px;padding:15px;">
+                            <h4 style="color:#15803d;margin:0 0 10px;">🔑 Examination Credentials</h4>
+                            <p style="margin:4px 0;color:black;font-weight:bold;"><strong>Registration Number:</strong> <span style="font-family:monospace;font-size:15px;color:black;font-weight:bold;">${student.regNumber}</span></p>
+                            <p style="margin:4px 0;color:black;font-weight:bold;"><strong>Access Code:</strong> <span style="font-family:monospace;font-size:15px;color:black;font-weight:bold;">${student.accessCode}</span></p>
+                        </div>
+                        <div style="margin-bottom:20px;">
+                            <h4 style="color:#15803d;margin:0 0 10px;">📚 Registered Subjects (${student.subjects.length})</h4>
+                            <div style="display:flex;flex-wrap:wrap;gap:8px;">${subjectsHtml}</div>
+                        </div>
+                        <div style="font-size:12px;color:#64748b;line-height:1.5;">
+                            <p>✓ Keep this slip safe. You need your registration number and access code to log in.</p>
+                            <p>✓ Your registration must be approved by an administrator before accessing the exam.</p>
+                            <p style="color:#b91c1c;font-weight:bold;">✓ When logging in, ensure CAPS LOCK is ON and type both credentials in CAPITAL LETTERS.</p>
+                        </div>
+                    </div>
+                    <div style="text-align:center;padding:15px;border-top:2px solid #e2e8f0;font-weight:700;color:#15803d;">Scholaxia CBT Platform © 2026</div>
+                </div>`;
+            document.getElementById('printFormContainer').innerHTML = html;
+            setTimeout(() => window.print(), 150);
+        }
+
+        function showSuccessModal(student) {
+            modalCredentials.innerHTML = `
+                <div class="credential-row"><span class="credential-label"><i class="fas fa-id-card"></i> Registration Number:</span><span class="credential-value">${student.regNumber}</span></div>
+                <div class="credential-row"><span class="credential-label"><i class="fas fa-key"></i> Access Code:</span><span class="credential-value">${student.accessCode}</span></div>`;
+            modalSubjects.innerHTML = `
+                <h4><i class="fas fa-book"></i> Registered Subjects (${student.subjects.length})</h4>
+                <ul>${student.subjects.map(s => `<li>${s.name}</li>`).join('')}</ul>`;
+            successModal.style.display = 'flex';
+
+            document.getElementById('copyCredentialsBtn').onclick = () => {
+                navigator.clipboard.writeText(`Registration Number: ${student.regNumber}\nAccess Code: ${student.accessCode}`).then(() => {
+                    const btn = document.getElementById('copyCredentialsBtn');
+                    btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                    setTimeout(() => btn.innerHTML = '<i class="fas fa-copy"></i> Copy Credentials', 2000);
+                }).catch(() => showAlert('Failed to copy','error'));
+            };
+            document.getElementById('printRegistrationBtn').onclick = () => printRegistrationForm(student);
+            document.getElementById('closeModalBtn').onclick = () => successModal.style.display = 'none';
+            successModal.onclick = (e) => { if (e.target === successModal) successModal.style.display = 'none'; };
+        }
+
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            if (!validateForm()) return;
+            setLoading(true);
+            try {
+                const [regExists, accessExists] = await Promise.all([
+                    credentialExists('regNumber', regNumber.value),
+                    credentialExists('accessCode', accessCode.value)
+                ]);
+                if (regExists || accessExists) await generateUniqueCredentials();
+
+                const studentId = `ST${Date.now()}${Math.random().toString(36).substring(2,7)}`;
+                const studentData = {
+                    id: studentId, firstName: firstName.value.trim(), middleName: middleName.value.trim(),
+                    surname: surname.value.trim(), schoolId: schoolSelect.value, schoolName: SCHOOLS[schoolSelect.value],
+                    class: studentClass.value,
+                    subjects: getSelectedSubjects().map(name => ({ name, taken: false, takenAt: null })),
+                    regNumber: regNumber.value, accessCode: accessCode.value,
+                    status: 'pending', registeredAt: new Date().toISOString(),
+                    registeredBy: 'school_admin', examTaken: false, createdAt: serverTimestamp()
+                };
+
+                // Save to Firestore
+                const db = getDb();
+                if (db && typeof doc === 'function' && typeof setDoc === 'function') {
+                    await setDoc(doc(db, 'students', studentId), studentData, { merge: true });
+                } else if (db && typeof db.collection === 'function') {
+                    await db.collection('students').doc(studentId).set(studentData, { merge: true });
+                } else {
+                    throw new Error('Firestore not available');
+                }
+
+                currentStudentData = studentData;
+                showSuccessModal(studentData);
+                form.reset();
+                subjectsContainer.style.display = 'none';
+                studentClass.disabled = true;
+                await generateUniqueCredentials();
+                submitBtn.disabled = true;
+                showAlert('Student registered successfully!','success');
+            } catch (err) {
+                console.error('Registration error:', err);
+                showAlert('Failed to register student. Please check your connection and try again.','error');
+            } finally {
+                setLoading(false);
+            }
+        });
+
+        classCategory.addEventListener('change', updateClassOptions);
+        studentClass.addEventListener('change', updateSubjects);
+        confirmDetails.addEventListener('change', () => { submitBtn.disabled = !confirmDetails.checked; });
+
+        function onReady(callback) {
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', callback);
+            } else {
+                callback();
+            }
+        }
+
+        onReady(() => {
+            if (!form) return;
+            populateSchools();
+            generateUniqueCredentials();
+            submitBtn.disabled = !confirmDetails.checked;
+        });
+    </script>
+</body>
+</html>
