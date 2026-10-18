@@ -12,10 +12,11 @@
       if (/\.scholaxia\.com$/i.test(host) && host.toLowerCase() !== "scholaxia.com" && host.toLowerCase() !== "www.scholaxia.com") {
         return String(location.origin || "").replace(/\/$/, "");
       }
-      // Local dev server (e.g. 127.0.0.1:8000) has no reachable database —
-      // call the production API directly (CORS allows all origins).
+      // Local dev server (scripts/run_local.py) has its own SQLite database —
+      // the site MUST call it same-origin so local testing exercises the
+      // local login/token, not the production Render API (which would 401).
       if (host === "localhost" || host === "127.0.0.1") {
-        return "https://scholaxia1.onrender.com";
+        return String(location.origin || "").replace(/\/$/, "");
       }
     } catch (e) {}
     return "https://scholaxia1.onrender.com";
