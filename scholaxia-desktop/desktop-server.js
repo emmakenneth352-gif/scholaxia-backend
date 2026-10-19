@@ -8,7 +8,7 @@ const fs = require("fs");
 const path = require("path");
 const { URL } = require("url");
 
-const PORT = 17890;
+const PORT = Number(process.env.PORT) || 17890;
 const DISCORD_PORT = 3001;
 // Default API is prod; SCHOLAXIA_API overrides per-run (e.g. local dev server).
 const REMOTE_API = (process.env.SCHOLAXIA_API || "https://scholaxia1.onrender.com").replace(/\/$/, "");
@@ -72,7 +72,16 @@ function proxyApi(req, res) {
       }
     );
 
+    // HARD DEADLINE: when the internet drops mid-request the outbound TCP
+    // connect can hang for MINUTES with no error event, leaving the renderer
+    // waiting forever (student saw "submit does nothing"). Fail fast so the
+    // app's own submit fallback (local score + queued sync) can take over.
+    proxyReq.setTimeout(15000, () => {
+      proxyReq.destroy(new Error("proxy timeout"));
+    });
+
     proxyReq.on("error", () => {
+      if (res.headersSent) { try { res.end(); } catch (e) {} return; }
       res.writeHead(502, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ detail: "API proxy error" }));
     });
