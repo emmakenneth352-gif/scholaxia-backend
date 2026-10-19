@@ -5,7 +5,7 @@ import secrets
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +18,7 @@ from app.core.cbt_packages import (
 )
 from app.core.database import get_db, engine
 from app.core.datetime_utils import naive_utc_now
+from app.core.redeem_body import extract_redeem_code
 from app.core.deps import require_admin, require_student_or_kind
 from app.models.cbt_coupon import CbtCoupon, CbtCouponRedemption
 from app.services.cbt_access import grant_cbt_package
@@ -228,14 +229,21 @@ async def deactivate_coupon(
 
 @router.post("/cbt/coupons/redeem")
 async def redeem_coupon(
-    payload: RedeemCouponRequest,
+    request: Request,
     current_user: dict = Depends(require_student_or_kind),
     db: AsyncSession = Depends(get_db),
 ):
     """Redeem a coupon and grant CBT package access."""
     await _ensure_coupon_tables()
 
-    code = _normalize_code(payload.code)
+    # NOTE: deliberately NO pydantic body param — FastAPI would 422 a quirky
+    # body before the handler could recover it. Older clients send the code
+    # as a double-encoded JSON string or a bare token; extract_redeem_code
+    # accepts every sensible shape instead.
+    raw_code = await extract_redeem_code(request)
+    if not raw_code:
+        raise HTTPException(status_code=400, detail="Enter a valid coupon code")
+    code = _normalize_code(raw_code)
     if len(code) < 4:
         raise HTTPException(status_code=400, detail="Enter a valid coupon code")
 

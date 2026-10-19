@@ -13,13 +13,14 @@ import secrets
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.datetime_utils import naive_utc_now
+from app.core.redeem_body import extract_redeem_code
 from app.core.deps import require_admin, require_student_or_kind
 from app.models.study_coupon import StudyCoupon, StudyCouponRedemption
 
@@ -297,14 +298,21 @@ class CouponRedeem(BaseModel):
     code: str = Field(min_length=4, max_length=60)
 
 
-@router.post("/redeem")
+@router.post("/redeem", response_model=None)
 async def redeem_coupon(
-    payload: CouponRedeem,
+    request: Request,
     current_user: dict = Depends(require_student_or_kind),
     db: AsyncSession = Depends(get_db),
 ):
     """Activate a per-skill code — grants that skill (or all) for access_days."""
-    code = _normalize_code(payload.code)
+    # NOTE: deliberately NO pydantic body param. FastAPI validates that before
+    # the handler runs, so a quirky body would 422 before we could recover it.
+    # Older clients send the code as a double-encoded JSON string or a bare
+    # token; extract_redeem_code accepts every sensible shape instead.
+    raw_code = await extract_redeem_code(request)
+    if not raw_code:
+        raise HTTPException(status_code=400, detail="Enter an activation code")
+    code = _normalize_code(raw_code)
     if not code:
         raise HTTPException(status_code=400, detail="Enter an activation code")
 
