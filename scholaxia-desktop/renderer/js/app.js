@@ -1,7 +1,7 @@
 const PAGE_TITLES = {  dashboard: "Home",
   live: "Live Class",
   "access-code": "Access Code",
-  school: "Scholaxia Exam",
+  school: "Teacher Tests",
   "school-portal": "Scholaxia Exam",
   marketplace: "Scholaxia Marketplace",
   assignments: "Assignments",
@@ -340,6 +340,29 @@ window.onload = async () => {
           });
         }
       } catch (eFlush) { /* ignore */ }
+      // Queued offline session-based school-exam submissions (see submitExam).
+      try {
+        const queuedSessions = JSON.parse(localStorage.getItem("sia_cbt_pending_sessions") || "[]");
+        if (queuedSessions.length) {
+          const remainingSessions = [];
+          let chainS = Promise.resolve();
+          queuedSessions.forEach((item) => {
+            chainS = chainS.then(() =>
+              api("/api/v1/cbt/sessions/submit", {
+                method: "POST",
+                body: JSON.stringify({
+                  session_id: item.session_id,
+                  answers: item.answers,
+                  is_auto_submit: !!item.is_auto_submit,
+                }),
+              }).catch(() => remainingSessions.push(item))
+            );
+          });
+          chainS.then(() => {
+            localStorage.setItem("sia_cbt_pending_sessions", JSON.stringify(remainingSessions));
+          });
+        }
+      } catch (eFlushS) { /* ignore */ }
     });
   }
 
@@ -2035,11 +2058,54 @@ async function submitExam(force) {
         queued.push({ practice_attempt_id: currentSession.practice_attempt_id, answers: answerMap, queued_at: new Date().toISOString() });
         localStorage.setItem("sia_cbt_pending_practice", JSON.stringify(queued));
       } catch (eQueue) { /* ignore */ }
+      const qs = currentExam.questions || [];
       let localCorrect = 0;
-      (currentExam.questions || []).forEach((q, i) => { if (q && q.correct_option && answers[i] === q.correct_option) localCorrect++; });
-      const total = (currentExam.questions || []).length || 1;
-      showResult({ percentage: Math.round((localCorrect / total) * 100), correct: localCorrect, total: total, score: localCorrect, max_score: total });
-      alert("You are offline — your answers were saved on this device and will upload automatically when internet returns.");
+      let localWrong = 0;
+      let localAttempted = 0;
+      qs.forEach((q, i) => {
+        if (!q) return;
+        const chosen = answers[i];
+        if (!chosen) return;
+        localAttempted++;
+        if (q.correct_option && String(chosen).toUpperCase() === String(q.correct_option).toUpperCase()) localCorrect++;
+        else localWrong++;
+      });
+      const total = qs.length || 1;
+      // Offline students still see their full result + per-question review
+      // immediately — questions are already on the device (downloaded while
+      // online), so scoring needs no server. The attempt syncs when internet
+      // returns.
+      window._lastPracticeReview = qs.map(function (q, i) {
+        const choices = ["A", "B", "C", "D"];
+        const options = choices
+          .map(function (k) {
+            var text = q[`option_${k.toLowerCase()}`] || q.options?.[k] || "";
+            return text ? { key: k, text: text } : null;
+          })
+          .filter(Boolean);
+        const chosen = (answers[i] || "").toUpperCase();
+        const correctKey = String(q.correct_option || "").toUpperCase();
+        return {
+          question_text: q.question_text || "",
+          subject: q.subject || "",
+          options: options,
+          your_answer: chosen || null,
+          correct_key: correctKey,
+          is_correct: !!chosen && chosen === correctKey,
+          explanation: q.explanation || "",
+        };
+      }).filter(function (r) { return r.correct_key; });
+      window._lastPracticeAttemptId = currentSession.practice_attempt_id;
+      window._lastPracticeBoard = currentSession.exam_type || (currentExam && currentExam.exam_type) || "";
+      showResult({
+        percentage: Math.round((localCorrect / total) * 100),
+        correct: localCorrect,
+        total: total,
+        score: localCorrect,
+        max_score: total,
+        offline: true,
+        offline_note: "Offline — answers saved on this device, will upload when internet returns",
+      });
       closeExam();
       return;
     }
@@ -2150,6 +2216,63 @@ async function submitExam(force) {
     return;
   }
 
+  const offlineNow = typeof navigator !== "undefined" && !navigator.onLine;
+  if (offlineNow) {
+    // OFFLINE: never hang waiting for the network — score locally (questions
+    // are on the device), queue the submission, show the result right away.
+    try {
+      const queued = JSON.parse(localStorage.getItem("sia_cbt_pending_sessions") || "[]");
+      queued.push({ session_id: currentSession.session_id, answers: answerMap, is_auto_submit: secondsLeft <= 0, queued_at: new Date().toISOString() });
+      localStorage.setItem("sia_cbt_pending_sessions", JSON.stringify(queued));
+    } catch (eQueue) { /* ignore */ }
+    let localCorrect = 0;
+    let localWrong = 0;
+    let localAttempted = 0;
+    currentExam.questions.forEach((q, i) => {
+      const chosen = answers[i];
+      if (!chosen) return;
+      localAttempted++;
+      if (String(chosen).toUpperCase() === String(q.correct_option || "").toUpperCase()) localCorrect++;
+      else localWrong++;
+    });
+    const localTotal = localCorrect + localWrong;
+    const localPct = localTotal ? Math.round((localCorrect / localTotal) * 100) : 0;
+    window._lastPracticeReview = currentExam.questions.map(function (q, i) {
+      const choices = ["A", "B", "C", "D"];
+      const options = choices
+        .map(function (k) {
+          var text = q[`option_${k.toLowerCase()}`] || q.options?.[k] || "";
+          return text ? { key: k, text: text } : null;
+        })
+        .filter(Boolean);
+      const chosen = (answers[i] || "").toUpperCase();
+      const correctKey = String(q.correct_option || "").toUpperCase();
+      if (!correctKey && !chosen) return null;
+      return {
+        question_text: q.question_text || "",
+        subject: q.subject || "",
+        options: options,
+        your_answer: chosen || null,
+        correct_key: correctKey,
+        is_correct: !!chosen && chosen === correctKey,
+        explanation: q.explanation || "",
+      };
+    }).filter(Boolean);
+    window._lastPracticeAttemptId = null;
+    window._lastPracticeBoard = currentExam.exam_type || (currentSession && currentSession.exam_type) || "CBT";
+    showResult({
+      percentage: localPct,
+      correct: localCorrect,
+      wrong: localWrong,
+      total: currentExam.questions.length,
+      score: localCorrect,
+      max_score: currentExam.questions.length,
+      offline: true,
+      offline_note: "Offline — answers saved on this device, will upload when internet returns",
+    });
+    closeExam();
+    return;
+  }
   try {
     const result = await api("/api/v1/cbt/sessions/submit", {
       method: "POST",
@@ -2203,7 +2326,8 @@ function showResult(result) {
   const correct = result.correct ?? result.total_correct ?? 0;
   const wrong = result.wrong ?? result.total_wrong ?? 0;
   const total = result.total ?? (correct + wrong);
-  const lines = [`${correct} correct · ${wrong} wrong · ${total} total`];
+  const lines = [(result.offline ? `${correct} correct · ${wrong} wrong · ${total} total (unsynced)` : `${correct} correct · ${wrong} wrong · ${total} total`)];
+  if (result.offline_note) lines.push("📌 " + escHtml(result.offline_note));
   if (result.score_display) lines.unshift("Score: " + escHtml(result.score_display));
   if (result.rating) lines.push("Rating: " + escHtml(result.rating) + (result.rating_message ? " — " + escHtml(result.rating_message) : ""));
   if (result.per_subject_scores && typeof result.per_subject_scores === "object") {
