@@ -443,7 +443,7 @@ async def portal_settings(slug: str, current_user: dict = Depends(require_school
             "contact_email": getattr(campus, "contact_email", None),
             "contact_phone": getattr(campus, "contact_phone", None),
         },
-        "custom_domain": getattr(campus, "custom_domain", None),  # Pass 8 — school's own hosted domain (e.g. dove.com); no scholaxia.com subdomain
+        "custom_domain": getattr(campus, "custom_domain", None),
     }
 
 

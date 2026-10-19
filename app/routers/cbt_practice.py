@@ -396,6 +396,42 @@ async def get_practice_section(
         ) from exc
 
 
+@router.post("/cbt/practice/attempts/{attempt_id}/offline-pack")
+async def get_practice_offline_pack(
+    attempt_id: str,
+    current_user: dict = Depends(require_student_or_kind),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return this student's complete practice paper and key for encrypted offline scoring."""
+    attempt = await _load_own_attempt(db, attempt_id, current_user["sub"])
+    if attempt.status != "in_progress":
+        raise HTTPException(status_code=400, detail="This practice attempt is no longer active")
+    await cbt_engine.ensure_all_sections_built(db, attempt)
+    return {
+        "attempt_id": str(attempt.id),
+        "exam_type": attempt.exam_type,
+        "sections": [
+            {
+                "subject": sec.get("subject") or "Subject",
+                "total": int(sec.get("total") or len(sec.get("questions") or [])),
+                "questions": [
+                    {
+                        "id": q.get("id"),
+                        "question_text": q.get("question_text") or "",
+                        "options": q.get("options") or [],
+                        "correct_key": (q.get("correct_key") or "").upper(),
+                        "topic": q.get("topic"),
+                        "image_url": q.get("image_url"),
+                        "explanation": q.get("explanation") or "",
+                    }
+                    for q in sec.get("questions") or []
+                ],
+            }
+            for sec in attempt.sections or []
+        ],
+    }
+
+
 @router.post("/cbt/practice/attempts/{attempt_id}/answers")
 async def save_practice_answers(
     attempt_id: str,

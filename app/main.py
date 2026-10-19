@@ -289,6 +289,29 @@ async def _school_host_response(request: Request, slug: str, full_path: str):
     return _static_file("portal-app.html")
 
 
+async def _custom_school_slug_from_host(host: str) -> str | None:
+    """Find a school whose configured custom domain matches this request host."""
+    from sqlalchemy import func, select
+    from app.core.database import AsyncSessionLocal
+    from app.models.school_campus import SchoolCampus
+
+    normalized = host.lower().strip()
+    candidates = [normalized]
+    if normalized.startswith("www."):
+        candidates.append(normalized[4:])
+    async with AsyncSessionLocal() as db:
+        return (
+            await db.execute(
+                select(SchoolCampus.slug)
+                .where(
+                    func.lower(SchoolCampus.custom_domain).in_(candidates),
+                    SchoolCampus.is_active.is_(True),
+                )
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+
+
 # Explicit routes so /app works even if StaticFiles mount order is flaky on Render.
 @app.get("/app")
 async def app_home_redirect():
@@ -373,8 +396,7 @@ async def school_path_link_assets(slug: str, asset_path: str, request: Request):
 @app.get("/{full_path:path}", include_in_schema=False)
 async def school_host_router(request: Request, full_path: str):
     """Final catch-all:
-    - school subdomains (divine-light.scholaxia.com) → the school-branded
-      student SPA ("school not found" page for unknown/unapproved slugs);
+    - school subdomains and configured custom domains → the school portal;
     - the main hosts (scholaxia.com, www, scholaxia1.onrender.com) → the
       marketing/student site, so pointing the root domain at Render is safe;
     - anything else → 404."""
@@ -390,6 +412,10 @@ async def school_host_router(request: Request, full_path: str):
         "127.0.0.1",
         "testserver",
     }
+    if host not in main_hosts and not host.endswith(f".{BASE_DOMAIN}"):
+        custom_slug = await _custom_school_slug_from_host(host)
+        if custom_slug:
+            return await _school_host_response(request, custom_slug, full_path)
     if host not in main_hosts:
         raise HTTPException(status_code=404, detail="Not found")
     # Unknown API paths must be a JSON 404 — never the marketing page, or

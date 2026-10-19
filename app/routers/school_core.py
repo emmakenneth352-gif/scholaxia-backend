@@ -256,20 +256,16 @@ async def register_school(payload: SchoolRegisterIn, db: AsyncSession = Depends(
     return {
         "school_id": str(campus.id),
         "slug": campus.slug,
-        # Pass 8 — domain hosting model: the Scholaxia admin buys and hosts
-        # the school's OWN domain (e.g. dove.com for Dove School) and settles
-        # payment directly with the school — NOT on this platform. No
-        # <slug>.scholaxia.com link is issued anymore.
+        "school_url": f"https://{campus.slug}.{BASE_DOMAIN_DEFAULT}/",
+        "school_path_url": f"https://scholaxia1.onrender.com/school/{campus.slug}/",
         "custom_domain": campus.custom_domain,
         "live_setup": {
-            "model": "admin_hosted_domain",
+            "model": "scholaxia_link_with_optional_custom_domain",
             "status": "pending_review",
             "note": (
-                "The Scholaxia team buys and hosts your school's own domain "
-                "(e.g. dove.com for Dove School). Payment for the domain and "
-                "hosting is settled directly between the admin and your "
-                "school — not on this platform. Once your school is approved "
-                "and the domain is live, your school management system goes live."
+                "Your school has a unique Scholaxia link. If you later want "
+                "your own domain, the Scholaxia team can host it and connect "
+                "it to this same school portal."
             ),
         },
         "plan": plan,
@@ -291,7 +287,7 @@ async def register_school(payload: SchoolRegisterIn, db: AsyncSession = Depends(
     }
 
 
-# ------------------------------------------------- subdomain resolution ----
+# ------------------------------------------- school hostname resolution ----
 
 class SchoolPublicOut(BaseModel):
     slug: str
@@ -327,15 +323,30 @@ async def school_by_slug(slug: str, db: AsyncSession = Depends(get_db)) -> dict:
 
 
 @router.get("/public/schools/resolve-host")
-async def resolve_host(host: str = Query(..., description="e.g. greensprings.scholaxia.com"),
+async def resolve_host(host: str = Query(..., description="e.g. greensprings.scholaxia.com or school.example"),
                        db: AsyncSession = Depends(get_db)) -> dict:
-    """Given a hostname, return the school (or null for the main site)."""
+    """Resolve a Scholaxia subdomain or an admin-configured custom domain."""
     host = (host or "").lower().strip().split(":")[0]
     base = BASE_DOMAIN_DEFAULT
-    if host == base or host == f"www.{base}" or not host.endswith(f".{base}"):
+    if host.endswith(f".{base}") and host != f"www.{base}":
+        slug = host[: -len(base) - 1]
+        if slug and "." not in slug:
+            try:
+                return {"school": await school_by_slug(slug, db)}
+            except HTTPException:
+                return {"school": None}
+    if host in (base, f"www.{base}"):
         return {"school": None}
-    slug = host[: -len(base) - 1]
-    if not slug or "." in slug:
+    custom_host = host.removeprefix("www.")
+    slug = (
+        await db.execute(
+            select(SchoolCampus.slug).where(
+                func.lower(SchoolCampus.custom_domain) == custom_host,
+                SchoolCampus.is_active.is_(True),
+            )
+        )
+    ).scalar_one_or_none()
+    if not slug:
         return {"school": None}
     try:
         return {"school": await school_by_slug(slug, db)}
@@ -550,14 +561,12 @@ class FeatureTogglesIn(BaseModel):
 
 
 class SchoolEditIn(BaseModel):
-    """Super-admin edits: logo, school type, category and the school's OWN
-    hosted domain (Pass 8 — e.g. dove.com; payment settled outside the
-    platform). The slug stays internal (portal path /school/<slug>/)."""
+    """Super-admin edits to a school's branding and optional hosted domain."""
     slug: str | None = Field(default=None, min_length=2, max_length=60)
     logo_url: str | None = Field(default=None, max_length=500)
     school_type: str | None = Field(default=None, max_length=20)  # private | public
     category: str | None = Field(default=None, max_length=20)  # mixed | boys | girls
-    custom_domain: str | None = Field(default=None, max_length=255)  # school's own hosted domain; "" clears
+    custom_domain: str | None = Field(default=None, max_length=255)  # hosted custom domain; "" clears
 
 
 async def _campus_or_404(db: AsyncSession, school_id: UUID) -> SchoolCampus:
@@ -575,8 +584,7 @@ async def approve_school(
     current_user: dict = Depends(_require_super_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Owner spec §3: Pending → Approved. Creates the school's subdomain
-    environment (the slug already exists; approval flips it live)."""
+    """Approve the school and activate its unique Scholaxia link."""
     campus = await _campus_or_404(db, school_id)
     campus.approval_status = "approved"
     campus.approved_at = naive_utc_now()
@@ -586,12 +594,12 @@ async def approve_school(
     return {
         "school_id": str(campus.id),
         "approval_status": "approved",
-        # Pass 8 — live when the admin hosts the school's own domain (e.g.
-        # dove.com); payment is settled directly with the school.
+        "slug": campus.slug,
+        "school_url": f"https://{campus.slug}.{BASE_DOMAIN_DEFAULT}/",
         "custom_domain": campus.custom_domain,
         "live_setup_note": (
-            "School approved. Once its own domain (e.g. dove.com) is bought "
-            "and hosted by the admin, the school management system goes live."
+            "School approved. Its Scholaxia link is ready; an optional custom "
+            "domain can be connected by the Scholaxia team."
         ),
     }
 
@@ -648,14 +656,7 @@ async def edit_school(
     current_user: dict = Depends(_require_super_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Super-admin edits a school's logo, type/category and hosted domain.
-
-    Only provided fields are changed. Pass 8: `custom_domain` is the domain
-    the admin bought for the school (e.g. dove.com) — scheme/www/trailing
-    slash are stripped, empty string clears it. The slug stays as the
-    internal portal path (/school/<slug>/) — no scholaxia.com subdomain is
-    advertised anymore.
-    """
+    """Super-admin edits a school's branding and optional custom domain."""
     campus = await _campus_or_404(db, school_id)
 
     if payload.slug is not None:
@@ -672,11 +673,25 @@ async def edit_school(
 
     if payload.custom_domain is not None:
         raw = (payload.custom_domain or "").strip().lower()
-        # Accept pasted URLs too: https://www.dove.com/ → dove.com
+        # Accept pasted URLs too: https://www.dove.com/ → dove.com.
         raw = raw.removeprefix("https://").removeprefix("http://")
         raw = raw.removeprefix("www.").rstrip("/").strip()
-        if raw and (" " in raw or "/" in raw or ".." in raw or len(raw) < 4):
+        if raw and not re.fullmatch(
+            r"(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}",
+            raw,
+        ):
             raise HTTPException(status_code=422, detail="Domain must look like dove.com or school.dove.com")
+        if raw:
+            duplicate = (
+                await db.execute(
+                    select(SchoolCampus.id).where(
+                        func.lower(SchoolCampus.custom_domain) == raw,
+                        SchoolCampus.id != campus.id,
+                    )
+                )
+            ).scalar_one_or_none()
+            if duplicate:
+                raise HTTPException(status_code=409, detail="This custom domain is already assigned to another school")
         campus.custom_domain = raw or None
 
     if payload.logo_url is not None:
