@@ -3917,8 +3917,12 @@ async function generateStudyCoupons() {
   var uses = parseInt((document.getElementById("study-coupon-uses") || {}).value || "1", 10) || 1;
   var days = parseInt((document.getElementById("study-coupon-days") || {}).value || "365", 10) || 365;
   var accessDays = parseInt((document.getElementById("study-coupon-access-days") || {}).value || "30", 10) || 30;
-  var skill = ((document.getElementById("study-coupon-skill") || {}).value || "all");
+  var skill = ((document.getElementById("study-coupon-skill") || {}).value || "").trim();
   var note = ((document.getElementById("study-coupon-note") || {}).value || "").trim();
+  if (!skill) {
+    if (msg) msg.textContent = "Select the category this code should unlock.";
+    return;
+  }
   if (msg) msg.textContent = "Generating…";
   try {
     var d = await adminApi("/api/v1/study-coupons/admin/create", {
@@ -3926,6 +3930,8 @@ async function generateStudyCoupons() {
       body: JSON.stringify({ count: count, max_uses: uses, days_valid: days, access_days: accessDays, skill: skill, note: note }),
     });
     if (msg) msg.textContent = "Generated for " + (STUDY_SKILL_LABELS[d.skill || skill] || skill) + ", " + accessDays + " days access: " + (d.codes || []).join(", ");
+    var skillSelect = document.getElementById("study-coupon-skill");
+    if (skillSelect) skillSelect.value = "";
     loadStudyCoupons();
   } catch (e) {
     if (msg) msg.textContent = e.message;
@@ -4100,15 +4106,19 @@ function _sxApprovalBadge(status) {
 }
 
 function _sxPrivateLink(s) {
-  /* Pass 8 — schools get their OWN domain (e.g. dove.com), bought & hosted
-     by the admin; payment is settled directly with the school. No more
-     <slug>.scholaxia.com links. */
   if (!s) return "—";
-  if (s.custom_domain) return "🌐 " + escHtml(s.custom_domain);
-  var st = String(s.approval_status || "approved").toLowerCase();
-  return st === "approved"
-    ? '<span class="muted">Domain pending — set it via Edit (e.g. dove.com)</span>'
-    : '<span class="muted">Domain pending (live after approval + hosting)</span>';
+  var links = [];
+  if (s.slug) {
+    var scholaxiaUrl = "https://" + s.slug + ".scholaxia.com/";
+    links.push('<a href="' + escHtml(scholaxiaUrl) + '" target="_blank" rel="noopener">' + escHtml(scholaxiaUrl) + '</a>');
+  }
+  if (s.custom_domain) {
+    var customUrl = "https://" + s.custom_domain + "/";
+    links.push('<a href="' + escHtml(customUrl) + '" target="_blank" rel="noopener">' + escHtml(customUrl) + '</a>');
+  } else {
+    links.push('<span class="muted">Custom domain optional</span>');
+  }
+  return links.join("<br>");
 }
 
 async function _sxSchoolAction(schoolId, action, body, confirmText) {
@@ -4125,7 +4135,7 @@ async function _sxSchoolAction(schoolId, action, body, confirmText) {
 }
 
 function approveSchool(id) {
-  _sxSchoolAction(id, "approve", {}, "Approve this school? Once its own domain is bought & hosted by the admin (payment settled directly with the school), the school management system goes live.");
+  _sxSchoolAction(id, "approve", {}, "Approve this school and activate its unique Scholaxia link?");
 }
 
 function rejectSchool(id) {
@@ -4147,9 +4157,9 @@ async function editSchool(id) {
   var s = null;
   for (var i = 0; i < rows.length; i++) { if (rows[i].school_id === id) { s = rows[i]; break; } }
   if (!s) { window.alert("School data not loaded yet — refresh and try again."); return; }
-  var slug = window.prompt("Portal path slug (internal — the school portal is served at /school/<slug>/):", s.slug || "");
+  var slug = window.prompt("School link name (used for <name>.scholaxia.com):", s.slug || "");
   if (slug === null) return;
-  var dom = window.prompt("School's OWN domain (e.g. dove.com — the admin buys & hosts it; payment is settled directly with the school). Leave empty to clear:", s.custom_domain || "");
+  var dom = window.prompt("Optional custom domain (e.g. dove.com). Configure this after the Scholaxia team hosts the domain. Leave empty to clear:", s.custom_domain || "");
   if (dom === null) dom = s.custom_domain || "";
   var logo = window.prompt("Logo image URL (leave empty for none):", s.logo_url || "");
   if (logo === null) logo = s.logo_url || "";

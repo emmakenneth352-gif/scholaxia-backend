@@ -290,7 +290,8 @@ tr:last-child td{border-bottom:none}
 
 <script>
 /* ═══════════ School Portal SPA ═══════════
-   Slug comes from the host (<slug>.scholaxia.com) or /school/<slug>/ path. */
+   Slug comes from the host (<slug>.scholaxia.com), custom-domain lookup,
+   or /school/<slug>/ path. */
 (function () {
   var slug = (function () {
     try {
@@ -304,8 +305,36 @@ tr:last-child td{border-bottom:none}
     return "";
   })();
 
+  if (!slug && !["scholaxia.com", "www.scholaxia.com", "scholaxia1.onrender.com"].includes(location.hostname.toLowerCase())) {
+    fetch(location.origin + "/api/v1/public/schools/resolve-host?host=" + encodeURIComponent(location.hostname))
+      .then(function (r) {
+        if (!r.ok) throw new Error("Could not resolve this school's domain.");
+        return r.json();
+      })
+      .then(function (d) {
+        if (!d.school || !d.school.slug) throw new Error("This domain is not connected to a school yet.");
+        var target = new URL(location.href);
+        target.searchParams.set("school", d.school.slug);
+        location.replace(target.toString());
+      })
+      .catch(function (e) {
+        console.error("Could not resolve school domain", e);
+        document.title = "School portal unavailable — Scholaxia";
+        var main = document.createElement("main");
+        main.style.cssText = "max-width:640px;margin:12vh auto;padding:24px;font:16px system-ui;text-align:center";
+        var heading = document.createElement("h1");
+        heading.textContent = "School portal unavailable";
+        var message = document.createElement("p");
+        message.textContent = e.message || "This domain is not connected to a school yet.";
+        main.appendChild(heading);
+        main.appendChild(message);
+        document.body.replaceChildren(main);
+      });
+    return;
+  }
+
   var API = "https://scholaxia1.onrender.com/api/v1";
-  if (/scholaxia1\.onrender\.com$/.test(location.hostname) || /\.scholaxia\.com$/.test(location.hostname) || location.hostname === "localhost" || location.hostname === "127.0.0.1") {
+  if (!["scholaxia.com", "www.scholaxia.com"].includes(location.hostname.toLowerCase())) {
     API = location.origin + "/api/v1";
   }
 
@@ -2463,17 +2492,20 @@ tr:last-child td{border-bottom:none}
     $("pages").innerHTML = head("Settings", "Your school information.") + '<div class="panel" id="setBody"><div class="empty">Loading…</div></div>';
     api("/settings").then(function (d) {
       var s = d.school || {};
+      var scholaxiaUrl = s.slug ? "https://" + s.slug + ".scholaxia.com/" : "";
+      var customUrl = d.custom_domain ? "https://" + d.custom_domain + "/" : "";
       $("setBody").innerHTML =
         '<div class="form-grid">' +
         '<div><label class="f-label">School name</label><input class="f-in" value="' + esc(s.name) + '" disabled /></div>' +
-        '<div><label class="f-label">School domain (hosted by Scholaxia admin)</label><input class="f-in" value="' + esc(d.custom_domain || "To be set — the admin buys & hosts your school\'s own domain, e.g. dove.com") + '" disabled /></div>' +
+        '<div><label class="f-label">Your Scholaxia school link</label><input class="f-in" value="' + esc(scholaxiaUrl) + '" disabled /></div>' +
+        '<div><label class="f-label">Optional custom domain</label><input class="f-in" value="' + esc(customUrl || "Not set — ask the Scholaxia team to host and connect your domain") + '" disabled /></div>' +
         '<div><label class="f-label">Type</label><input class="f-in" value="' + esc((s.school_type || "—") + (s.category && s.category !== "mixed" ? " · " + s.category + " only" : " · Mixed")) + '" disabled /></div>' +
         '<div><label class="f-label">Location</label><input class="f-in" value="' + esc([s.city, s.state].filter(Boolean).join(", ") || "—") + '" disabled /></div>' +
         '<div><label class="f-label">Contact email</label><input class="f-in" id="setEmail" value="' + esc(s.contact_email || "") + '" /></div>' +
         '<div><label class="f-label">Contact phone</label><input class="f-in" id="setPhone" value="' + esc(s.contact_phone || "") + '" /></div>' +
         '<div class="full"><label class="f-label">Address</label><input class="f-in" id="setAddr" value="' + esc(s.address || "") + '" /></div>' +
         '</div><button class="btn" onclick="saveSettings(this)">💾 Save changes</button>' +
-        '<p class="muted" style="margin-top:12px">School name, domain and logo are managed by the main Scholaxia admin — the admin buys and hosts your school\'s own domain (e.g. dove.com); that payment is settled directly between the admin and your school.</p>';
+        '<p class="muted" style="margin-top:12px">Both links open this same school portal. Your Scholaxia link is ready by default; a custom domain can be connected later by the Scholaxia team.</p>';
     }).catch(function (e) { $("setBody").innerHTML = '<div class="empty">' + esc(errText(e)) + '</div>'; });
   };
   window.saveSettings = function (btn) {
