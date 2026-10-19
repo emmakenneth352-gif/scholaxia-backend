@@ -2106,7 +2106,8 @@ async function submitExam(force) {
         offline: true,
         offline_note: "Offline — answers saved on this device, will upload when internet returns",
       });
-      closeExam();
+      // Do NOT closeExam() here — it would hide the result screen we just
+      // showed. showResult already dismissed the exam view and unlocked tabs.
       return;
     }
     try {
@@ -2270,7 +2271,10 @@ async function submitExam(force) {
       offline: true,
       offline_note: "Offline — answers saved on this device, will upload when internet returns",
     });
-    closeExam();
+    // NOTE: do NOT closeExam() here — it hides the result screen. showResult
+    // already closed the exam view and cleared the lock; the question screen
+    // is gone and the result stays visible. Did NOT call closeExam previously
+    // in the online path either.
     return;
   }
   try {
