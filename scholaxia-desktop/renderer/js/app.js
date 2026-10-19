@@ -925,7 +925,13 @@ function renderStudyGate(unlocked) {
   });
   var libGate = document.getElementById("library-gate");
   if (libGate) libGate.hidden = true;
-  ["study-materials-list", "library-toolbar", "library-stats", "library-list", "desktopVideoChips"].forEach(function (id) {
+  // Video tab chips stay VISIBLE like the website (they only filter; locked
+  // skills still show the gate/coupon box). Only hide the list until unlocked.
+  ["desktopVideoChips"].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = "";
+  });
+  ["study-materials-list"].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) el.style.display = anySkill ? "" : "none";
   });

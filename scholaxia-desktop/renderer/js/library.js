@@ -5,6 +5,8 @@
 var _libraryBooksCache = [];
 var _libraryActiveTab = "all";
 var _librarySearchQ = "";
+var _libraryLoadError = ""; // shown instead of a fake "No books yet" state
+var _libraryLoadError = ""; // shown instead of a fake "No books yet" state
 
 var LIBRARY_TABS = [
   { id: "all", label: "All" },
@@ -141,6 +143,23 @@ function renderLibraryList() {
   var el = document.getElementById("library-list");
   var stats = document.getElementById("library-stats");
   if (!el) return;
+
+  /* HARD ERROR state beats everything — never show "No books yet" when the
+     request itself failed (was the reported bug: library "not showing"). */
+  if (_libraryLoadError) {
+    if (stats) stats.innerHTML = "";
+    el.innerHTML =
+      '<div class="empty-state-premium">' +
+      '<div class="empty-icon">⚠️</div>' +
+      "<h3>Library could not load</h3>" +
+      '<p>' + escHtml(_libraryLoadError) + "</p>" +
+      '<button type="button" class="btn-sm primary" id="libraryRetryBtn">Retry</button>' +
+      "</div>";
+    var retry = document.getElementById("libraryRetryBtn");
+    if (retry) retry.onclick = function () { loadLibrary(); };
+    return;
+  }
+
   var books = filteredLibraryBooks();
 
   if (stats) {
@@ -244,14 +263,29 @@ function renderLibraryList() {
 async function loadLibrary() {
   var el = document.getElementById("library-list");
   if (!el) return;
+  // Library is FREE for everyone now (owner request): the material shop must be
+  // visible so students can buy individual items — no subscription gate here.
+  var gate = document.querySelector("#page-library .study-gate");
+  if (gate) gate.hidden = true;
   el.innerHTML = '<div class="loading">Loading library…</div>';
   renderLibraryChrome();
 
   var books = [];
+  _libraryLoadError = "";
   try {
     books = (await api("/api/v1/library/student")) || [];
   } catch (e) {
     books = [];
+    // Surface the real failure (network down, session expired, server 500…)
+    // instead of the misleading "No books yet" empty state.
+    var m = (e && e.message) || "";
+    _libraryLoadError = m || "Could not load the library. Check your connection and try again.";
+    if (e && (e.status === 401 || String(m).toLowerCase().indexOf("401") >= 0)) {
+      _libraryLoadError = "Your session expired — sign in again to see your library.";
+    }
+    renderLibraryChrome();
+    renderLibraryList();
+    return;
   }
   books = Array.isArray(books) ? books : [];
   // Past Questions live on their own page — keep them out of the Library.
