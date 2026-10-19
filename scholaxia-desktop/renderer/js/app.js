@@ -2111,9 +2111,12 @@ async function submitExam(force) {
       return;
     }
     try {
+      // SHORT timeout: never leave the student waiting on retries mid-submit.
       const result = await api("/api/v1/cbt/practice/attempts/" + currentSession.practice_attempt_id + "/submit", {
         method: "POST",
         body: JSON.stringify({ answers: answerMap }),
+        timeout: 6000,
+        retries: 0,
       });
       window._lastPracticeReview = result.full_review || null;
       window._lastPracticeAttemptId = currentSession.practice_attempt_id;
@@ -2130,8 +2133,54 @@ async function submitExam(force) {
         per_subject_scores: result.per_subject_scores,
       });
     } catch (e) {
-      alert(e.message || "Submit failed.");
-      closeExam();
+      // SYNC FAILED: fall back to local score + review + queue (never alert+stuck).
+      try {
+        const queued = JSON.parse(localStorage.getItem("sia_cbt_pending_practice") || "[]");
+        queued.push({ practice_attempt_id: currentSession.practice_attempt_id, answers: answerMap, queued_at: new Date().toISOString() });
+        localStorage.setItem("sia_cbt_pending_practice", JSON.stringify(queued));
+      } catch (eQueue) { /* ignore */ }
+      const qs2 = currentExam.questions || [];
+      let c2 = 0;
+      let w2 = 0;
+      qs2.forEach((q, i) => {
+        const chosen = answers[i];
+        if (!chosen || !q) return;
+        if (q.correct_option && String(chosen).toUpperCase() === String(q.correct_option).toUpperCase()) c2++;
+        else w2++;
+      });
+      const tot2 = qs2.length || 1;
+      window._lastPracticeReview = qs2.map(function (q, i) {
+        const choices = ["A", "B", "C", "D"];
+        const options = choices
+          .map(function (k) {
+            var text = q && (q[`option_${k.toLowerCase()}`] || q.options?.[k] || "");
+            return text ? { key: k, text: text } : null;
+          })
+          .filter(Boolean);
+        const chosen = (answers[i] || "").toUpperCase();
+        const correctKey = String((q && q.correct_option) || "").toUpperCase();
+        if (!correctKey && !chosen) return null;
+        return {
+          question_text: (q && q.question_text) || "",
+          subject: (q && q.subject) || "",
+          options: options,
+          your_answer: chosen || null,
+          correct_key: correctKey,
+          is_correct: !!chosen && chosen === correctKey,
+          explanation: (q && q.explanation) || "",
+        };
+      }).filter(function (r) { return r.correct_key; });
+      window._lastPracticeAttemptId = currentSession.practice_attempt_id;
+      window._lastPracticeBoard = currentSession.exam_type || (currentExam && currentExam.exam_type) || "";
+      showResult({
+        percentage: Math.round((c2 / tot2) * 100),
+        correct: c2,
+        total: tot2,
+        score: c2,
+        max_score: tot2,
+        offline: true,
+        offline_note: "Could not reach the server — answers saved and will upload when internet returns",
+      });
     }
     return;
   }
@@ -2278,6 +2327,9 @@ async function submitExam(force) {
     return;
   }
   try {
+    // SHORT timeout on submit: internet can be cut while navigator.onLine
+    // still reports true (router up, ISP down) — don't let the student wait
+    // on long retries. Any failure falls back to local scoring + review.
     const result = await api("/api/v1/cbt/sessions/submit", {
       method: "POST",
       body: JSON.stringify({
@@ -2285,11 +2337,62 @@ async function submitExam(force) {
         answers: answerMap,
         is_auto_submit: secondsLeft <= 0,
       }),
+      timeout: 6000,
+      retries: 0,
     });
     showResult(result);
   } catch (e) {
-    alert(e.message);
-    closeExam();
+    // SYNC FAILED (offline, timeout, server error): score locally, keep the
+    // answers to sync later, and show the result — never leave the student
+    // stuck on the exam screen.
+    try {
+      const queued = JSON.parse(localStorage.getItem("sia_cbt_pending_sessions") || "[]");
+      queued.push({ session_id: currentSession.session_id, answers: answerMap, is_auto_submit: secondsLeft <= 0, queued_at: new Date().toISOString() });
+      localStorage.setItem("sia_cbt_pending_sessions", JSON.stringify(queued));
+    } catch (eQueue) { /* ignore */ }
+    let localCorrect = 0;
+    let localWrong = 0;
+    currentExam.questions.forEach((q, i) => {
+      const chosen = answers[i];
+      if (!chosen) return;
+      if (String(chosen).toUpperCase() === String(q.correct_option || "").toUpperCase()) localCorrect++;
+      else localWrong++;
+    });
+    window._lastPracticeReview = currentExam.questions.map(function (q, i) {
+      const choices = ["A", "B", "C", "D"];
+      const options = choices
+        .map(function (k) {
+          var text = q[`option_${k.toLowerCase()}`] || q.options?.[k] || "";
+          return text ? { key: k, text: text } : null;
+        })
+        .filter(Boolean);
+      const chosen = (answers[i] || "").toUpperCase();
+      const correctKey = String(q.correct_option || "").toUpperCase();
+      if (!correctKey && !chosen) return null;
+      return {
+        question_text: q.question_text || "",
+        subject: q.subject || "",
+        options: options,
+        your_answer: chosen || null,
+        correct_key: correctKey,
+        is_correct: !!chosen && chosen === correctKey,
+        explanation: q.explanation || "",
+      };
+    }).filter(Boolean);
+    window._lastPracticeAttemptId = null;
+    window._lastPracticeBoard = currentExam.exam_type || (currentSession && currentSession.exam_type) || "CBT";
+    const localTotal = localCorrect + localWrong;
+    const localPct = localTotal ? Math.round((localCorrect / localTotal) * 100) : 0;
+    showResult({
+      percentage: localPct,
+      correct: localCorrect,
+      wrong: localWrong,
+      total: currentExam.questions.length,
+      score: localCorrect,
+      max_score: currentExam.questions.length,
+      offline: true,
+      offline_note: "Could not reach the server — answers saved and will upload when internet returns",
+    });
   }
 }
 
