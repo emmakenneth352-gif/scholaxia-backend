@@ -3,14 +3,15 @@
 async function loadCbtPackagesPage() {
   var el = document.getElementById("cbt-packages-root");
   if (!el) return;
-  if (!isStudentLoggedIn()) {
-    el.innerHTML = '<div class="empty-state-premium"><h3>Sign in required</h3><p>Log in to buy CBT packages.</p></div>';
-    return;
-  }
   el.innerHTML = '<div class="loading">Loading CBT packages…</div>';
   try {
-    var access = await api("/api/v1/payments/paystack/cbt-access");
-    var catalog = await api("/api/v1/payments/paystack/cbt-packages");
+    var guest = !isStudentLoggedIn();
+    var access = guest ? null : await api("/api/v1/payments/paystack/cbt-access");
+    var catalog = await api(
+      guest
+        ? "/api/v1/cbt/packages"
+        : "/api/v1/payments/paystack/cbt-packages"
+    );
     var packages = (catalog && catalog.packages) || [];
     var html = "";
     if (access && access.has_access) {
@@ -20,6 +21,9 @@ async function loadCbtPackagesPage() {
         ".</div>";
     }
     html += '<div class="sx-page-hero"><h2>CBT Packages</h2><p>Annual access — pay with Paystack. Or tap Start exam and redeem a coupon there.</p></div>';
+    if (guest) {
+      html += '<label class="field"><span class="field-label">Email for Paystack receipt</span><input type="email" id="guest-cbt-package-email" autocomplete="email" placeholder="you@example.com" required /></label>';
+    }
     if (!packages.length) {
       html += '<div class="empty-state">No packages available.</div>';
     } else {
@@ -52,11 +56,26 @@ async function buyCbtPackage(packageId) {
     return;
   }
   try {
+    var guest = !isStudentLoggedIn();
+    var emailInput = document.getElementById("cbt-unlock-pay-email");
+    if (!emailInput && guest) emailInput = document.getElementById("guest-cbt-package-email");
+    var email = emailInput && emailInput.value ? emailInput.value.trim() : "";
+    if (guest && !email) throw new Error("Enter an email address for the Paystack receipt.");
     var ok = await paystackPurchase({
       productType: "cbt_package",
       productId: packageId,
+      email: email,
+      guestCbt: guest,
     });
     if (ok) {
+      if (guest) {
+        var guestNext = cbtUnlockAfter;
+        closeCbtUnlockModal(true);
+        await loadCbtHubPage();
+        alert("Payment successful! CBT access is unlocked on this device.");
+        if (typeof guestNext === "function") setTimeout(guestNext, 400);
+        return;
+      }
       try { sessionStorage.setItem("sia_cbt_just_unlocked", String(Date.now())); } catch (s) {}
       var next = cbtUnlockAfter;
       closeCbtUnlockModal(true);
@@ -68,7 +87,7 @@ async function buyCbtPackage(packageId) {
       alert("Payment was not completed.");
     }
   } catch (e) {
-    alert(e.message || "Payment failed.");
+    alert(cbtUnlockErrorMessage(e));
   }
 }
 
@@ -100,6 +119,8 @@ function closeCbtUnlockModal(force) {
   if (msg) msg.textContent = "";
   var input = document.getElementById("cbt-unlock-code");
   if (input) input.value = "";
+  var payEmail = document.getElementById("cbt-unlock-pay-email");
+  if (payEmail) payEmail.value = "";
 }
 
 function openCbtUnlockModal(afterUnlock) {
@@ -112,6 +133,11 @@ function openCbtUnlockModal(afterUnlock) {
   var choice = document.getElementById("cbt-unlock-choice");
   var coupon = document.getElementById("cbt-unlock-coupon");
   var pay = document.getElementById("cbt-unlock-pay");
+  var payEmailWrap = document.getElementById("cbt-unlock-pay-email-wrap");
+  if (payEmailWrap) {
+    if (isStudentLoggedIn()) payEmailWrap.classList.add("hidden");
+    else payEmailWrap.classList.remove("hidden");
+  }
   if (choice) choice.classList.remove("hidden");
   if (coupon) coupon.classList.add("hidden");
   if (pay) pay.classList.add("hidden");
@@ -130,7 +156,7 @@ function cbtUnlockPick(which) {
   var pay = document.getElementById("cbt-unlock-pay");
   var msg = document.getElementById("cbt-unlock-msg");
   if (msg) msg.textContent = "";
-  if (choice) choice.classList.add("hidden");
+  if (choice) choice.classList.remove("hidden");
   if (which === "coupon") {
     if (coupon) coupon.classList.remove("hidden");
     if (pay) pay.classList.add("hidden");
@@ -141,12 +167,27 @@ function cbtUnlockPick(which) {
   }
 }
 
+function cbtUnlockErrorMessage(error) {
+  if (
+    error &&
+    error.status === 404 &&
+    /API route not found/i.test(error.message || "")
+  ) {
+    return "Guest CBT coupon and payment routes are not available on the connected server yet. The backend update must be deployed.";
+  }
+  return (error && error.message) || "Could not complete this request.";
+}
+
 async function loadCbtUnlockPackages() {
   var list = document.getElementById("cbt-unlock-pay-list");
   if (!list) return;
   list.innerHTML = "Loading…";
   try {
-    var catalog = await api("/api/v1/payments/paystack/cbt-packages");
+    var catalog = await api(
+      isStudentLoggedIn()
+        ? "/api/v1/payments/paystack/cbt-packages"
+        : "/api/v1/cbt/packages"
+    );
     var packages = (catalog && catalog.packages) || [];
     if (!packages.length) {
       list.innerHTML = "No packages listed yet.";
@@ -162,7 +203,7 @@ async function loadCbtUnlockPackages() {
       );
     }).join("");
   } catch (e) {
-    list.innerHTML = e.message || "Could not load packages.";
+    list.innerHTML = escHtml(cbtUnlockErrorMessage(e));
   }
 }
 
@@ -176,7 +217,15 @@ async function cbtUnlockRedeem() {
   }
   if (msg) msg.textContent = "Checking coupon…";
   try {
-    var res = await api("/api/v1/cbt/coupons/redeem", { method: "POST", body: { code: code } });
+    var guest = !isStudentLoggedIn();
+    var body = { code: code };
+    var res = await api(
+      guest ? "/api/v1/cbt/coupons/guest/redeem" : "/api/v1/cbt/coupons/redeem",
+      { method: "POST", body: body }
+    );
+    if (guest && res && res.guest_token) {
+      localStorage.setItem("sia_cbt_guest_token", res.guest_token);
+    }
     var next = cbtUnlockAfter;
     try {
       sessionStorage.setItem("sia_cbt_just_unlocked", String(Date.now()));
@@ -188,7 +237,7 @@ async function cbtUnlockRedeem() {
     if (typeof loadCbtHubPage === "function") loadCbtHubPage();
     if (typeof next === "function") setTimeout(function () { next(); }, 400);
   } catch (e) {
-    if (msg) msg.textContent = e.message || "Invalid coupon";
+    if (msg) msg.textContent = cbtUnlockErrorMessage(e);
   }
 }
 
