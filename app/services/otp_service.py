@@ -5,32 +5,38 @@ Generates, stores, and verifies OTPs for:
   - Email verification on signup
   - Password reset
 
-OTPs are stored in Redis with a TTL (default 10 minutes).
+OTPs and pending signup details are stored in the shared database with an
+expiration time (default 10 minutes), so signup does not depend on Redis.
 Email is sent through Gmail SMTP, SendGrid, Mailgun, or Brevo.
 """
 
 import asyncio
 import html
 import json
+import logging
 import random
 import smtplib
 import string
 import time
+from datetime import datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Any, Optional
 
 import httpx
 from app.core.config import settings
-from app.core.redis import get_redis
+from app.core.database import AsyncSessionLocal
+from app.models.auth_transient import AuthTransientRecord
+from sqlalchemy import delete
 
 OTP_LENGTH = 6
 OTP_TTL = settings.OTP_EXPIRE_MINUTES * 60  # seconds
 PENDING_TTL = OTP_TTL
 
 BREVO_SEND_URL = "https://api.brevo.com/v3/smtp/email"
+logger = logging.getLogger(__name__)
 
-# In-memory fallback when Redis is down (debug mode only).
+# In-memory fallback when the shared database is down (debug mode only).
 _MEMORY_STORE: dict[str, tuple[str, float]] = {}
 
 
@@ -52,30 +58,43 @@ def _pending_key(email: str) -> str:
 
 async def _store_set(key: str, value: str, ex: int) -> None:
     try:
-        redis = await get_redis()
-        if redis is None:
-            raise RuntimeError("Redis is not initialized")
-        await redis.set(key, value, ex=ex)
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        async with AsyncSessionLocal() as db:
+            record = await db.get(AuthTransientRecord, key)
+            if record is None:
+                record = AuthTransientRecord(key=key, value=value, expires_at=now + timedelta(seconds=ex))
+                db.add(record)
+            else:
+                record.value = value
+                record.expires_at = now + timedelta(seconds=ex)
+            await db.execute(
+                delete(AuthTransientRecord).where(AuthTransientRecord.expires_at <= now)
+            )
+            await db.commit()
         _MEMORY_STORE.pop(key, None)
     except Exception as exc:
         if not settings.DEBUG:
-            raise OtpStoreUnavailable("Shared OTP storage is unavailable") from exc
+            raise OtpStoreUnavailable("Shared OTP database is unavailable") from exc
         _MEMORY_STORE[key] = (value, time.monotonic() + ex)
-        print("[OTP] Redis unavailable — using in-memory OTP storage in DEBUG mode")
+        logger.warning("Shared OTP database unavailable; using in-memory storage in DEBUG mode", exc_info=True)
 
 
 async def _store_get(key: str) -> Optional[str]:
     try:
-        redis = await get_redis()
-        if redis is None:
-            raise RuntimeError("Redis is not initialized")
-        raw = await redis.get(key)
-        if raw is None:
-            return _memory_store_get(key) if settings.DEBUG else None
-        return raw.decode() if isinstance(raw, bytes) else str(raw)
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        async with AsyncSessionLocal() as db:
+            record = await db.get(AuthTransientRecord, key)
+            if record is None:
+                return _memory_store_get(key) if settings.DEBUG else None
+            if record.expires_at <= now:
+                await db.delete(record)
+                await db.commit()
+                return None
+            return record.value
     except Exception as exc:
         if not settings.DEBUG:
-            raise OtpStoreUnavailable("Shared OTP storage is unavailable") from exc
+            raise OtpStoreUnavailable("Shared OTP database is unavailable") from exc
+        logger.warning("Shared OTP database unavailable; checking in-memory storage in DEBUG mode", exc_info=True)
         return _memory_store_get(key)
 
 
@@ -92,14 +111,16 @@ def _memory_store_get(key: str) -> Optional[str]:
 
 async def _store_delete(key: str) -> None:
     try:
-        redis = await get_redis()
-        if redis is None:
-            raise RuntimeError("Redis is not initialized")
-        await redis.delete(key)
+        async with AsyncSessionLocal() as db:
+            record = await db.get(AuthTransientRecord, key)
+            if record is not None:
+                await db.delete(record)
+            await db.commit()
         _MEMORY_STORE.pop(key, None)
     except Exception as exc:
         if not settings.DEBUG:
-            raise OtpStoreUnavailable("Shared OTP storage is unavailable") from exc
+            raise OtpStoreUnavailable("Shared OTP database is unavailable") from exc
+        logger.warning("Shared OTP database unavailable while deleting; clearing debug memory entry", exc_info=True)
         _MEMORY_STORE.pop(key, None)
 
 

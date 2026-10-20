@@ -1,4 +1,5 @@
 # models — import all so SQLAlchemy registers them with Base.metadata
+from app.models.auth_transient import AuthTransientRecord
 from app.models.user import User, StudentProfile, TeacherProfile, VendorProfile, KindProfile
 from app.models.payment import Subscription, Payment, StudentEntitlement
 from app.models.cbt import CBTExam, CBTQuestion, CBTSession, ExamProctorLog

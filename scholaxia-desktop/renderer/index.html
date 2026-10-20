@@ -66,7 +66,7 @@
             <button type="button" class="role-select-btn" data-role="teacher">
               <span class="role-icon">&#128104;&#8205;&#127979;</span>
               <strong>Teacher</strong>
-              <span>For Scholaxia approved tutors</span>
+              <span>Apply to teach on Scholaxia</span>
             </button>
             <button type="button" class="role-select-btn" data-role="kind">
               <span class="role-icon">&#128118;</span>
@@ -150,6 +150,21 @@
                     <option value="9-12">Ages 9–12</option>
                   </select>
                 </label>
+              </div>
+              <div id="signup-teacher-fields" class="signup-kind-fields hidden">
+                <label class="field">
+                  <span class="field-label">WhatsApp number</span>
+                  <input type="tel" id="signup-teacher-phone" placeholder="+234..." autocomplete="tel" />
+                </label>
+                <label class="field">
+                  <span class="field-label">Location (optional)</span>
+                  <input type="text" id="signup-teacher-location" placeholder="City / State" autocomplete="address-level1" />
+                </label>
+                <label class="field">
+                  <span class="field-label">Subjects you teach</span>
+                  <input type="text" id="signup-teacher-subjects" placeholder="Mathematics, English, Physics" />
+                </label>
+                <p class="switch-text">Your account will be reviewed by an admin before teacher features are enabled.</p>
               </div>
               <p id="signup-error" class="error-msg"></p>
               <button type="submit" class="btn-primary" id="btn-signup">SEND EMAIL CODE</button>

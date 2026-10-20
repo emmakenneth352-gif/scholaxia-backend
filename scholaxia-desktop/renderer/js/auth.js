@@ -17,11 +17,11 @@ var ROLE_CONFIG = {
     portalTitle: { login: "TEACHER PORTAL", signup: "TEACHER PORTAL" },
     portalSub: {
       login: "Sign in to host live classes and manage students",
-      signup: "Teachers are added by admin — use Log in",
+      signup: "Create a teacher account — admin approval is required",
     },
-    signupBtn: "CREATE ACCOUNT",
+    signupBtn: "SEND EMAIL CODE",
     expectedRole: "teacher",
-    allowSignup: false,
+    allowSignup: true,
   },
   kind: {
     portalTitle: { login: "KID PORTAL", signup: "KID SIGN UP" },
@@ -207,9 +207,13 @@ function updatePortalCopy() {
   if (kindFields) {
     kindFields.classList.toggle("hidden", selectedAccountRole !== "kind" || mode === "login");
   }
+  var teacherFields = document.getElementById("signup-teacher-fields");
+  if (teacherFields) {
+    teacherFields.classList.toggle("hidden", selectedAccountRole !== "teacher" || mode === "login");
+  }
 
   var signupTab = document.getElementById("tab-signup");
-  if ((selectedAccountRole === "teacher" || selectedAccountRole === "exam") && signupTab) {
+  if (selectedAccountRole === "exam" && signupTab) {
     signupTab.style.opacity = "0.5";
   } else if (signupTab) {
     signupTab.style.opacity = "1";
@@ -272,12 +276,6 @@ function initIntroPage() {
 function switchTab(tab) {
   var isLogin = tab === "login";
   var isExam = tab === "exam";
-  var cfg = ROLE_CONFIG[selectedAccountRole] || ROLE_CONFIG.student;
-
-  if (!isLogin && !isExam && selectedAccountRole === "teacher") {
-    alert("Teacher accounts are created by your school admin. Please use Log in.");
-    return;
-  }
 
   document.getElementById("tab-login").classList.toggle("active", isLogin);
   document.getElementById("tab-signup").classList.toggle("active", !isLogin && !isExam);
@@ -381,17 +379,23 @@ function roleMismatchMessage(selected, actual) {
   return "Account type does not match. Check the role you selected.";
 }
 
-async function routeAfterAuth(accessToken, role, email, nameOverride) {
+async function routeAfterAuth(accessToken, role, email, nameOverride, userInfo) {
   if (selectedAccountRole === "teacher") {
     if (typeof saveTeacherSession === "function") {
-      saveTeacherSession({ access_token: accessToken, user: { full_name: nameOverride } }, email, nameOverride);
+      saveTeacherSession({ access_token: accessToken, user: userInfo || { full_name: nameOverride } }, email, nameOverride);
     } else {
       localStorage.setItem("sia_teacher_token", accessToken);
       localStorage.setItem("sia_teacher_email", email);
       if (nameOverride) localStorage.setItem("sia_teacher_name", nameOverride);
     }
     localStorage.setItem("sia_role", role);
-    window.location.href = "teacher.html";
+    if (userInfo && userInfo.is_approved === false) {
+      localStorage.setItem("sia_teacher_pending_approval", "1");
+      window.location.href = "teacher.html#profile";
+    } else {
+      localStorage.removeItem("sia_teacher_pending_approval");
+      window.location.href = "teacher.html";
+    }
     return;
   }
 
@@ -505,7 +509,7 @@ async function login(e) {
       return;
     }
     var label = (data.user && data.user.email) || email;
-    await routeAfterAuth(data.access_token, data.role, label, data.user && data.user.full_name);
+    await routeAfterAuth(data.access_token, data.role, label, data.user && data.user.full_name, data.user);
   } catch (ex) {
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       err.textContent = "There is no internet on your data.";
@@ -561,6 +565,23 @@ async function signup(e) {
     err.textContent = "Password must be at least 8 characters.";
     return;
   }
+  var teacherPhone = "";
+  var teacherSubjects = [];
+  if (selectedAccountRole === "teacher") {
+    teacherPhone = document.getElementById("signup-teacher-phone").value.trim();
+    teacherSubjects = document.getElementById("signup-teacher-subjects").value
+      .split(",")
+      .map(function (subject) { return subject.trim(); })
+      .filter(Boolean);
+    if (teacherPhone.length < 7) {
+      err.textContent = "Enter a valid WhatsApp number.";
+      return;
+    }
+    if (!teacherSubjects.length) {
+      err.textContent = "Enter at least one subject you teach.";
+      return;
+    }
+  }
 
   btn.disabled = true;
   btn.textContent = "SENDING EMAIL...";
@@ -570,10 +591,14 @@ async function signup(e) {
       email: email,
       password: password,
       full_name: name,
-      role: selectedAccountRole === "kind" ? "kind" : "student",
+      role: selectedAccountRole === "kind" ? "kind" : selectedAccountRole,
     };
     if (selectedAccountRole === "kind") {
       body.age_group = document.getElementById("signup-age-group").value;
+    } else if (selectedAccountRole === "teacher") {
+      body.phone = teacherPhone;
+      body.subjects = teacherSubjects;
+      body.location = document.getElementById("signup-teacher-location").value.trim();
     }
 
     var res = await fetch(API_BASE + "/api/v1/auth/signup/start", {
@@ -648,7 +673,7 @@ async function verifySignupOtp() {
       return;
     }
     var label = (data.user && data.user.email) || pendingSignupEmail;
-    await routeAfterAuth(data.access_token, data.role || cfg.expectedRole, label, data.user && data.user.full_name);
+    await routeAfterAuth(data.access_token, data.role || cfg.expectedRole, label, data.user && data.user.full_name, data.user);
   } catch (ex) {
     err.textContent = "Network error. Check your connection.";
   } finally {
