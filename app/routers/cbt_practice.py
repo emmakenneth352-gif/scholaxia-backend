@@ -12,7 +12,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from app.core.database import get_db
 from app.core.datetime_utils import naive_utc_now
-from app.core.deps import require_admin, require_student_or_kind
+from app.core.deps import require_admin, require_student_or_cbt_guest, require_student_or_kind
 from app.models.cbt import CBTExam
 from app.models.cbt_settings import CbtPracticeAttempt
 from app.models.user import StudentProfile
@@ -119,7 +119,7 @@ async def _bank_counts(db: AsyncSession) -> list[dict[str, Any]]:
 
 @router.get("/cbt/practice/home")
 async def practice_home(
-    current_user: dict = Depends(require_student_or_kind),
+    current_user: dict = Depends(require_student_or_cbt_guest),
     db: AsyncSession = Depends(get_db),
 ):
     """Exam-type first home: JAMB | WAEC | NECO with access + profile subjects."""
@@ -208,10 +208,13 @@ async def practice_home(
 
     async def board_block(board: str) -> dict:
         has = False
-        try:
-            has = await has_board_access(db, sid, board)
-        except Exception:
-            has = False
+        if current_user.get("guest_cbt"):
+            has = normalize_board(board) in current_user.get("guest_boards", [])
+        else:
+            try:
+                has = await has_board_access(db, sid, board)
+            except Exception:
+                has = False
         return {
             "exam_type": board,
             "has_access": has,
@@ -254,7 +257,7 @@ async def practice_home(
 
 @router.get("/cbt/practice/settings")
 async def practice_settings_public(
-    current_user: dict = Depends(require_student_or_kind),
+    current_user: dict = Depends(require_student_or_cbt_guest),
     db: AsyncSession = Depends(get_db),
 ):
     """Student-facing CBT settings used for preview (duration, question counts)."""
@@ -313,7 +316,7 @@ async def register_practice_subjects(
 @router.post("/cbt/practice/start")
 async def start_practice(
     payload: StartPracticeRequest,
-    current_user: dict = Depends(require_student_or_kind),
+    current_user: dict = Depends(require_student_or_cbt_guest),
     db: AsyncSession = Depends(get_db),
 ):
     import logging
@@ -325,6 +328,7 @@ async def start_practice(
             student_id=current_user["sub"],
             exam_type=payload.exam_type,
             subjects=payload.subjects,
+            guest_access_boards=current_user.get("guest_boards") if current_user.get("guest_cbt") else None,
         )
         await db.flush()
     except PermissionError:
@@ -361,7 +365,7 @@ async def start_practice(
 @router.get("/cbt/practice/attempts/{attempt_id}")
 async def get_practice_attempt(
     attempt_id: str,
-    current_user: dict = Depends(require_student_or_kind),
+    current_user: dict = Depends(require_student_or_cbt_guest),
     db: AsyncSession = Depends(get_db),
 ):
     attempt = await _load_own_attempt(db, attempt_id, current_user["sub"])
@@ -372,7 +376,7 @@ async def get_practice_attempt(
 async def get_practice_section(
     attempt_id: str,
     section_index: int,
-    current_user: dict = Depends(require_student_or_kind),
+    current_user: dict = Depends(require_student_or_cbt_guest),
     db: AsyncSession = Depends(get_db),
 ):
     attempt = await _load_own_attempt(db, attempt_id, current_user["sub"])
@@ -399,7 +403,7 @@ async def get_practice_section(
 @router.post("/cbt/practice/attempts/{attempt_id}/offline-pack")
 async def get_practice_offline_pack(
     attempt_id: str,
-    current_user: dict = Depends(require_student_or_kind),
+    current_user: dict = Depends(require_student_or_cbt_guest),
     db: AsyncSession = Depends(get_db),
 ):
     """Return this student's complete practice paper and key for encrypted offline scoring."""
@@ -436,7 +440,7 @@ async def get_practice_offline_pack(
 async def save_practice_answers(
     attempt_id: str,
     payload: SaveAnswersRequest,
-    current_user: dict = Depends(require_student_or_kind),
+    current_user: dict = Depends(require_student_or_cbt_guest),
     db: AsyncSession = Depends(get_db),
 ):
     attempt = await _load_own_attempt(db, attempt_id, current_user["sub"])
@@ -456,7 +460,7 @@ async def save_practice_answers(
 async def submit_practice(
     attempt_id: str,
     payload: SubmitPracticeRequest,
-    current_user: dict = Depends(require_student_or_kind),
+    current_user: dict = Depends(require_student_or_cbt_guest),
     db: AsyncSession = Depends(get_db),
 ):
     attempt = await _load_own_attempt(db, attempt_id, current_user["sub"])
@@ -565,7 +569,7 @@ async def submit_practice(
 @router.get("/cbt/practice/attempts/{attempt_id}/review")
 async def get_practice_review(
     attempt_id: str,
-    current_user: dict = Depends(require_student_or_kind),
+    current_user: dict = Depends(require_student_or_cbt_guest),
     db: AsyncSession = Depends(get_db),
 ):
     """Full answer key + explanations for a completed practice attempt."""

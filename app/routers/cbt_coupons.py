@@ -1,5 +1,6 @@
 from datetime import timedelta
 import logging
+import hashlib
 import re
 import secrets
 import uuid
@@ -21,6 +22,7 @@ from app.core.datetime_utils import naive_utc_now
 from app.core.redeem_body import extract_redeem_code
 from app.core.deps import require_admin, require_student_or_kind
 from app.models.cbt_coupon import CbtCoupon, CbtCouponRedemption
+from app.models.guest_cbt_access import GuestCbtAccess
 from app.services.cbt_access import grant_cbt_package
 
 logger = logging.getLogger(__name__)
@@ -357,6 +359,71 @@ async def redeem_coupon(
         "package_id": package_id,
         "message": "CBT access unlocked with coupon.",
         "boards": _plan_boards(),
+    }
+
+
+@router.post("/cbt/coupons/guest/redeem")
+async def redeem_guest_coupon(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Redeem a CBT coupon without an account or email address."""
+    await _ensure_coupon_tables()
+    raw_code = await extract_redeem_code(request)
+    if not raw_code:
+        raise HTTPException(status_code=400, detail="Enter a valid coupon code")
+    code = _normalize_code(raw_code)
+    if len(code) < 4:
+        raise HTTPException(status_code=400, detail="Enter a valid coupon code")
+
+    try:
+        found = await _find_coupon(db, code)
+    except Exception as exc:
+        logger.exception("guest coupon lookup failed")
+        raise HTTPException(status_code=503, detail="Could not check this coupon. Try again shortly.") from exc
+    if not found:
+        raise HTTPException(status_code=400, detail="Invalid coupon code")
+
+    row = (
+        await db.execute(
+            select(CbtCoupon).where(CbtCoupon.id == found.id).with_for_update()
+        )
+    ).scalar_one_or_none()
+    if not row or not row.is_active:
+        raise HTTPException(status_code=400, detail="Invalid coupon code")
+    now = naive_utc_now()
+    if row.expires_at and row.expires_at < now:
+        raise HTTPException(status_code=400, detail="This coupon has expired")
+    if int(row.used_count or 0) >= int(row.max_uses or 1):
+        raise HTTPException(status_code=400, detail="This coupon has already been used up")
+
+    package_id = (row.package_id or "").strip().lower()
+    await refresh_cbt_overrides(db)
+    package = get_cbt_package(package_id)
+    meta = get_plan_meta(package_id)
+    if not package and not meta:
+        raise HTTPException(status_code=400, detail="This coupon refers to an invalid CBT package")
+    duration_days = int(package.duration_days if package else meta.get("duration_days") or 365)
+    boards = list(package.boards) if package else list(meta.get("boards") or [])
+    token = secrets.token_urlsafe(32)
+    access = GuestCbtAccess(
+        token_hash=hashlib.sha256(token.encode("utf-8")).hexdigest(),
+        package_id=package_id,
+        boards=boards,
+        coupon_id=row.id,
+        is_active=True,
+        expires_at=now + timedelta(days=duration_days),
+    )
+    db.add(access)
+    row.used_count = int(row.used_count or 0) + 1
+    await db.flush()
+    return {
+        "ok": True,
+        "package_id": package_id,
+        "boards": boards,
+        "guest_token": f"guest-cbt.{token}",
+        "expires_at": access.expires_at.isoformat(),
+        "message": "Coupon applied. CBT is unlocked on this device.",
     }
 
 

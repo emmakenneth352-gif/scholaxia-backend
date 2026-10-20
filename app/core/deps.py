@@ -1,3 +1,4 @@
+import hashlib
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
@@ -7,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import decode_token, _role_str
+from app.core.datetime_utils import naive_utc_now
+from app.models.guest_cbt_access import GuestCbtAccess
 from app.models.user import User, TeacherProfile
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -105,6 +108,36 @@ async def require_student_or_kind(current_user: dict = Depends(get_current_user)
         status_code=status.HTTP_403_FORBIDDEN,
         detail="Students or kid learners only",
     )
+
+
+async def require_student_or_cbt_guest(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    db: AsyncSession = Depends(get_db),
+):
+    """Allow an authenticated student or an active anonymous CBT package token."""
+    token = credentials.credentials if credentials else ""
+    if token.startswith("guest-cbt."):
+        token_hash = hashlib.sha256(token[len("guest-cbt."):].encode("utf-8")).hexdigest()
+        access = (
+            await db.execute(
+                select(GuestCbtAccess).where(
+                    GuestCbtAccess.token_hash == token_hash,
+                    GuestCbtAccess.is_active.is_(True),
+                    GuestCbtAccess.expires_at > naive_utc_now(),
+                )
+            )
+        ).scalar_one_or_none()
+        if not access:
+            raise HTTPException(status_code=401, detail="Guest CBT access is invalid or expired")
+        return {
+            "sub": str(access.id),
+            "role": "guest",
+            "guest_cbt": True,
+            "guest_boards": list(access.boards or []),
+            "guest_package_id": access.package_id,
+        }
+    current_user = await get_current_user(credentials=credentials, db=db)
+    return await require_student_or_kind(current_user=current_user)
 
 
 async def require_kind(current_user: dict = Depends(get_current_user)):

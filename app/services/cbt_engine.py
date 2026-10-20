@@ -861,6 +861,7 @@ async def start_practice_attempt(
     student_id: str,
     exam_type: str,
     subjects: list[str],
+    guest_access_boards: list[str] | None = None,
 ) -> CbtPracticeAttempt:
     from app.models.user import StudentProfile
 
@@ -873,12 +874,15 @@ async def start_practice_attempt(
     # Access check must never poison the DB transaction used to create the attempt.
     # Nested savepoint / entitlement failures leave the session aborted — always
     # rollback before INSERT into cbt_practice_attempts.
-    allowed = False
-    try:
-        allowed = await has_board_access(db, str(sid), board)
-    except Exception:
-        logger.exception("has_board_access failed during practice start")
-        allowed = False
+    allowed = board in {
+        normalize_board(value) for value in (guest_access_boards or [])
+    } if guest_access_boards is not None else False
+    if guest_access_boards is None:
+        try:
+            allowed = await has_board_access(db, str(sid), board)
+        except Exception:
+            logger.exception("has_board_access failed during practice start")
+            allowed = False
     try:
         await db.rollback()
     except Exception:

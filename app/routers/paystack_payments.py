@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import json
 import logging
+import hashlib
+import secrets
 import uuid
 from datetime import timedelta
 from typing import Optional
@@ -35,6 +37,7 @@ from app.core.skills_programs import (
 )
 from app.models.content import Book, BookPurchase
 from app.models.payment import Payment, PaymentStatus, StudentEntitlement
+from app.models.guest_cbt_access import GuestCbtAccess
 from app.models.marketplace import MarketplaceBooking, MarketplaceProduct, MarketplaceOrder, MarketplaceOrderItem
 from app.models.user import StudentProfile, User
 from app.services.cbt_access import active_cbt_access, subject_snapshot
@@ -354,6 +357,24 @@ async def _grant_past_question_guest(db: AsyncSession, payment: Payment, tx_data
 
 
 async def _grant_cbt_package(db: AsyncSession, payment: Payment) -> None:
+    if payment.student_id is None:
+        access = (
+            await db.execute(
+                select(GuestCbtAccess).where(GuestCbtAccess.payment_id == payment.id)
+            )
+        ).scalar_one_or_none()
+        if not access:
+            raise RuntimeError("Guest CBT access record is missing for this payment")
+        if not access.is_active:
+            await refresh_cbt_overrides(db)
+            package = get_cbt_package(payment.product_id or "")
+            custom = get_cbt_plan_dict(payment.product_id or "")
+            duration = int(package.duration_days if package else (custom["duration_days"] if custom else 30))
+            now = naive_utc_now()
+            access.is_active = True
+            access.expires_at = now + timedelta(days=duration)
+        return
+
     existing = await db.execute(
         select(StudentEntitlement).where(StudentEntitlement.payment_id == payment.id)
     )
@@ -544,6 +565,18 @@ def _validate_success(payment: Payment, tx_data: dict) -> None:
 @router.get("/cbt-packages")
 async def list_cbt_packages(
     current_user: dict = Depends(require_student_or_kind),
+    db: AsyncSession = Depends(get_db),
+):
+    await refresh_cbt_overrides(db)
+    return {
+        "packages": all_cbt_packages_dict(),
+        "currency": "NGN",
+        "public_key": settings.PAYSTACK_PUBLIC_KEY,
+    }
+
+
+@router.get("/guest/cbt-packages")
+async def list_guest_cbt_packages(
     db: AsyncSession = Depends(get_db),
 ):
     await refresh_cbt_overrides(db)
@@ -769,6 +802,84 @@ async def initialize_payment(
     }
 
 
+class GuestCbtInitializeRequest(BaseModel):
+    product_id: str
+    email: EmailStr
+
+
+@router.post("/guest/cbt/initialize")
+async def guest_initialize_cbt_payment(
+    payload: GuestCbtInitializeRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Start guest CBT Paystack checkout. Paystack requires a customer email."""
+    _require_configured()
+    product_id = (payload.product_id or "").strip().lower()
+    if not product_id:
+        raise HTTPException(status_code=400, detail="product_id is required")
+    await refresh_cbt_overrides(db)
+    product = await _resolve_product(db, "", PRODUCT_CBT_PACKAGE, product_id)
+    if product["already_owned"]:
+        raise HTTPException(status_code=400, detail="This CBT package cannot be purchased")
+
+    token = secrets.token_urlsafe(32)
+    reference = _new_reference(PRODUCT_CBT_PACKAGE)
+    payment = Payment(
+        student_id=None,
+        amount=product["price_naira"],
+        currency="NGN",
+        status=PaymentStatus.pending,
+        provider=PROVIDER,
+        provider_reference=reference,
+        product_type=PRODUCT_CBT_PACKAGE,
+        product_id=product_id,
+        description=f"guest cbt_package: {product['title']}"[:255],
+    )
+    db.add(payment)
+    await db.flush()
+    package_meta = get_cbt_plan_dict(product_id)
+    access = GuestCbtAccess(
+        token_hash=hashlib.sha256(token.encode("utf-8")).hexdigest(),
+        package_id=product_id,
+        boards=list((package_meta or {}).get("boards") or []),
+        payment_id=payment.id,
+        is_active=False,
+    )
+    db.add(access)
+    await db.flush()
+
+    try:
+        data = await paystack_service.initialize_transaction(
+            email=str(payload.email).strip().lower(),
+            amount_kobo=paystack_service.naira_to_kobo(product["price_naira"]),
+            reference=reference,
+            callback_url="https://scholaxia1.onrender.com/app/student.html",
+            metadata={
+                "product_type": PRODUCT_CBT_PACKAGE,
+                "product_id": product_id,
+                "payment_id": str(payment.id),
+                "guest_cbt": "true",
+            },
+        )
+    except PaystackError as exc:
+        raise HTTPException(status_code=502, detail=f"Paystack error: {exc}") from exc
+
+    return {
+        "authorization_url": data.get("authorization_url"),
+        "access_code": data.get("access_code"),
+        "reference": reference,
+        "payment_id": str(payment.id),
+        "amount": product["price_naira"],
+        "currency": "NGN",
+        "public_key": settings.PAYSTACK_PUBLIC_KEY,
+        "product_type": PRODUCT_CBT_PACKAGE,
+        "product_id": product_id,
+        "title": product["title"],
+        "guest_token": f"guest-cbt.{token}",
+        "customer": {"email": str(payload.email).strip().lower()},
+    }
+
+
 @router.post("/verify")
 async def verify_payment(
     payload: VerifyRequest,
@@ -803,6 +914,42 @@ async def verify_payment(
 
     _validate_success(payment, tx_data)
     await _fulfill(db, payment, tx_data)
+    return _fulfillment_response(payment)
+
+
+@router.post("/guest/cbt/verify")
+async def guest_verify_cbt_payment(
+    payload: VerifyRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    _require_configured()
+    reference = (payload.reference or "").strip()
+    if not reference:
+        raise HTTPException(status_code=400, detail="reference is required")
+    payment = (
+        await db.execute(
+            select(Payment).where(
+                Payment.provider == PROVIDER,
+                Payment.provider_reference == reference,
+                Payment.student_id.is_(None),
+                Payment.product_type == PRODUCT_CBT_PACKAGE,
+            )
+        )
+    ).scalar_one_or_none()
+    if not payment:
+        raise HTTPException(status_code=404, detail="Guest payment reference not found")
+    if payment.status != PaymentStatus.success:
+        try:
+            tx_data = await paystack_service.verify_transaction(reference)
+        except PaystackError as exc:
+            raise HTTPException(status_code=400, detail=f"Payment verification failed: {exc}") from exc
+        _validate_success(payment, tx_data)
+        await _fulfill(db, payment, tx_data)
+    access = (
+        await db.execute(select(GuestCbtAccess).where(GuestCbtAccess.payment_id == payment.id))
+    ).scalar_one_or_none()
+    if not access or not access.is_active:
+        raise HTTPException(status_code=503, detail="Payment succeeded but CBT access is still processing")
     return _fulfillment_response(payment)
 
 
