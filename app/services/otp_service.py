@@ -15,6 +15,7 @@ import json
 import random
 import smtplib
 import string
+import time
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Any, Optional
@@ -29,8 +30,12 @@ PENDING_TTL = OTP_TTL
 
 BREVO_SEND_URL = "https://api.brevo.com/v3/smtp/email"
 
-# In-memory fallback when Redis is down (dev only)
-_MEMORY_STORE: dict[str, str] = {}
+# In-memory fallback when Redis is down (debug mode only).
+_MEMORY_STORE: dict[str, tuple[str, float]] = {}
+
+
+class OtpStoreUnavailable(RuntimeError):
+    """Raised when OTPs cannot be stored in shared production storage."""
 
 
 def _generate_otp() -> str:
@@ -48,30 +53,54 @@ def _pending_key(email: str) -> str:
 async def _store_set(key: str, value: str, ex: int) -> None:
     try:
         redis = await get_redis()
+        if redis is None:
+            raise RuntimeError("Redis is not initialized")
         await redis.set(key, value, ex=ex)
-    except Exception:
-        _MEMORY_STORE[key] = value
-        print(f"[OTP] Redis unavailable — stored in memory for {key}")
+        _MEMORY_STORE.pop(key, None)
+    except Exception as exc:
+        if not settings.DEBUG:
+            raise OtpStoreUnavailable("Shared OTP storage is unavailable") from exc
+        _MEMORY_STORE[key] = (value, time.monotonic() + ex)
+        print("[OTP] Redis unavailable — using in-memory OTP storage in DEBUG mode")
 
 
 async def _store_get(key: str) -> Optional[str]:
     try:
         redis = await get_redis()
+        if redis is None:
+            raise RuntimeError("Redis is not initialized")
         raw = await redis.get(key)
         if raw is None:
-            return _MEMORY_STORE.get(key)
+            return _memory_store_get(key) if settings.DEBUG else None
         return raw.decode() if isinstance(raw, bytes) else str(raw)
-    except Exception:
-        return _MEMORY_STORE.get(key)
+    except Exception as exc:
+        if not settings.DEBUG:
+            raise OtpStoreUnavailable("Shared OTP storage is unavailable") from exc
+        return _memory_store_get(key)
+
+
+def _memory_store_get(key: str) -> Optional[str]:
+    entry = _MEMORY_STORE.get(key)
+    if not entry:
+        return None
+    value, expires_at = entry
+    if time.monotonic() >= expires_at:
+        _MEMORY_STORE.pop(key, None)
+        return None
+    return value
 
 
 async def _store_delete(key: str) -> None:
     try:
         redis = await get_redis()
+        if redis is None:
+            raise RuntimeError("Redis is not initialized")
         await redis.delete(key)
-    except Exception:
-        pass
-    _MEMORY_STORE.pop(key, None)
+        _MEMORY_STORE.pop(key, None)
+    except Exception as exc:
+        if not settings.DEBUG:
+            raise OtpStoreUnavailable("Shared OTP storage is unavailable") from exc
+        _MEMORY_STORE.pop(key, None)
 
 
 async def send_otp(email: str, full_name: str, purpose: str) -> str:

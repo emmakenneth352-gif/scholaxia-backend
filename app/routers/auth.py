@@ -10,6 +10,7 @@ from app.core.security import hash_password, verify_password, create_access_toke
 from app.core.config import settings
 from app.models.user import User, UserRole, StudentProfile, TeacherProfile, VendorProfile, KindProfile
 from app.services.otp_service import (
+    OtpStoreUnavailable,
     send_otp,
     verify_otp,
     store_pending_signup,
@@ -433,6 +434,12 @@ async def send_otp_email(payload: SendOtpRequest, db: AsyncSession = Depends(get
     name = existing.full_name if existing else "there"
     try:
         otp = await send_otp(email, name, purpose)
+    except OtpStoreUnavailable as e:
+        logger.exception("OTP storage unavailable while sending %s OTP", purpose)
+        raise HTTPException(
+            status_code=503,
+            detail="Verification is temporarily unavailable. Please try again shortly.",
+        ) from e
     except Exception as e:
         print(f"[OTP] email send failed for {email}: {e}")
         raise HTTPException(
@@ -459,7 +466,15 @@ async def send_otp_email(payload: SendOtpRequest, db: AsyncSession = Depends(get
 async def reset_password(payload: PasswordResetRequest, db: AsyncSession = Depends(get_db)):
     """Verify reset OTP and set a new password."""
     email = payload.email.lower().strip()
-    if not await verify_otp(email, payload.otp, purpose="reset_password"):
+    try:
+        valid = await verify_otp(email, payload.otp, purpose="reset_password")
+    except OtpStoreUnavailable as e:
+        logger.exception("OTP storage unavailable while verifying reset OTP")
+        raise HTTPException(
+            status_code=503,
+            detail="Verification is temporarily unavailable. Please try again shortly.",
+        ) from e
+    if not valid:
         raise HTTPException(status_code=400, detail="Invalid or expired OTP")
 
     user = await _find_user_by_email(db, email)
@@ -524,9 +539,15 @@ async def signup_start(payload: SignupStartRequest, db: AsyncSession = Depends(g
         "country": (payload.country or "").strip() or None,
         "language": (payload.language or "").strip().lower() or None,
     }
-    await store_pending_signup(email, pending)
     try:
+        await store_pending_signup(email, pending)
         otp = await send_otp(email, payload.full_name.strip(), "signup")
+    except OtpStoreUnavailable as e:
+        logger.exception("OTP storage unavailable during signup")
+        raise HTTPException(
+            status_code=503,
+            detail="Verification is temporarily unavailable. Please try again shortly.",
+        ) from e
     except Exception as e:
         print(f"[OTP] email send failed for {email}: {e}")
         raise HTTPException(
@@ -553,10 +574,18 @@ async def signup_start(payload: SignupStartRequest, db: AsyncSession = Depends(g
 async def signup_verify(payload: SignupVerifyRequest, db: AsyncSession = Depends(get_db)):
     """Step 2 — verify email OTP and create the account."""
     email = payload.email.lower().strip()
-    if not await verify_otp(email, payload.otp, purpose="signup"):
+    try:
+        valid = await verify_otp(email, payload.otp, purpose="signup")
+        pending = await load_pending_signup(email)
+    except OtpStoreUnavailable as e:
+        logger.exception("OTP storage unavailable while verifying signup")
+        raise HTTPException(
+            status_code=503,
+            detail="Verification is temporarily unavailable. Please try again shortly.",
+        ) from e
+    if not valid:
         raise HTTPException(status_code=400, detail="Invalid or expired OTP")
 
-    pending = await load_pending_signup(email)
     if not pending:
         raise HTTPException(
             status_code=400,
