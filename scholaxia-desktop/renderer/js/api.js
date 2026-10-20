@@ -334,7 +334,14 @@
       delete headers["content-type"];
     }
     var token = getToken();
-    if (token && !options.noAuth && !headers.Authorization) {
+    var isCbtPracticeRequest = /^\/api\/v1\/cbt\/practice(?:\/|$)/.test(path);
+    var guestCbtToken = "";
+    if (isCbtPracticeRequest && typeof isStudentLoggedIn === "function" && !isStudentLoggedIn()) {
+      try { guestCbtToken = localStorage.getItem("sia_cbt_guest_token") || ""; } catch (e) {}
+    }
+    if (guestCbtToken && !options.noAuth) {
+      headers.Authorization = "Bearer " + guestCbtToken;
+    } else if (token && !options.noAuth && !headers.Authorization) {
       headers.Authorization = "Bearer " + token;
     }
     var tries = options.retries == null ? (method === "POST" ? 2 : 2) : options.retries;

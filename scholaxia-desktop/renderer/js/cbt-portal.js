@@ -250,8 +250,9 @@
     var examType = "";
     var subjects = [];
     var profile = profileOverride;
+    var guest = typeof isStudentLoggedIn === "function" && !isStudentLoggedIn();
 
-    if (!profile && typeof api === "function") {
+    if (!profile && typeof api === "function" && !guest) {
       try {
         profile = await api("/api/v1/students/me");
       } catch (e) {
@@ -265,6 +266,16 @@
       if (typeof localStorage !== "undefined") {
         if (examType) localStorage.setItem("sia_exam_type", formatExamType(examType));
         localStorage.setItem("sia_subjects", JSON.stringify(subjects));
+      }
+    }
+
+    if (!subjects.length && guest && typeof localStorage !== "undefined") {
+      try {
+        var savedSubjects = JSON.parse(localStorage.getItem("sia_subjects") || "[]");
+        subjects = Array.isArray(savedSubjects) ? savedSubjects : [];
+        examType = localStorage.getItem("sia_exam_type") || "JAMB";
+      } catch (e) {
+        console.warn("Could not read saved guest CBT profile", e);
       }
     }
 

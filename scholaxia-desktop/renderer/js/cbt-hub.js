@@ -6,6 +6,8 @@ var cbtHubState = {
   board: null,
   jambPicked: {},
   busy: false,
+  guestMode: false,
+  offlineMode: false,
 };
 
 var DEFAULT_JAMB_SUBJECTS = [
@@ -103,6 +105,37 @@ async function loadCbtHubPage() {
   grid.innerHTML = '<div class="loading">Loading CBT practice…</div>';
   cbtHubState.view = "types";
   cbtHubState.board = null;
+  cbtHubState.guestMode = typeof isStudentLoggedIn === "function" && !isStudentLoggedIn();
+  if (cbtHubState.guestMode) {
+    var guestHome = null;
+    var guestOffline = false;
+    if (localStorage.getItem("sia_cbt_guest_token")) {
+      try {
+        guestHome = await api("/api/v1/cbt/practice/home");
+      } catch (eGuest) {
+        if (eGuest && eGuest.status === 401) {
+          localStorage.removeItem("sia_cbt_guest_token");
+        } else {
+          guestOffline = true;
+        }
+      }
+    }
+    if (guestHome && guestHome.exam_types) {
+      cbtHubState.home = guestHome;
+      cbtHubState.offlineMode = false;
+      renderCbtHub();
+      return;
+    }
+    cbtHubState.home = {
+      settings: { cbt_enabled: true, jamb_subjects_required: 4 },
+      exam_types: ["JAMB", "WAEC", "NECO", "JUNIOR_WAEC"].map(function (examType) {
+        return { exam_type: examType, has_access: false, package_id: examType.toLowerCase() };
+      }),
+    };
+    cbtHubState.offlineMode = guestOffline || (typeof navigator !== "undefined" && !navigator.onLine);
+    renderCbtHub();
+    return;
+  }
   try {
     var data = await api("/api/v1/cbt/practice/home");
     cbtHubState.home = data || {};
@@ -261,7 +294,9 @@ function renderCbtHub() {
   var home = cbtHubState.home || {};
   var settings = home.settings || {};
   var offlineBanner = cbtHubState.offlineMode
-    ? '<div class="cbt-hub-note" style="border:1px solid #f59e0b;background:rgba(245,158,11,.12);border-radius:10px;padding:10px 14px;margin-bottom:12px">&#9888; <strong>Offline mode</strong> — starting a new CBT needs data, but your downloaded exams below work without it.</div>'
+    ? cbtHubState.guestMode
+      ? '<div class="cbt-hub-note" style="border:1px solid #f59e0b;background:rgba(245,158,11,.12);border-radius:10px;padding:10px 14px;margin-bottom:12px">&#9888; <strong>Offline mode</strong> — reconnect to sign in, redeem a coupon, or pay to unlock CBT.</div>'
+      : '<div class="cbt-hub-note" style="border:1px solid #f59e0b;background:rgba(245,158,11,.12);border-radius:10px;padding:10px 14px;margin-bottom:12px">&#9888; <strong>Offline mode</strong> — starting a new CBT needs data, but your downloaded exams below work without it.</div>'
     : "";
   if (settings.cbt_enabled === false && !cbtHubState.offlineMode) {
     grid.innerHTML = '<div class="empty-state-premium"><h3>CBT disabled</h3><p>Admin has turned off CBT practice.</p></div>';
@@ -279,7 +314,7 @@ function renderCbtHub() {
   grid.innerHTML = '<div class="cbt-hub-wrap">' +
     offlineBanner +
     '<p class="cbt-hub-note">Choose <strong>JAMB</strong>, <strong>WAEC</strong>, <strong>NECO</strong>, or <strong>Junior WAEC</strong>. Question counts and timers come from admin CBT Settings.</p>' +
-    renderCbtHubDownloadedHtml() +
+    (cbtHubState.guestMode ? "" : renderCbtHubDownloadedHtml()) +
     '<div class="cbt-type-grid">' +
     types
       .map(function (t) {
@@ -327,12 +362,36 @@ function renderCbtHub() {
 function cbtHubOpenBoard(board) {
   cbtHubState.board = board;
   cbtHubState.view = "board";
+  if (cbtHubState.guestMode && typeof listPortalBankSubjects === "function") {
+    var initialProfile = cbtHubState.home.profile || (cbtHubState.home.profile = {});
+    var defaultSubjects =
+      board === "JUNIOR_WAEC"
+        ? DEFAULT_JUNIOR_SUBJECTS
+        : DEFAULT_SSCE_SUBJECTS;
+    var subjectKey = board === "JUNIOR_WAEC" ? "junior_subjects" : "ssce_subjects";
+    if (board !== "JAMB" && (!Array.isArray(initialProfile[subjectKey]) || !initialProfile[subjectKey].length)) {
+      initialProfile[subjectKey] = defaultSubjects.slice();
+    }
+    renderCbtHub();
+    var category = board === "JUNIOR_WAEC" ? "WAEC" : board;
+    listPortalBankSubjects(category)
+      .then(function (available) {
+        var profile = cbtHubState.home.profile || (cbtHubState.home.profile = {});
+        if (board === "JAMB") profile.jamb_subjects = available;
+        else if (board === "JUNIOR_WAEC") profile.junior_subjects = available;
+        else profile.ssce_subjects = available;
+        renderCbtHub();
+      })
+      .catch(function (error) {
+        console.warn("Could not load guest CBT subjects", error);
+      });
+  }
   // Prefill JAMB picks from the student's saved subject combination so they
   // don't re-tick 4 subjects every time (START still validates the count).
   if (board === "JAMB") {
     cbtHubState.jambPicked = {};
     var home = cbtHubState.home || {};
-    var saved = (home.profile && home.profile.jamb_subjects) || [];
+    var saved = cbtHubState.guestMode ? [] : (home.profile && home.profile.jamb_subjects) || [];
     saved.forEach(function (s) {
       cbtHubState.jambPicked[s] = true;
     });
@@ -362,14 +421,8 @@ function renderCbtBoard(grid) {
 
   if (!info.has_access) {
     html +=
-      '<div class="empty-state-premium"><h3>Package required</h3><p>Unlock ' +
-      cbtEsc(cbtBoardLabel(board)) +
-      " with Paystack or a coupon.</p>" +
-      '<button type="button" class="btn-join" onclick="cbtHubUnlockBoard()">Unlock ' +
-      cbtEsc(cbtBoardLabel(board)) +
-      "</button></div>";
-    grid.innerHTML = html;
-    return;
+      '<p class="cbt-hub-note" style="padding:0.75rem 0.9rem;border-radius:10px;background:#ecfdf5;color:#065f46">' +
+      "Review your subjects first. Unlock with coupon or pay when you start.</p>";
   }
 
   if (board === "JAMB") {
@@ -402,6 +455,31 @@ function renderCbtBoard(grid) {
       '<div class="cbt-start-bar"><span id="cbt-jamb-count" class="cbt-start-count">' +
       pickedCount + " / " + need + " selected</span>" +
       '<button type="button" class="btn-join" onclick="cbtHubStartJambPractice()">START CBT &#8594;</button></div>';
+    grid.innerHTML = html;
+    return;
+  }
+
+  if (cbtHubState.guestMode) {
+    var guestSubjects =
+      board === "JUNIOR_WAEC"
+        ? profile.junior_subjects || []
+        : profile.ssce_subjects || [];
+    if (!guestSubjects.length) {
+      html += '<div class="empty-state-premium"><h3>No subjects available</h3><p>Could not find subjects in this question bank. Try again while online.</p></div>';
+    } else {
+      html += '<div class="cbt-subject-grid">';
+      html += guestSubjects.map(function (subject) {
+        return (
+          '<div class="cbt-type-card cbt-type-subject"><div class="cbt-type-icon">&#128221;</div>' +
+          '<div class="cbt-type-body"><h3>' + cbtEsc(subject) + '</h3>' +
+          '<p class="cbt-type-sub">' + cbtEsc(cbtBoardLabel(board)) + " practice</p>" +
+          '<button type="button" class="btn-join" onclick="cbtHubStartSubject(\'' +
+          cbtEsc(subject).replace(/'/g, "\\'") +
+          "')\">START &#8594;</button></div></div>"
+        );
+      }).join("");
+      html += "</div>";
+    }
     grid.innerHTML = html;
     return;
   }
@@ -475,13 +553,13 @@ function renderCbtBoard(grid) {
   html += registered
     .map(function (s) {
       return (
-        '<div class="cbt-type-card cbt-type-subject" onclick="cbtHubStartSubject(\'' +
-        cbtEsc(s).replace(/'/g, "\\'") +
-        "')\">" +
+        '<div class="cbt-type-card cbt-type-subject">' +
         '<div class="cbt-type-icon">&#128221;</div>' +
         '<div class="cbt-type-body"><h3>' + cbtEsc(s) + '</h3>' +
-        '<p class="cbt-type-sub">' + cbtEsc(cbtBoardLabel(board)) + " practice</p></div>" +
-        '<span class="cbt-type-arrow">&#9654;</span></div>'
+        '<p class="cbt-type-sub">' + cbtEsc(cbtBoardLabel(board)) + " practice</p>" +
+        '<button type="button" class="btn-join" onclick="cbtHubStartSubject(\'' +
+        cbtEsc(s).replace(/'/g, "\\'") +
+        "')\">START &#8594;</button></div></div>"
       );
     })
     .join("");
@@ -547,9 +625,10 @@ function cbtHubToggleJamb(subject, on) {
 
 function cbtHubUnlockBoard() {
   if (typeof openCbtUnlockModal === "function") {
+    var board = cbtHubState.board;
     openCbtUnlockModal(function () {
       loadCbtHubPage().then(function () {
-        if (cbtHubState.board) cbtHubOpenBoard(cbtHubState.board);
+        if (board) cbtHubOpenBoard(board);
       });
     });
   } else if (typeof showPage === "function") {
@@ -782,6 +861,16 @@ async function cbtHubStartPractice(examType, subjects) {
       "You are offline — starting a new CBT needs data.\n\n" +
       "Your downloaded exams still work: go back and tap one under \"Ready offline\"."
     );
+    return;
+  }
+  if (cbtHubState.guestMode && !localStorage.getItem("sia_cbt_guest_token")) {
+    if (typeof openCbtUnlockModal === "function") {
+      openCbtUnlockModal(function () {
+        cbtHubStartPractice(examType, subjects);
+      });
+    } else {
+      alert("Unlock this CBT with a coupon or payment before starting.");
+    }
     return;
   }
   cbtHubState.busy = true;
