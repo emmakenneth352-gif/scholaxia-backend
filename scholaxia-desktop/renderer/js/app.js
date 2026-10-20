@@ -71,6 +71,38 @@ function saveOfflineCbtPack(examId, year, portal) {
   }
 }
 
+function randomizePortalExamQuestions(portal) {
+  if (!portal || !portal.exam || !Array.isArray(portal.exam.questions)) return portal;
+  const questions = portal.exam.questions.slice();
+  const shuffleRange = (start, count) => {
+    const end = Math.min(start + count, questions.length);
+    for (let i = end - 1; i > start; i--) {
+      const j = start + Math.floor(Math.random() * (i - start + 1));
+      [questions[i], questions[j]] = [questions[j], questions[i]];
+    }
+  };
+
+  const sections = Array.isArray(portal.exam.sections) ? portal.exam.sections : [];
+  if (sections.length) {
+    sections.forEach((section) => {
+      const start = Math.max(0, Number(section.start) || 0);
+      const count = Math.max(0, Number(section.count) || 0);
+      if (count > 1 && start < questions.length) shuffleRange(start, count);
+    });
+  } else {
+    shuffleRange(0, questions.length);
+  }
+
+  return {
+    ...portal,
+    exam: {
+      ...portal.exam,
+      questions,
+      sections: sections.map((section) => ({ ...section })),
+    },
+  };
+}
+
 const cbtPrefetchInflight = new Map();
 let cbtLoadingTimer = null;
 
@@ -937,7 +969,8 @@ function skillUnlockedDesktop(cat) {
 
 function anySkillActiveDesktop() {
   var s = _skillAccessDesktop.skills || {};
-  return Object.keys(s).some(function (k) { return s[k] && s[k].active; });
+  return !!_skillAccessDesktop.all_unlocked ||
+    Object.keys(s).some(function (k) { return s[k] && s[k].active; });
 }
 
 function renderStudyGate(unlocked) {
@@ -948,20 +981,93 @@ function renderStudyGate(unlocked) {
   });
   var libGate = document.getElementById("library-gate");
   if (libGate) libGate.hidden = true;
-  // Video tab chips stay VISIBLE like the website (they only filter; locked
-  // skills still show the gate/coupon box). Only hide the list until unlocked.
-  ["desktopVideoChips"].forEach(function (id) {
+  ["study-materials-list"].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) el.style.display = "";
   });
-  ["study-materials-list"].forEach(function (id) {
-    var el = document.getElementById(id);
-    if (el) el.style.display = anySkill ? "" : "none";
-  });
+  if (_desktopVideoCat === "all" && anySkill) {
+    var firstUnlockedSkill = DESKTOP_STUDY_SKILL_OPTIONS.filter(function (item) {
+      return _skillAccessDesktop.all_unlocked ||
+        (_skillAccessDesktop.skills && _skillAccessDesktop.skills[item[0]] && _skillAccessDesktop.skills[item[0]].active);
+    })[0];
+    _desktopVideoCat = firstUnlockedSkill ? firstUnlockedSkill[0] : "academics";
+  }
+  renderDesktopStudyCouponRows();
 }
 
 var _desktopVideoCat = "all";
 var _desktopVideoRows = [];
+
+var DESKTOP_STUDY_SKILL_OPTIONS = [
+  ["academics", "Academics"],
+  ["web design", "Web Design"],
+  ["app development", "App Development"],
+  ["software development", "Software Development"],
+  ["digital marketing", "Digital Marketing"],
+  ["graphics design", "Graphics Design"],
+  ["cyber security", "Cyber Security"],
+  ["data analysis", "Data Analysis"],
+];
+
+function desktopStudySkillId(skill) {
+  return skill.replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function renderDesktopStudyCouponRows() {
+  var rows = document.getElementById("desktopStudyCouponRows");
+  if (!rows) return;
+  if (!rows.dataset.rendered) {
+    rows.innerHTML =
+      '<div class="study-coupon-picker" role="group" aria-label="Choose tutorial category" style="display:flex;gap:0.5rem;overflow-x:auto;overscroll-behavior-x:contain;white-space:nowrap;padding:0.35rem 0 0.65rem;scrollbar-width:thin">' +
+      DESKTOP_STUDY_SKILL_OPTIONS.map(function (item) {
+      var id = desktopStudySkillId(item[0]);
+      return '<button type="button" data-study-coupon-open-desktop="' + escHtml(item[0]) + '" aria-controls="studyCouponPanelDesktop-' + id + '" aria-expanded="false" style="flex:0 0 auto;padding:0.55rem 0.85rem;border:1px solid #ddd6fe;border-radius:999px;background:#fff;color:#312e81;font:inherit;font-size:0.9rem;font-weight:600;cursor:pointer">' +
+        escHtml(item[1]) + ' <span id="studyAccessStatusDesktop-' + id + '" style="font-size:0.75rem;color:#0a7d33"></span></button>';
+    }).join("") +
+      '</div>' +
+      DESKTOP_STUDY_SKILL_OPTIONS.map(function (item) {
+        var id = desktopStudySkillId(item[0]);
+        return '<div class="study-coupon-row" id="studyCouponPanelDesktop-' + id + '" data-study-coupon-panel-desktop="' + escHtml(item[0]) + '" hidden>' +
+        '<div class="study-coupon-fields-desktop" data-study-code-fields-desktop>' +
+        '<input class="study-activation-input-desktop" id="studyCouponCodeDesktop-' + id + '" data-study-coupon-code-desktop="' + escHtml(item[0]) + '" type="text" placeholder="Enter activation code" aria-label="Activation code for ' + escHtml(item[1]) + '" autocomplete="off" />' +
+        '<button type="button" class="btn-sm btn-primary" data-study-coupon-redeem-desktop="' + escHtml(item[0]) + '">Redeem code</button>' +
+        '<span id="studyCouponMsgDesktop-' + id + '" role="status"></span>' +
+        '</div>' +
+        '<div class="study-skill-search-desktop" data-study-search-wrap-desktop hidden>' +
+        '<label for="studyLessonSearchDesktop-' + id + '">Search ' + escHtml(item[1]) + ' tutorials</label>' +
+        '<input id="studyLessonSearchDesktop-' + id + '" data-study-search-desktop type="search" placeholder="Search by topic or tutor name…" autocomplete="off" />' +
+        '</div>' +
+        '</div>';
+      }).join("");
+    rows.dataset.rendered = "1";
+  }
+  DESKTOP_STUDY_SKILL_OPTIONS.forEach(function (item) {
+    var id = desktopStudySkillId(item[0]);
+    var status = document.getElementById("studyAccessStatusDesktop-" + id);
+    var active = _skillAccessDesktop.all_unlocked ||
+      (_skillAccessDesktop.skills && _skillAccessDesktop.skills[item[0]] && _skillAccessDesktop.skills[item[0]].active);
+    var selected = _desktopVideoCat === item[0];
+    var button = document.querySelector('[data-study-coupon-open-desktop="' + item[0] + '"]');
+    var panel = document.getElementById("studyCouponPanelDesktop-" + id);
+    if (button) {
+      button.setAttribute("aria-expanded", selected ? "true" : "false");
+      button.style.background = selected ? "#ede9fe" : "#fff";
+      button.style.color = selected ? "#6d28d9" : "#312e81";
+    }
+    if (panel) {
+      panel.hidden = !selected;
+      panel.style.display = selected ? "flex" : "none";
+      var codeFields = panel.querySelector("[data-study-code-fields-desktop]");
+      var searchWrap = panel.querySelector("[data-study-search-wrap-desktop]");
+      if (codeFields) codeFields.hidden = !!active;
+      if (searchWrap) searchWrap.hidden = !(active && selected);
+    }
+    if (status) {
+      status.textContent = active ? "Unlocked" : "";
+      status.style.color = active ? "#0a7d33" : "";
+    }
+  });
+}
 
 var DESKTOP_VIDEO_SKILL_CATS = [
   "web design",
@@ -988,17 +1094,26 @@ function renderDesktopVideoRows() {
   var el = document.getElementById("study-materials-list");
   if (!el) return;
   var cat = _desktopVideoCat;
+  var search = cat !== "all"
+    ? document.querySelector('[data-study-coupon-panel-desktop="' + cat + '"] [data-study-search-desktop]')
+    : null;
+  var query = ((search && search.value) || "").trim().toLowerCase();
   var rows = _desktopVideoRows.filter(function (r) {
     var rowCat = desktopVideoCategoryOf(r);
     if (cat !== "all" && rowCat !== cat) return false;
     // Per-skill activation: hidden until that skill's code is redeemed.
     if (!skillUnlockedDesktop(rowCat)) return false;
+    if (query) {
+      var blob = [r.title, r.subject, r.topic, r.tutor_name, r.tutor, r.teacher_name, r.channel, r.tags]
+        .filter(Boolean).join(" ").toLowerCase();
+      if (blob.indexOf(query) < 0) return false;
+    }
     return true;
   });
-    if (!rows.length) {
+  if (!rows.length) {
     el.innerHTML = '<div class="empty">' + (cat === "all"
-      ? "No unlocked tutorials yet — enter your activation code below to open a skill."
-      : "No tutorials in this category yet — check back soon.") + "</div>";
+      ? "No video tutorials are available yet. Choose a skill and unlock it to view its lessons."
+      : "No tutorials match this search yet. Try another search or check back soon.") + "</div>";
     return;
   }
   el.innerHTML = rows.map(function (r) {
@@ -1017,40 +1132,91 @@ function renderDesktopVideoRows() {
   }).join("");
 }
 
-/* Study coupon redeem (desktop) — matches the web gate card. */
-async function redeemStudyCouponDesktop() {
-  var input = document.getElementById("studyCouponCodeDesktop");
-  var msg = document.getElementById("studyCouponMsgDesktop");
-  var btn = document.getElementById("studyCouponRedeemBtnDesktop");
+/* Study coupon redeem (desktop) — one entry row per skill. */
+async function redeemStudyCouponDesktop(skill) {
+  var id = desktopStudySkillId(skill);
+  var input = document.getElementById("studyCouponCodeDesktop-" + id);
+  var msg = document.getElementById("studyCouponMsgDesktop-" + id);
+  var btn = document.querySelector('[data-study-coupon-redeem-desktop="' + skill + '"]');
   if (!input || !msg) return;
   var code = (input.value || "").trim();
-  if (!code) { msg.textContent = "Enter a coupon code first."; return; }
+  if (!code) { msg.textContent = "Enter an activation code."; msg.style.color = "#b3261e"; return; }
   if (btn) { btn.disabled = true; btn.textContent = "Checking…"; }
   msg.textContent = "Checking code…";
+  msg.style.color = "#47546a";
   try {
     var res = await api("/api/v1/study-coupons/redeem", {
       method: "POST",
       body: JSON.stringify({ code: code }),
     });
     msg.textContent = (res && res.message) || "🎉 Code accepted!";
+    msg.style.color = "#0a7d33";
+    input.value = "";
     _studyAccessCache = null;
+    var access = await fetchStudyAccess();
+    renderStudyGate(!!access.unlocked);
     loadStudyMaterials();
   } catch (e) {
     msg.textContent = (e && e.message) || "Could not redeem this code.";
+    msg.style.color = "#b3261e";
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = "Redeem"; }
+    if (btn) { btn.disabled = false; btn.textContent = "Redeem code"; }
   }
 }
 
 document.addEventListener("click", function (e) {
-  if (e.target && e.target.id === "studyCouponRedeemBtnDesktop") redeemStudyCouponDesktop();
-  var chip = e.target.closest("#desktopVideoChips .tab[data-vcat]");
-  if (chip) {
-    var wrap = document.getElementById("desktopVideoChips");
-    if (wrap) wrap.querySelectorAll(".tab").forEach(function (t) { t.classList.remove("is-active"); });
-    chip.classList.add("is-active");
-    _desktopVideoCat = chip.getAttribute("data-vcat") || "all";
+  var openButton = e.target.closest && e.target.closest("[data-study-coupon-open-desktop]");
+  if (openButton) {
+    var category = openButton.getAttribute("data-study-coupon-open-desktop");
+    var root = openButton.closest("#desktopStudyCouponRows");
+    if (root) {
+      var wasOpen = openButton.getAttribute("aria-expanded") === "true";
+      root.querySelectorAll("[data-study-coupon-open-desktop]").forEach(function (button) {
+        button.setAttribute("aria-expanded", "false");
+        button.style.background = "#fff";
+        button.style.color = "#312e81";
+      });
+      root.querySelectorAll("[data-study-coupon-panel-desktop]").forEach(function (panel) {
+        panel.hidden = true;
+        panel.style.display = "none";
+      });
+      if (!wasOpen) {
+        _desktopVideoCat = category || "all";
+        openButton.setAttribute("aria-expanded", "true");
+        openButton.style.background = "#ede9fe";
+        openButton.style.color = "#6d28d9";
+        var panel = root.querySelector('[data-study-coupon-panel-desktop="' + category + '"]');
+        if (panel) {
+          panel.hidden = false;
+          panel.style.display = "flex";
+          var active = skillUnlockedDesktop(category);
+          var codeFields = panel.querySelector("[data-study-code-fields-desktop]");
+          var searchWrap = panel.querySelector("[data-study-search-wrap-desktop]");
+          if (codeFields) codeFields.hidden = active;
+          if (searchWrap) searchWrap.hidden = !active;
+          var input = panel.querySelector(active ? "[data-study-search-desktop]" : "[data-study-coupon-code-desktop]");
+          if (input) input.focus();
+        }
+      } else {
+        _desktopVideoCat = "all";
+      }
+      renderDesktopStudyCouponRows();
+      renderDesktopVideoRows();
+    }
+    return;
+  }
+  var redeemButton = e.target.closest && e.target.closest("[data-study-coupon-redeem-desktop]");
+  if (redeemButton) redeemStudyCouponDesktop(redeemButton.getAttribute("data-study-coupon-redeem-desktop"));
+});
+document.addEventListener("input", function (e) {
+  if (e.target && e.target.matches && e.target.matches("[data-study-search-desktop]")) {
     renderDesktopVideoRows();
+  }
+});
+document.addEventListener("keydown", function (e) {
+  if (e.target && e.target.hasAttribute("data-study-coupon-code-desktop") && e.key === "Enter") {
+    e.preventDefault();
+    redeemStudyCouponDesktop(e.target.getAttribute("data-study-coupon-code-desktop"));
   }
 });
 
@@ -1636,8 +1802,51 @@ function stripSeedPracticeExams(list, examType) {
   return (list || []).filter((p) => p.is_school_exam);
 }
 
+async function loadGuestCbtPractice() {
+  const grid = document.getElementById("cbt-grid");
+  showCbtListView();
+  if (grid) grid.innerHTML = `<div class="loading">Loading guest CBT practice…</div>`;
+  let subjects = [];
+  try {
+    subjects = JSON.parse(localStorage.getItem("sia_subjects") || "[]");
+  } catch (e) {
+    console.warn("Could not read saved guest CBT subjects", e);
+  }
+  if (!Array.isArray(subjects) || !subjects.length) {
+    subjects = ["Use of English", "Mathematics", "Physics", "Chemistry"];
+    localStorage.setItem("sia_subjects", JSON.stringify(subjects));
+  }
+  const savedExamType = String(localStorage.getItem("sia_exam_type") || "").toUpperCase();
+  if (!["JAMB", "WAEC", "NECO", "POST_UTME", "POST-UTME"].includes(savedExamType)) {
+    localStorage.setItem("sia_exam_type", "JAMB");
+  }
+  practiceExams = typeof loadPortalPracticeExams === "function"
+    ? await loadPortalPracticeExams()
+    : [];
+  schoolExams = [];
+  if (practiceExams.length) {
+    renderCbtGrid({ profileComplete: true });
+    return;
+  }
+  if (grid) {
+    grid.innerHTML = `<div class="empty-state-premium"><h3>No guest CBT papers loaded</h3><p>Connect to the internet and make sure the backend guest CBT endpoint is deployed, then try again.</p><button type="button" class="btn-action" onclick="refreshPage()">Try again</button></div>`;
+  }
+}
+
 async function loadCbtExams() {
   if (isCbtExamActive()) return;
+  if (!isStudentLoggedIn()) {
+    try {
+      await loadGuestCbtPractice();
+    } catch (e) {
+      console.warn("Guest CBT practice could not be loaded", e);
+      const grid = document.getElementById("cbt-grid");
+      if (grid) {
+        grid.innerHTML = `<div class="empty-state-premium"><h3>Guest CBT is unavailable</h3><p>${escHtml(e.message || "Connect to the internet and try again.")}</p><button type="button" class="btn-action" onclick="refreshPage()">Try again</button></div>`;
+      }
+    }
+    return;
+  }
   if (typeof loadCbtHubPage === "function") {
     await loadCbtHubPage();
     return;
@@ -1651,6 +1860,11 @@ async function loadCbtExams() {
   try {
     const data = await api("/api/v1/cbt/exams/for-me");
     if (!data) return;
+    const savedSubjects = data.selected_subjects || data.jamb_subjects || data.ssce_subjects || [];
+    if (data.setup_required || !savedSubjects.length) {
+      await loadGuestCbtPractice();
+      return;
+    }
     profileComplete = true;
     practiceExams = stripSeedPracticeExams(data.practice_exams || [], data.exam_type || user.examType);
     schoolExams = data.school_exams || [];
@@ -1681,10 +1895,13 @@ async function loadCbtExams() {
       }
     }
     if (!profileComplete) {
-      var msg = e.message && e.message.includes("setup")
-        ? e.message + " Go to Profile to complete setup."
-        : (typeof networkErrorMessage === "function" ? networkErrorMessage(e) : e.message);
-      document.getElementById("cbt-grid").innerHTML = `<div class="empty">${escHtml(msg)}</div>`;
+      try {
+        await loadGuestCbtPractice();
+      } catch (guestError) {
+        console.warn("Guest CBT fallback could not be loaded", guestError);
+        document.getElementById("cbt-grid").innerHTML =
+          `<div class="empty-state-premium"><h3>Guest CBT is unavailable</h3><p>${escHtml(guestError.message || e.message || "Connect to the internet and try again.")}</p><button type="button" class="btn-action" onclick="refreshPage()">Try again</button></div>`;
+      }
       return;
     }
     renderCbtGrid({ profileComplete: true });
@@ -1789,6 +2006,12 @@ function renderCbtGrid(opts) {
       <button type="button" class="btn-join" data-exam-id="${escHtml(e.id)}">${startLabel}</button>
     </div>`;
   }).join("");
+  if (!isStudentLoggedIn()) {
+    el.insertAdjacentHTML(
+      "afterbegin",
+      '<div class="cbt-hub-note">Guest practice is available without an account. Scores are calculated locally and are not saved to an account.</div>'
+    );
+  }
   bindYearDropdowns();
   const grid = document.getElementById("cbt-grid");
   const combinedCard = grid?.querySelector(".card-combined");
@@ -1802,7 +2025,9 @@ function renderCbtGrid(opts) {
 /* Launch a downloaded (offline-capable) portal exam pack — used when the
    student taps Start with no internet, and by the hub's offline section. */
 async function launchPortalExamFromCache(examId, year) {
-  const portal = await startPortalExamCached(examId, { year: year || "" });
+  const portal = randomizePortalExamQuestions(
+    await startPortalExamCached(examId, { year: year || "" })
+  );
   currentSession = portal.session;
   currentExam = portal.exam;
   answers = {};
@@ -1838,7 +2063,9 @@ async function beginExam(examId, isSchool, utmeYear) {
   );
   try {
     if (typeof isPortalExamId === "function" && isPortalExamId(examId)) {
-      const portal = await startPortalExamCached(examId, { year: utmeYear || "" });
+      const portal = randomizePortalExamQuestions(
+        await startPortalExamCached(examId, { year: utmeYear || "" })
+      );
       currentSession = portal.session;
       currentExam = portal.exam;
       answers = {};
@@ -2019,6 +2246,7 @@ function renderQuestion() {
 
 function selectAnswer(key) {
   answers[currentQ] = key;
+  if (currentSession && currentSession.practice_attempt_id) _cbtOfflinePackSave();
   renderQuestion();
 }
 
@@ -2053,33 +2281,39 @@ async function submitExam(force) {
   if (currentSession && currentSession.practice_attempt_id) {
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       // OFFLINE: queue the attempt locally instead of losing the answers.
+      if (typeof _cbtOfflinePackSave === "function") await _cbtOfflinePackSave();
       try {
         const queued = JSON.parse(localStorage.getItem("sia_cbt_pending_practice") || "[]");
         queued.push({ practice_attempt_id: currentSession.practice_attempt_id, answers: answerMap, queued_at: new Date().toISOString() });
         localStorage.setItem("sia_cbt_pending_practice", JSON.stringify(queued));
       } catch (eQueue) { /* ignore */ }
+      if (typeof completeOfflinePracticeAttempt === "function") {
+        await completeOfflinePracticeAttempt();
+      }
       const qs = currentExam.questions || [];
+      const scoreReady = qs.length > 0 && qs.every(function (q) {
+        return !!(q && (q.correct_option || q.correct_key));
+      });
       let localCorrect = 0;
       let localWrong = 0;
-      let localAttempted = 0;
-      qs.forEach((q, i) => {
-        if (!q) return;
-        const chosen = answers[i];
-        if (!chosen) return;
-        localAttempted++;
-        if (q.correct_option && String(chosen).toUpperCase() === String(q.correct_option).toUpperCase()) localCorrect++;
-        else localWrong++;
-      });
-      const total = qs.length || 1;
+      if (scoreReady) {
+        qs.forEach((q, i) => {
+          const chosen = answers[i];
+          if (!chosen) return;
+          if (String(chosen).toUpperCase() === String(q.correct_option || q.correct_key).toUpperCase()) localCorrect++;
+          else localWrong++;
+        });
+      }
+      const total = qs.length;
       // Offline students still see their full result + per-question review
       // immediately — questions are already on the device (downloaded while
       // online), so scoring needs no server. The attempt syncs when internet
       // returns.
-      window._lastPracticeReview = qs.map(function (q, i) {
+      window._lastPracticeReview = scoreReady ? qs.map(function (q, i) {
         const choices = ["A", "B", "C", "D"];
         const options = choices
           .map(function (k) {
-            var text = q[`option_${k.toLowerCase()}`] || q.options?.[k] || "";
+            var text = q[`option_${k.toLowerCase()}`] || (q.options && q.options[k]) || "";
             return text ? { key: k, text: text } : null;
           })
           .filter(Boolean);
@@ -2094,17 +2328,21 @@ async function submitExam(force) {
           is_correct: !!chosen && chosen === correctKey,
           explanation: q.explanation || "",
         };
-      }).filter(function (r) { return r.correct_key; });
+      }) : null;
       window._lastPracticeAttemptId = currentSession.practice_attempt_id;
       window._lastPracticeBoard = currentSession.exam_type || (currentExam && currentExam.exam_type) || "";
       showResult({
-        percentage: Math.round((localCorrect / total) * 100),
+        percentage: scoreReady ? Math.round((localCorrect / total) * 100) : null,
         correct: localCorrect,
+        wrong: localWrong,
         total: total,
         score: localCorrect,
         max_score: total,
         offline: true,
-        offline_note: "Offline — answers saved on this device, will upload when internet returns",
+        score_pending: !scoreReady,
+        offline_note: scoreReady
+          ? "Offline — answers saved on this device, will upload when internet returns"
+          : "Answer key is not available on this device. Your answers are saved; reconnect to get your score.",
       });
       // Do NOT closeExam() here — it would hide the result screen we just
       // showed. showResult already dismissed the exam view and unlocked tabs.
@@ -2121,6 +2359,9 @@ async function submitExam(force) {
       window._lastPracticeReview = result.full_review || null;
       window._lastPracticeAttemptId = currentSession.practice_attempt_id;
       window._lastPracticeBoard = currentSession.exam_type || (currentExam && currentExam.exam_type) || "";
+      if (typeof completeOfflinePracticeAttempt === "function") {
+        await completeOfflinePracticeAttempt();
+      }
       showResult({
         percentage: result.percent != null ? result.percent : result.percentage,
         correct: result.score,
@@ -2139,6 +2380,9 @@ async function submitExam(force) {
         queued.push({ practice_attempt_id: currentSession.practice_attempt_id, answers: answerMap, queued_at: new Date().toISOString() });
         localStorage.setItem("sia_cbt_pending_practice", JSON.stringify(queued));
       } catch (eQueue) { /* ignore */ }
+      if (typeof completeOfflinePracticeAttempt === "function") {
+        await completeOfflinePracticeAttempt();
+      }
       const qs2 = currentExam.questions || [];
       let c2 = 0;
       let w2 = 0;
@@ -2262,6 +2506,10 @@ async function submitExam(force) {
       correct,
       wrong,
       total,
+      offline: !!(currentSession && currentSession.is_local_replay),
+      offline_note: currentSession && currentSession.is_local_replay
+        ? "Offline retry scored on this device only; your original attempt will sync separately."
+        : undefined,
     });
     return;
   }
@@ -2424,16 +2672,31 @@ function showResult(result) {
       ? "Back to Scholaxia Exam"
       : currentSession && currentSession.is_school_exam
       ? "Back to Scholaxia Exam"
+      : currentSession && (currentSession.is_practice || currentSession.practice_attempt_id || currentSession.is_portal)
+      ? "Back to CBT Exams"
       : "Back to Exams";
   }
   resultEl.scrollIntoView({ behavior: "smooth", block: "start" });
   const raw = result.score_percent != null ? result.score_percent : result.percentage;
   const pct = raw != null ? Math.round(raw) : "—";
-  document.getElementById("score-display").textContent = `${pct}%`;
+  document.getElementById("score-display").textContent = result.score_pending ? "Pending" : `${pct}%`;
   const correct = result.correct ?? result.total_correct ?? 0;
   const wrong = result.wrong ?? result.total_wrong ?? 0;
   const total = result.total ?? (correct + wrong);
-  const lines = [(result.offline ? `${correct} correct · ${wrong} wrong · ${total} total (unsynced)` : `${correct} correct · ${wrong} wrong · ${total} total`)];
+  const resultSubjects = [...new Set((currentExam?.sections || [])
+    .map((section) => String(section.subject || "").trim())
+    .filter(Boolean))];
+  const scoredSubjects = result.per_subject_scores || result.by_subject;
+  if (resultSubjects.length <= 1 && scoredSubjects && typeof scoredSubjects === "object") {
+    const additionalSubjects = Object.keys(scoredSubjects).filter((subject) => subject && !resultSubjects.includes(subject));
+    if (additionalSubjects.length > 1) resultSubjects.push(...additionalSubjects);
+  }
+  const lines = [result.score_pending
+    ? "Score will be available after reconnecting."
+    : (result.offline ? `${correct} correct · ${wrong} wrong · ${total} total (unsynced)` : `${correct} correct · ${wrong} wrong · ${total} total`)];
+  if (resultSubjects.length > 1) {
+    lines.unshift(`${escHtml(currentExam.exam_type || currentSession?.exam_type || "CBT")} · ${resultSubjects.map(escHtml).join(", ")} (${resultSubjects.length} subjects)`);
+  }
   if (result.offline_note) lines.push("📌 " + escHtml(result.offline_note));
   if (result.score_display) lines.unshift("Score: " + escHtml(result.score_display));
   if (result.rating) lines.push("Rating: " + escHtml(result.rating) + (result.rating_message ? " — " + escHtml(result.rating_message) : ""));
@@ -2451,6 +2714,21 @@ function showResult(result) {
     lines.push(subs.join(" · "));
   }
   document.getElementById("result-detail").innerHTML = lines.join("<br>");
+  const encouragementEl = document.getElementById("result-encouragement");
+  if (encouragementEl) {
+    const numericPct = Number(pct);
+    encouragementEl.textContent = result.score_pending
+      ? "Your answers are saved. Your score will be ready when you reconnect—keep building your confidence."
+      : result.unscored
+      ? "Great job completing your exam. Review your answers and keep practicing."
+      : result.rating_message
+      ? String(result.rating_message)
+      : Number.isFinite(numericPct) && numericPct >= 80
+      ? "Excellent work! Your preparation is paying off—keep it up."
+      : Number.isFinite(numericPct) && numericPct >= 50
+      ? "Good effort! Review the questions you missed and keep practicing—you're making progress."
+      : "Every attempt is a chance to learn. Review your answers, focus on the topics you missed, and try again—you can improve.";
+  }
   // Review Answers button for practice attempts (same review as the mobile app).
   var oldReviewBtn = document.getElementById("practice-review-btn");
   if (oldReviewBtn) oldReviewBtn.remove();
@@ -2547,6 +2825,9 @@ function closeExam() {
   window._schoolExamGuardBound = false;
   const wasInternal = currentSession && currentSession.is_internal;
   const wasSchool = currentSession && currentSession.is_school_exam && !wasInternal;
+  const wasCbtPractice = currentSession && (
+    currentSession.is_practice || currentSession.practice_attempt_id || currentSession.is_portal
+  );
   currentExam = null;
   currentSession = null;
   document.getElementById("exam-screen").classList.add("hidden");
@@ -2576,6 +2857,9 @@ function closeExam() {
     return;
   }
   showCbtListView();
+  if (wasCbtPractice && typeof loadCbtHubPage === "function") {
+    loadCbtHubPage();
+  }
 }
 
 /* ── Profile ── */

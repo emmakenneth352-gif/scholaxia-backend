@@ -76,6 +76,7 @@
       <button class="nav-btn" data-page="cbt-settings" onclick="showAdminPage('cbt-settings')">CBT Settings</button>
       <button class="nav-btn" data-page="cbt" onclick="showAdminPage('cbt')">CBT Question Bank</button>
       <button class="nav-btn" data-page="coupons" onclick="showAdminPage('coupons')">CBT Coupons</button>
+      <button class="nav-btn" data-page="study-coupons" onclick="showAdminPage('study-coupons')">Video Tutorial Codes</button>
       <button class="nav-btn" data-page="subject-change" onclick="showAdminPage('subject-change')">Subject Changes</button>
       <button class="nav-btn" data-page="plans" onclick="showAdminPage('plans')">Plans &amp; Pricing</button>
       <button class="nav-btn" data-page="past-questions" onclick="showAdminPage('past-questions')">Past Questions</button>
@@ -217,6 +218,63 @@
         <p id="coupon-msg" class="cbt-hint small"></p>
       </div>
       <div id="coupon-table" class="data-table-wrap"><div class="loading">Open this page to load coupons…</div></div>
+    </section>
+
+    <section id="page-study-coupons" class="admin-page">
+      <div class="page-head">
+        <h2>Video Tutorial Codes</h2>
+        <button class="btn-sm" onclick="loadStudyCoupons()">Refresh</button>
+      </div>
+      <p class="page-desc">Create a code for one selected tutorial category, or choose all categories. Students redeem it from Video Tutorials.</p>
+      <div class="panel" style="margin-bottom:16px">
+        <h3>Generate activation code</h3>
+        <div class="form-grid">
+          <label><span>Category this code unlocks *</span>
+            <select id="study-coupon-skill" required>
+              <option value="" selected disabled>Select a category</option>
+              <option value="all">All categories (master code)</option>
+              <option value="academics">Academics</option>
+              <option value="web design">Web Design</option>
+              <option value="app development">App Development</option>
+              <option value="software development">Software Development</option>
+              <option value="digital marketing">Digital Marketing</option>
+              <option value="graphics design">Graphics Design</option>
+              <option value="cyber security">Cyber Security</option>
+              <option value="data analysis">Data Analysis</option>
+            </select>
+          </label>
+          <label><span>How many codes</span><input id="study-coupon-count" type="number" min="1" max="50" value="1" /></label>
+          <label><span>Max uses each</span><input id="study-coupon-uses" type="number" min="1" value="1" /></label>
+          <label><span>Access days (starts on redeem)</span><input id="study-coupon-access-days" type="number" min="1" value="30" /></label>
+          <label><span>Code valid for (days)</span><input id="study-coupon-days" type="number" min="1" value="365" /></label>
+          <label><span>Note (optional)</span><input id="study-coupon-note" type="text" placeholder="for: student@email.com" /></label>
+        </div>
+        <div class="form-row" style="margin:8px 0">
+          <button type="button" class="btn-primary" style="width:auto;padding:12px 22px" onclick="generateStudyCoupons()">Generate activation code</button>
+        </div>
+        <p id="study-coupon-msg" class="cbt-hint small" role="status"></p>
+      </div>
+      <div class="panel" style="margin-bottom:16px">
+        <h3>Students' tutorial access</h3>
+        <div class="form-row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin:8px 0">
+          <label style="display:flex;flex-direction:column;font-size:0.78rem;gap:3px"><span>Filter by signup month</span><input id="study-student-month" type="month" /></label>
+          <label style="display:flex;flex-direction:column;font-size:0.78rem;gap:3px"><span>Filter by skill</span><select id="study-student-skill">
+            <option value="">All skills</option>
+            <option value="all">All skills (master)</option>
+            <option value="academics">Academics</option>
+            <option value="web design">Web Design</option>
+            <option value="app development">App Development</option>
+            <option value="software development">Software Development</option>
+            <option value="digital marketing">Digital Marketing</option>
+            <option value="graphics design">Graphics Design</option>
+            <option value="cyber security">Cyber Security</option>
+            <option value="data analysis">Data Analysis</option>
+          </select></label>
+          <button type="button" class="btn-sm" onclick="loadStudyStudentAccess()">Filter</button>
+        </div>
+        <div id="study-student-table" class="data-table-wrap"><div class="loading">Click Filter to load…</div></div>
+      </div>
+      <div id="study-coupon-table" class="data-table-wrap"><div class="loading">Open this page to load codes…</div></div>
     </section>
 
     <section id="page-kind-games" class="admin-page">
@@ -1194,11 +1252,23 @@
         <h2>Video Tutorials</h2>
         <button class="btn-sm" onclick="loadAdminVideos()">Refresh</button>
       </div>
-      <p class="cbt-hint small">Paste a YouTube (or other https) link. Shown under <strong>Video Tutorials</strong> for <strong>students only</strong> — not Kids. Kids videos go under <strong>Kids Videos</strong>.</p>
+      <p class="cbt-hint small">Paste a YouTube (or other https) link and choose its skill category. Shown under <strong>Video Tutorials</strong> for <strong>students only</strong> — not Kids. Kids videos go under <strong>Kids Videos</strong>.</p>
       <div class="panel" style="margin-bottom:1rem">
         <div class="form-grid">
           <label><span>Title *</span><input id="vid-title" placeholder="e.g. Mole concept — SS2 Chemistry" /></label>
           <label><span>Subject / topic</span><input id="vid-subject" placeholder="Chemistry" /></label>
+          <label><span>Category (skill) *</span>
+            <select id="vid-category">
+              <option value="academics" selected>Academics (school subjects)</option>
+              <option value="web design">Web Design</option>
+              <option value="app development">App Development</option>
+              <option value="software development">Software Development</option>
+              <option value="digital marketing">Digital Marketing</option>
+              <option value="graphics design">Graphics Design</option>
+              <option value="cyber security">Cyber Security</option>
+              <option value="data analysis">Data Analysis</option>
+            </select>
+          </label>
           <label><span>Tutor name</span><input id="vid-tutor" placeholder="e.g. Scholaxia" /></label>
           <label><span>Video URL *</span><input id="vid-url" placeholder="https://www.youtube.com/watch?v=…" /></label>
         </div>
@@ -1342,7 +1412,7 @@
 
 <script src="js/admin-api.js?v=20260902adminfix"></script>
 <script src="js/admin-auth.js?v=20260902adminfix"></script>
-<script src="js/admin.js?v=20260902adminfix"></script>
+<script src="js/admin.js?v=20261019studycategory1"></script>
 <script src="js/responsive.js?v=20260805e"></script>
 </body>
 </html>

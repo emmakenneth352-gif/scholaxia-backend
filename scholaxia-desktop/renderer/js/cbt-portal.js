@@ -58,6 +58,17 @@
     return ["A", "B", "C", "D"][index] || "A";
   }
 
+  function shuffledQuestions(questions) {
+    var shuffled = (questions || []).slice();
+    for (var i = shuffled.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var value = shuffled[i];
+      shuffled[i] = shuffled[j];
+      shuffled[j] = value;
+    }
+    return shuffled;
+  }
+
   function convertQuestion(q, index, subject) {
     var options = Array.isArray(q.options) ? q.options : [];
     var correctIdx = typeof q.correctAnswer === "number" ? q.correctAnswer : 0;
@@ -81,7 +92,8 @@
     var data = null;
     if (typeof api === "function") {
       try {
-        data = await api("/api/v1/cbt/practice-bank/" + key);
+        var guest = typeof isStudentLoggedIn === "function" && !isStudentLoggedIn();
+        data = await api("/api/v1/cbt/practice-bank/" + (guest ? "guest/" : "") + key);
       } catch (e) {
         if (key === "POST_UTME") data = [];
         else throw e;
@@ -174,7 +186,7 @@
       matched.push(subject);
       var count = Math.min(questionCount(cat, subject), entry.questions.length);
       var start = items.length;
-      entry.questions.slice(0, count).forEach(function (q, i) {
+      shuffledQuestions(entry.questions).slice(0, count).forEach(function (q, i) {
         items.push(convertQuestion(q, start + i, subject));
       });
       sections.push({ subject: subject, start: start, count: count });
@@ -460,7 +472,7 @@
         throw new Error("No questions found for " + parsed.subject);
       }
       var count = questionCount(cat, parsed.subject);
-      items = entry.questions.slice(0, count).map(function (q, i) {
+      items = shuffledQuestions(entry.questions).slice(0, count).map(function (q, i) {
         return convertQuestion(q, i, parsed.subject);
       });
       title = formatExamLabel(cat) + " " + parsed.subject + " Practice";
@@ -535,4 +547,3 @@
     return pool.map(function (e) { return e.subject; });
   };
 })();
-

@@ -5,10 +5,17 @@ import 'cbt_review_screen.dart';
 
 class CbtResultScreen extends StatefulWidget {
   final String sessionId;
+  // Board practice attempt id — enables the Answer Review for practice runs.
+  final String? attemptId;
   // Optionally pass a pre-loaded result to skip the API call
   final CbtResult? result;
 
-  const CbtResultScreen({super.key, required this.sessionId, this.result});
+  const CbtResultScreen({
+    super.key,
+    required this.sessionId,
+    this.attemptId,
+    this.result,
+  });
 
   @override
   State<CbtResultScreen> createState() => _CbtResultScreenState();
@@ -144,14 +151,41 @@ class _CbtResultScreenState extends State<CbtResultScreen> {
           ),
           const SizedBox(height: 24),
           Text(
-            r.percentage >= 70
-                ? 'Great job!'
-                : r.percentage >= 50
-                    ? 'Keep practicing!'
-                    : 'Need more practice',
+            r.rating ??
+                (r.percentage >= 70
+                    ? 'Great job!'
+                    : r.percentage >= 50
+                        ? 'Keep practicing!'
+                        : 'Need more practice'),
             style: TextStyle(
                 color: context.textColor, fontSize: 22, fontWeight: FontWeight.bold),
           ),
+          if ((r.ratingMessage ?? '').isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              r.ratingMessage!,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: context.greyColor, fontSize: 13, height: 1.4),
+            ),
+          ],
+          if ((r.scoreDisplay ?? '').isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+              decoration: BoxDecoration(
+                color: _scoreColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _scoreColor.withOpacity(0.4)),
+              ),
+              child: Text(
+                r.scoreDisplay!,
+                style: TextStyle(
+                    color: _scoreColor,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
           const SizedBox(height: 24),
           // Stats row
           Row(
@@ -166,6 +200,56 @@ class _CbtResultScreenState extends State<CbtResultScreen> {
                   color: AppColors.yellow)),
             ],
           ),
+          if (r.perSubjectScores.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: context.borderColor),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Score by subject',
+                      style: TextStyle(
+                          color: context.textColor,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  ...r.perSubjectScores.entries.map(
+                    (e) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(e.key,
+                                style: TextStyle(
+                                    color: context.textColor, fontSize: 13)),
+                          ),
+                          Text(
+                            e.value % 1 == 0
+                                ? e.value.toInt().toString()
+                                : e.value.toStringAsFixed(1),
+                            style: TextStyle(
+                                color: e.value >= 70
+                                    ? const Color(0xFF4ADE80)
+                                    : e.value >= 50
+                                        ? AppColors.yellow
+                                        : const Color(0xFFFF6B6B),
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           if (r.weakTopics.isNotEmpty) ...[
             const SizedBox(height: 24),
             Container(
@@ -212,7 +296,10 @@ class _CbtResultScreenState extends State<CbtResultScreen> {
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(
-                    builder: (_) => CbtReviewScreen(sessionId: widget.sessionId)),
+                    builder: (_) => CbtReviewScreen(
+                      sessionId: widget.sessionId,
+                      attemptId: widget.attemptId,
+                    )),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.yellow,

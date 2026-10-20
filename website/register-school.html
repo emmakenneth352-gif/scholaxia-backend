@@ -290,7 +290,7 @@
         <span class="form-icon">🏫</span>
         <div>
           <h2>Tell Us About Your School</h2>
-          <p>Fill in the details below to register your school and get your private link.</p>
+          <p>Register your school to generate its unique Scholaxia school link.</p>
         </div>
       </div>
 
@@ -418,8 +418,12 @@
         <div class="big">🎉</div>
         <h2>Registration received!</h2>
         <p class="muted">Your school is now <strong>pending review</strong> by the Scholaxia team.</p>
-        <div class="link-pill"><strong>🌐 Your own domain — e.g. dove.com for Dove School</strong></div>
-        <p class="note">The Scholaxia admin buys and hosts your school's <strong>own domain</strong> (e.g. <strong>dove.com</strong> for Dove School) on the school platform. Payment for the domain and hosting is settled <strong>directly between the admin and your school</strong> — it is not handled on this platform. Once the admin approves your school and the domain is hosted, your school management system goes live.</p>
+        <div class="link-pill">
+          <strong>🌐 Your unique Scholaxia school link</strong><br />
+          <a id="schoolUrl" href="#" target="_blank" rel="noopener"></a>
+        </div>
+        <p class="note">Your school can use this Scholaxia link to manage its school portal after approval. If you later want your own domain, the Scholaxia team can host it and connect it to this same portal.</p>
+        <p class="note">If the short school link is not active yet, use this direct link: <a id="schoolPathUrl" href="#" target="_blank" rel="noopener"></a></p>
         <p class="note" id="privNote"></p>
         <div class="feature-chips" id="featureChips"></div>
       </div>
@@ -506,6 +510,12 @@
         });
         var data = await res.json();
         if (!res.ok) throw new Error(data.detail || "Registration failed");
+        var schoolUrl = document.getElementById("schoolUrl");
+        schoolUrl.href = data.school_url;
+        schoolUrl.textContent = data.school_url;
+        var schoolPathUrl = document.getElementById("schoolPathUrl");
+        schoolPathUrl.href = data.school_path_url;
+        schoolPathUrl.textContent = data.school_path_url;
         var noteEl = document.getElementById("privNote");
         noteEl.textContent = data.message || "";
         // Show the features the school requested (Pass 7)

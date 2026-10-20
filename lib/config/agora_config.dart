@@ -1,18 +1,30 @@
 /// Agora credentials for Scholaxia live classes.
-/// App ID: from console.agora.io → your project
-/// Token: temporary token generated for testing (expires in 24h).
-/// Replace with a token-server flow before going to production.
+/// 
+/// SECURITY WARNING: This file should NOT contain hardcoded credentials.
+/// Agora App ID and tokens should be:
+/// 1. Stored as environment variables
+/// 2. Fetched from a secure backend API
+/// 3. Never committed to source control
+/// 
+/// Current implementation uses LiveKit instead of Agora for video/audio.
+/// This file is kept for reference but should be removed or properly secured.
 class AgoraConfig {
   AgoraConfig._();
 
-  static const String appId = '2735ab34da634131bd67bdaa9a200d8b';
+  /// App ID should be fetched from environment variables or backend
+  /// Example: String.fromEnvironment('AGORA_APP_ID')
+  static String get appId {
+    const appId = String.fromEnvironment('AGORA_APP_ID', defaultValue: '');
+    if (appId.isEmpty) {
+      throw Exception('AGORA_APP_ID environment variable not set');
+    }
+    return appId;
+  }
 
-  /// Temp token generated from Agora console — valid for 24 hours.
-  /// For production: fetch a fresh token from your backend per channel+uid.
-  static const String? token =
-      '007eJxTYMgI+3Mq/+H3vQWWxhcE1FKsKh81ft7sfXNWzOwd5vUL3jcoMBiZG5smJhmbpCSaGZsYGhsmpZiZJ6UkJlomGhkYpFgklaooZjUEMjL4lF9iZGSAQBCfj6E4OSM/J7EiM1G3JLW4hIEBAEm3JO0=';
+  /// Token should be fetched from backend API per channel
+  /// Never hardcode tokens in source code
+  static String? get token => null; // Fetch from backend
 
-  /// The channel this temp token was generated for.
-  /// When you move to production, generate tokens per-channel dynamically.
+  /// Default channel name
   static const String defaultChannel = 'scholaxia-live';
 }

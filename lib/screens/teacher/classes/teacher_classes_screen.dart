@@ -624,6 +624,8 @@ class _CreateClassSheet extends StatefulWidget {
 class _CreateClassSheetState extends State<_CreateClassSheet> {
   late final TextEditingController _titleCtrl;
   late final TextEditingController _subjectCtrl;
+  // Comma-separated emails for private classes — kids are invited by email.
+  final TextEditingController _inviteEmailsCtrl = TextEditingController();
   DateTime _start = DateTime.now().add(const Duration(hours: 1));
   bool _loading = false;
   late bool _goLiveNow;
@@ -672,6 +674,7 @@ class _CreateClassSheetState extends State<_CreateClassSheet> {
   void dispose() {
     _titleCtrl.dispose();
     _subjectCtrl.dispose();
+    _inviteEmailsCtrl.dispose();
     super.dispose();
   }
 
@@ -860,6 +863,13 @@ class _CreateClassSheetState extends State<_CreateClassSheet> {
         durationMinutes: _durationMinutes,
         visibility: _visibility,
         schoolGroupId: _groupId,
+        invitedStudentEmails: _visibility == 'private'
+            ? _inviteEmailsCtrl.text
+                .split(',')
+                .map((e) => e.trim())
+                .where((e) => e.contains('@'))
+                .toList()
+            : const [],
       );
       final joinCode = created['join_code']?.toString() ?? '';
       if (_goLiveNow) {
@@ -940,15 +950,34 @@ class _CreateClassSheetState extends State<_CreateClassSheet> {
           if (_visibility == 'private')
             Padding(
               padding: const EdgeInsets.only(top: 4, bottom: 8),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.key_rounded, size: 16, color: context.accentColor),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'A unique access code is generated when you create the class — share it and students join instantly. It also lands in their Access Code tab automatically.',
-                      style: TextStyle(color: context.greyColor, fontSize: 12, height: 1.4),
+                  TextField(
+                    controller: _inviteEmailsCtrl,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: InputDecoration(
+                      hintText: 'kid1@email.com, kid2@email.com',
+                      labelText: 'Invite by email (optional)',
+                      border: const OutlineInputBorder(),
+                      isDense: true,
+                      prefixIcon: const Icon(Icons.mail_outline, size: 18),
+                      fillColor: context.surfColor,
+                      filled: true,
                     ),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(Icons.key_rounded, size: 16, color: context.accentColor),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Invited emails get a class invitation with the join code, and the class shows in their Live Class list — no code typing needed. Others can still join with the code.',
+                          style: TextStyle(color: context.greyColor, fontSize: 12, height: 1.4),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

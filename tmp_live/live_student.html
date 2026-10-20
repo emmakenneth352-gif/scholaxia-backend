@@ -1,0 +1,869 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <title>Scholaxia — Student</title>
+    <link rel="icon" type="image/png" href="media/logo-main.png" />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="css/app.css?v=15" />
+    <link rel="stylesheet" href="css/student-pretty.css?v=20261009gate" />
+    <script>
+      // Drop stale caches so CBT updates are not stuck on old JS
+      try {
+        if (navigator.serviceWorker) {
+          navigator.serviceWorker.getRegistrations().then(function (regs) {
+            regs.forEach(function (r) { r.unregister(); });
+          });
+        }
+        if (window.caches && caches.keys) {
+          caches.keys().then(function (keys) {
+            keys.forEach(function (k) { caches.delete(k); });
+          });
+        }
+      } catch (e) {}
+    </script>
+  </head>
+  <body class="app-body student-shell">
+    <div class="app-shell" id="appShell">
+      <div class="sidebar-wrap" id="sidebarWrap">
+      <aside class="app-side student-side" id="studentSide" aria-label="Student navigation">
+        <div class="side-brand">
+          <img class="side-logo side-logo-main" src="media/logo-main.png" alt="Scholaxia" />
+          <button type="button" class="side-close-btn" id="sidebarCloseBtn" title="Hide menu" aria-label="Hide menu">✕</button>
+        </div>
+        <nav class="side-nav" id="studentNav">
+          <button class="side-link is-active" data-page="home" type="button"><span class="ico">⌂</span>Home</button>
+          <button class="side-link" data-page="study-materials" type="button"><span class="ico">▶</span>Video Tutorials</button>
+          <button class="side-link" data-page="coding" type="button"><span class="ico">💻</span>Coding Tutorials</button>
+          <button class="side-link" data-page="past-questions" type="button"><span class="ico">📄</span>Past Questions</button>
+          <button class="side-link" data-page="cbt" type="button"><span class="ico">📝</span>My CBT</button>
+          <button class="side-link" data-page="school-portal" type="button"><span class="ico">🏫</span>Examinations</button>
+          <button class="side-link" data-page="school" type="button"><span class="ico">⏱</span>Scholaxia Exam</button>
+          <button class="side-link" data-page="live" type="button"><span class="ico">📺</span>Live Class</button>
+          <button class="side-link" data-page="subscription" type="button"><span class="ico">💳</span>Subscription</button>
+          <button class="side-link" data-page="skills" type="button"><span class="ico">🎓</span>Skills</button>
+          <button class="side-link" data-page="library" type="button"><span class="ico">📚</span>Library</button>
+          <button class="side-link" data-page="games" type="button"><span class="ico">🎮</span>Games</button>
+          <button class="side-link" data-page="assignments" type="button"><span class="ico">📋</span>Assignments</button>
+          <button class="side-link" data-page="sia" type="button"><span class="ico">✨</span>Tutor AI</button>
+          <button class="side-link" data-page="community" type="button"><span class="ico">💬</span>Community</button>
+          <button class="side-link" data-page="groups" type="button"><span class="ico">👥</span>Groups</button>
+          <button class="side-link" data-page="about" type="button"><span class="ico">ℹ</span>About</button>
+          <button class="side-link" data-page="contact" type="button"><span class="ico">✉</span>Contact</button>
+          <button class="side-link" data-page="profile" type="button"><span class="ico">👤</span>Profile</button>
+        </nav>
+        <div class="side-promo">
+          <strong>Subscription</strong>
+          <p>Live class plans, skills programs, and monthly access.</p>
+          <button type="button" data-goto="subscription">View subscriptions →</button>
+        </div>
+      </aside>
+      <button type="button" class="sidebar-edge-toggle" id="sidebarToggle" aria-label="Hide menu" title="Hide menu">‹</button>
+      </div>
+
+      <div class="app-main">
+        <div class="sidebar-backdrop" id="sidebarBackdrop" hidden></div>
+        <header class="app-top">
+          <button type="button" class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Open menu">☰</button>
+          <button type="button" class="back-btn" id="backBtn" aria-label="Go back" title="Go back" hidden>←</button>
+          <span class="topbar-exam-pill" id="examPill">Student</span>
+          <strong class="page-title" id="pageTitle">Home</strong>
+          <div class="topbar-spacer"></div>
+          <div class="user-chip">
+            <span class="user-av" id="userAv">S</span>
+            <span id="userName">Student</span>
+            <button class="btn-out" type="button" id="logoutBtn">Log out</button>
+          </div>
+        </header>
+
+        <div class="app-content">
+          <!-- ================= HOME ================= -->
+          <section class="page is-on" id="page-home">
+            <div class="dash-greeting">
+              <h2 id="dashGreeting">Welcome back</h2>
+              <p>Let’s beat your weak topics today.</p>
+            </div>
+
+            <div class="dash-hero-row">
+              <article class="dash-hero-card">
+                <span class="dash-hero-tag">Scholaxia CBT</span>
+                <h3>Practice Exam</h3>
+                <div class="dash-hero-pills">
+                  <span id="dashExamType">Your exam</span>
+                  <span id="dashSubjCount">Your subjects</span>
+                  <span>Timed mode</span>
+                </div>
+                <button type="button" class="dash-hero-btn" data-goto="cbt">Start CBT Practice →</button>
+              </article>
+              <article class="dash-side-card">
+                <p class="dash-side-label">Your focus</p>
+                <h4 id="dashFocus">Set up subjects</h4>
+                <p class="muted" id="dashSubjectsText">0 subjects selected</p>
+                <button type="button" class="linkish" data-goto="profile">Update profile →</button>
+              </article>
+            </div>
+
+            <div class="stat-row">
+              <div class="stat"><strong id="statLive">0</strong><span>Live classes now</span></div>
+              <div class="stat"><strong id="statExams">—</strong><span>Scholaxia tests</span></div>
+              <div class="stat"><strong id="statSubjects">0</strong><span>Your subjects</span></div>
+            </div>
+
+            <div class="section-title" id="homeLiveNowTitle" style="display:none">
+              <h2>🔴 Live Now</h2>
+              <button type="button" class="linkish" data-goto="live">Go to Live Class →</button>
+            </div>
+            <div class="card-grid" id="homeLiveNow"></div>
+
+            <div class="section-title"><h2>Quick Actions</h2></div>
+            <div class="quick-grid dash-actions">
+              <button type="button" class="quick action qa-live" data-goto="live"><span>📺</span><strong>Live Class</strong><small>Join a lesson now</small></button>
+              <button type="button" class="quick action qa-exam" data-goto="school"><span>📝</span><strong>Scholaxia Exam</strong><small>Teacher tests &amp; scores</small></button>
+              <button type="button" class="quick action qa-sub" data-goto="subscription"><span>💳</span><strong>Subscription</strong><small>Live class plans</small></button>
+              <button type="button" class="quick action qa-skills" data-goto="skills"><span>🎓</span><strong>Skills</strong><small>Training programs</small></button>
+              <button type="button" class="quick action qa-sia" data-goto="sia"><span>✨</span><strong>Tutor AI</strong><small>AI study assistant</small></button>
+              <button type="button" class="quick action qa-groups" data-goto="groups"><span>👥</span><strong>Groups</strong><small>Create or join study groups</small></button>
+              <button type="button" class="quick action qa-past" data-goto="past-questions"><span>📘</span><strong>Past Questions</strong><small>JAMB, WAEC &amp; NECO</small></button>
+              <button type="button" class="quick action qa-assign" data-goto="assignments"><span>📋</span><strong>Assignments</strong><small>Submit work &amp; notices</small></button>
+              <button type="button" class="quick action qa-cbt" data-goto="cbt"><span>📝</span><strong>CBT Packages</strong><small>Annual CBT access</small></button>
+              <button type="button" class="quick action qa-school" data-goto="school-portal"><span>🏫</span><strong>Examinations</strong><small>Papers your school published for your class</small></button>
+              <button type="button" class="quick action qa-library" data-goto="library"><span>📚</span><strong>Library</strong><small>Notes &amp; resources</small></button>
+              <button type="button" class="quick action qa-games" data-goto="games"><span>🎮</span><strong>Games</strong><small>Brain Breakers — 30 levels</small></button>
+            </div>
+          </section>
+
+          <!-- ================= STUDY MATERIALS ================= -->
+          <section class="page" id="page-study-materials">
+            <div class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Video Tutorials</h2>
+                  <p>YouTube lessons from Admin → Video Tutorials. PDF lesson notes are under <strong>Library</strong>.</p>
+                </div>
+                <button type="button" class="btn btn-mini" data-refresh="study-materials">⟲ Refresh</button>
+              </div>
+              <div class="study-gate" id="studyGate" hidden>
+                <div class="study-gate-card">
+                  <span class="study-gate-ico">🔒</span>
+                  <h3 id="studyGateTitle">Activation code required</h3>
+                  <p id="studyGateText">Each skill unlocks with its own activation code from your tutor/admin. Enter a code — it can be for one skill or all skills, and lasts for the duration the admin set.</p>
+                  <button type="button" class="btn btn-primary" data-goto="study-materials" id="studyGateFocusCode" hidden>Unlock with a code →</button>
+                </div>
+              </div>
+              <div class="form-field" id="lessonSearchWrap" style="margin:0.75rem 0 1rem">
+                <label for="lessonNotesSearch">Search</label>
+                <input
+                  id="lessonNotesSearch"
+                  type="search"
+                  placeholder="Search by topic or tutor name…"
+                  autocomplete="off"
+                />
+              </div>
+              <div class="card-grid" id="studyMaterialsList"><div class="loading-state">Loading video tutorials…</div></div>
+            </div>
+          </section>
+
+          <!-- ================= CODING TUTORIALS ================= -->
+          <section class="page" id="page-coding">
+            <div class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Coding Tutorials</h2>
+                  <p>Learn to code — HTML, CSS, JavaScript, Python and more. Same subscription unlocks these lessons.</p>
+                </div>
+                <button type="button" class="btn btn-mini" data-refresh="coding">⟲ Refresh</button>
+              </div>
+              <div class="study-gate" id="codingGate" hidden>
+                <div class="study-gate-card">
+                  <span class="study-gate-ico">🔒</span>
+                  <h3>Activation code required</h3>
+                  <p>Coding tutorials open with the skill activation code from your tutor/admin.</p>
+                  <button type="button" class="btn btn-primary" data-goto="coding">Unlock with a code →</button>
+                </div>
+              </div>
+              <div class="form-field" id="codingSearchWrap" style="margin:0.75rem 0 1rem">
+                <label for="codingSearch">Search</label>
+                <input
+                  id="codingSearch"
+                  type="search"
+                  placeholder="Search coding lessons…"
+                  autocomplete="off"
+                />
+              </div>
+              <div class="card-grid" id="codingList"><div class="loading-state">Loading coding tutorials…</div></div>
+            </div>
+          </section>
+
+          <!-- ================= PAST QUESTIONS ================= -->
+          <section class="page" id="page-past-questions">
+            <div class="panel">
+              <h2>Past Questions</h2>
+              <p>Buy and download past-question <strong>PDFs</strong> here. Admin uploads them under <strong>Library → Past Questions</strong>. These are not timed CBT — use <strong>CBT Practice</strong> for interactive exams.</p>
+              <div class="field" style="margin-bottom:0.85rem;">
+                <input
+                  id="pqStudentSearch"
+                  type="search"
+                  placeholder="Search by exam, subject, or paper title…"
+                  autocomplete="off"
+                  aria-label="Search past questions"
+                />
+              </div>
+              <div class="tabs" id="pqFilterTabs">
+                <button type="button" class="tab is-active" data-cat="all">All</button>
+                <button type="button" class="tab" data-cat="jamb">JAMB</button>
+                <button type="button" class="tab" data-cat="waec">WAEC</button>
+                <button type="button" class="tab" data-cat="neco">NECO</button>
+                <button type="button" class="tab" data-cat="igcse">IGCSE</button>
+                <button type="button" class="tab" data-cat="sat">SAT</button>
+                <button type="button" class="tab" data-cat="kcse">KCSE</button>
+                <button type="button" class="tab" data-cat="bece">BECE</button>
+                <button type="button" class="tab" data-cat="common">Common Entrance</button>
+                <button type="button" class="tab" data-cat="post">Post-UTME</button>
+              </div>
+              <div class="card-grid" id="pastQuestionsList"><div class="loading-state">Loading past questions…</div></div>
+            </div>
+          </section>
+
+          <!-- ================= CBT ================= -->
+          <section class="page" id="page-cbt">
+            <div class="hub">
+              <header class="hub-hero pay-hero">
+                <div>
+                  <span class="hub-kicker">CBT</span>
+                  <h2>CBT Practice</h2>
+                  <p>Choose your exam type. Questions are drawn from the question bank using admin CBT settings — not every uploaded question.</p>
+                </div>
+              </header>
+
+              <div class="panel" style="margin-top:0.25rem" id="cbtHomePanel">
+                <div class="panel-head">
+                  <div>
+                    <h2>Choose exam</h2>
+                    <p>Select <strong>JAMB</strong>, <strong>WAEC</strong>, or <strong>NECO</strong> to continue.</p>
+                  </div>
+                </div>
+                <div class="card-grid" id="cbtExamTypeList"><div class="loading-state">Loading…</div></div>
+              </div>
+
+              <div class="panel" id="cbtBoardPanel" hidden>
+                <div class="panel-head">
+                  <div>
+                    <button type="button" class="btn btn-mini" id="cbtBackToTypes">← Exam types</button>
+                    <h2 id="cbtBoardTitle" style="margin-top:0.75rem">Exam</h2>
+                    <p id="cbtBoardHint"></p>
+                  </div>
+                </div>
+                <div id="cbtBoardBody"></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ================= SCHOOL (Scholaxia Exam) ================= -->
+          <section class="page" id="page-school">
+            <div class="panel">
+              <h2>Scholaxia Exam</h2>
+              <p>Teacher-set tests, school exams, and your scores in one place.</p>
+              <div class="card-grid" id="schoolExamsList"><div class="loading-state">Loading exams…</div></div>
+            </div>
+          </section>
+
+          <!-- ================= LIVE CLASS (includes access codes) ================= -->
+          <section class="page" id="page-live">
+            <div class="hub live-hub">
+              <div class="hub-hero live-hero">
+                <div>
+                  <span class="hub-kicker">Live learning</span>
+                  <h2>Live Class</h2>
+                  <p>Join teachers in real time, use your invite codes, or request a class on any topic.</p>
+                </div>
+                <div class="hub-hero-actions">
+                  <button type="button" class="btn btn-primary" data-goto="subscription">Get a live plan</button>
+                </div>
+              </div>
+
+              <div id="liveJoinResult" class="live-join-result" style="display:none"></div>
+
+              <div class="section-title">
+                <h2>🔑 Your access codes</h2>
+                <div class="btn-row">
+                  <button type="button" class="btn btn-mini" id="clearOldCodesBtn">Clear old</button>
+                  <button type="button" class="btn btn-mini btn-danger" id="clearAllCodesBtn">Clear all</button>
+                </div>
+              </div>
+              <div class="card-grid one-col" id="accessCodesList"><div class="loading-state">Loading access codes…</div></div>
+
+              <div class="live-tools">
+                <form class="live-tool-card" id="joinCodeForm">
+                  <div class="live-tool-icon">🔑</div>
+                  <h3>Join with code</h3>
+                  <p>Paste a code from your teacher invite or the list above.</p>
+                  <div class="live-tool-row">
+                    <input id="joinCodeInput" placeholder="e.g. ABC-1234" autocomplete="off" required />
+                    <button type="submit" class="btn btn-primary">Join class</button>
+                  </div>
+                </form>
+                <form class="live-tool-card" id="liveRequestForm">
+                  <div class="live-tool-icon">✋</div>
+                  <h3>Request a class</h3>
+                  <p>Ask for a live session on any subject or topic.</p>
+                  <div class="live-tool-row">
+                    <input id="liveReqSubject" placeholder="Subject" required />
+                    <input id="liveReqTopic" placeholder="Topic" required />
+                  </div>
+                  <textarea id="liveReqDesc" placeholder="What should the teacher cover?" rows="2"></textarea>
+                  <button type="submit" class="btn btn-secondary">Send request</button>
+                </form>
+              </div>
+
+              <div class="section-title">
+                <h2><span class="live-pulse"></span> Live Now</h2>
+                <button type="button" class="btn btn-mini" data-refresh="live">⟲ Refresh</button>
+              </div>
+              <div class="live-grid" id="liveNowGrid"><div class="loading-state">Loading live classes…</div></div>
+
+              <div class="section-title"><h2>Upcoming sessions</h2></div>
+              <div class="live-grid" id="liveUpcomingGrid"><div class="loading-state">Loading upcoming classes…</div></div>
+            </div>
+          </section>
+
+          <!-- ================= EXTERNAL SCHOOL EXAM ================= -->
+          <section class="page" id="page-school-portal">
+            <div class="panel">
+              <h2>Examinations</h2>
+              <p>Your school and class are already on your account. You only see exams published for you.</p>
+              <div id="examIdentityCard" class="info-banner" style="display:none"></div>
+              <div class="card-grid" id="schoolPortalList"><div class="loading-state">Loading exams…</div></div>
+              <div id="examConfirmBox" class="panel" hidden></div>
+            </div>
+          </section>
+
+          <!-- ================= SUBSCRIPTION ================= -->
+          <section class="page" id="page-subscription">
+            <div class="hub">
+              <header class="hub-hero pay-hero">
+                <div>
+                  <span class="hub-kicker">Paystack</span>
+                  <h2>Subscription</h2>
+                  <p>Unlock live classes with a plan. Secure checkout powered by Paystack.</p>
+                </div>
+              </header>
+              <div id="activePlanBanner" class="active-plan-banner" style="display:none"></div>
+              <div class="section-title"><h2>Live class plans</h2></div>
+              <div class="card-grid" id="subscriptionPlans"><div class="loading-state">Loading plans…</div></div>
+              <div class="section-title"><h2>CBT packages</h2></div>
+              <div id="cbtAccessBanner" class="info-banner" style="display:none"></div>
+              <div class="card-grid" id="cbtPackagesGrid"><div class="loading-state">Loading CBT packages…</div></div>
+            </div>
+          </section>
+
+          <!-- ================= SKILLS ================= -->
+          <section class="page" id="page-skills">
+            <div class="panel">
+              <h2>Skills</h2>
+              <p>Web design, mobile apps, graphics, cyber security, data analysis and more.</p>
+              <div class="card-grid" id="skillsGrid"></div>
+            </div>
+          </section>
+
+          <!-- ================= LIBRARY ================= -->
+          <section class="page" id="page-library">
+            <div class="panel">
+              <div class="panel-head">
+                <div>
+                  <h2>Library</h2>
+                  <p>PDF materials by category: <strong>Books</strong>, <strong>Study Materials</strong>, <strong>Scheme of Work</strong>, and <strong>Lesson Notes</strong>.</p>
+                </div>
+                <button type="button" class="btn btn-mini" data-refresh="library">⟲ Refresh</button>
+              </div>
+              <div class="study-gate" id="libraryGate" hidden>
+                <div class="study-gate-card">
+                  <span class="study-gate-ico">🔒</span>
+                  <h3>Activation code required</h3>
+                  <p>The library opens with an activation code from your tutor/admin — same code that unlocks Video Tutorials.</p>
+                  <button type="button" class="btn btn-primary" data-goto="study-materials">Unlock with a code →</button>
+                </div>
+              </div>
+              <div class="btn-row lib-toolbar" id="libToolbar">
+                <input type="search" id="libSearch" placeholder="Search library…" />
+                <select id="libFilter">
+                  <option value="">All categories</option>
+                  <option value="Books">Books</option>
+                  <option value="Study Materials">Study Materials</option>
+                  <option value="Scheme of Work">Scheme of Work</option>
+                  <option value="Lesson Notes">Lesson Notes</option>
+                </select>
+              </div>
+              <div class="card-grid" id="libraryGrid"><div class="loading-state">Loading library…</div></div>
+            </div>
+          </section>
+
+          <!-- ================= GAMES ================= -->
+          <section class="page" id="page-games">
+            <div class="games-hub">
+              <div class="games-hero">
+                <h2>🎮 Brain Breakers</h2>
+                <p>Three hard games — <strong>30 levels each</strong>, no repeated questions. Same as the Scholaxia student app.</p>
+              </div>
+              <h3 class="section-title" style="margin-bottom:14px">Pick a challenge</h3>
+              <div id="games-list" class="games-grid games-tile-list"></div>
+              <div id="games-play-area" class="hidden"></div>
+            </div>
+          </section>
+
+          <!-- ================= ASSIGNMENTS ================= -->
+          <section class="page" id="page-assignments">
+            <div class="panel">
+              <h2>Assignments</h2>
+              <p>Submit PDF work and check the notice board for teacher updates.</p>
+
+              <div class="section-title"><h2>Announcements</h2></div>
+              <div class="card-grid one-col" id="announcementsList"><div class="loading-state">Loading announcements…</div></div>
+
+              <div class="section-title"><h2>Submit an assignment</h2></div>
+              <form class="panel-card assignment-form" id="assignmentForm">
+                <div class="form-row-2">
+                  <div class="form-field">
+                    <label>Teacher</label>
+                    <select id="assignTeacherSelect" required><option value="">Select teacher</option></select>
+                  </div>
+                  <div class="form-field">
+                    <label>File (PDF/image)</label>
+                    <input type="file" id="assignFileInput" required />
+                  </div>
+                </div>
+                <div class="form-field">
+                  <label>Caption / note</label>
+                  <textarea id="assignCaption" rows="2" placeholder="Add a short note for your teacher…"></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Submit assignment</button>
+                <span class="form-status" id="assignmentStatus"></span>
+              </form>
+
+              <div class="section-title"><h2>My submissions</h2></div>
+              <div class="card-grid one-col" id="assignmentsMineList"><div class="loading-state">Loading your assignments…</div></div>
+            </div>
+          </section>
+
+          <!-- ================= TUTOR AI (SIA) ================= -->
+          <section class="page" id="page-sia">
+            <div class="hub sia-hub">
+              <header class="hub-hero sia-hero">
+                <div class="sia-hero-left">
+                  <div class="sia-orb" aria-hidden="true">S</div>
+                  <div>
+                    <span class="hub-kicker">Smart tutor</span>
+                    <h2>Tutor AI — Sia</h2>
+                    <p>Step-by-step explanations tuned to your class level — like a patient private tutor.</p>
+                  </div>
+                </div>
+                <div class="sia-controls">
+                  <label class="sia-level-field">
+                    <span>Your level</span>
+                    <select id="siaLevelSelect">
+                      <option value="SS1">SS1</option>
+                      <option value="SS2">SS2</option>
+                      <option value="SS3" selected>SS3</option>
+                      <option value="JAMB">JAMB</option>
+                      <option value="WAEC">WAEC</option>
+                      <option value="NECO">NECO</option>
+                    </select>
+                  </label>
+                  <button type="button" class="btn btn-mini" id="siaClearChat">Clear chat</button>
+                </div>
+              </header>
+
+              <div class="sia-shell">
+                <div class="sia-suggestions" id="siaSuggestions">
+                  <button type="button" class="sia-chip" data-sia-q="Explain quadratic equations simply">Quadratic equations</button>
+                  <button type="button" class="sia-chip" data-sia-q="How do I solve comprehension passages for WAEC?">WAEC comprehension</button>
+                  <button type="button" class="sia-chip" data-sia-q="Give me a JAMB Physics practice tip">JAMB Physics tip</button>
+                  <button type="button" class="sia-chip" data-sia-q="Help me revise organic chemistry basics">Organic chemistry</button>
+                </div>
+                <div class="chat-box sia-chat" id="siaChat">
+                  <div class="sia-welcome">
+                    <div class="sia-orb sm">S</div>
+                    <div>
+                      <strong>Hi, I’m Sia</strong>
+                      <p>Ask me anything about your subjects. I’ll explain at your level with clear steps.</p>
+                    </div>
+                  </div>
+                </div>
+                <form class="chat-form sia-compose" id="siaForm">
+                  <input id="siaInput" placeholder="Ask Sia anything about your studies…" autocomplete="off" />
+                  <button type="submit" class="btn btn-primary">Send</button>
+                </form>
+              </div>
+            </div>
+          </section>
+
+          <!-- ================= COMMUNITY ================= -->
+          <section class="page" id="page-community">
+            <div class="hub community-hub">
+              <header class="hub-hero community-hero">
+                <div>
+                  <span class="hub-kicker">Campus feed</span>
+                  <h2>Community</h2>
+                  <p>General chat, study groups, and teacher announcements — all in one place.</p>
+                </div>
+                <button type="button" class="btn btn-mini" data-refresh="community">⟲ Refresh</button>
+              </header>
+
+              <div class="comm-tabs" id="communityTabs" role="tablist">
+                <button type="button" class="comm-tab is-active" data-comm-tab="general" role="tab" aria-selected="true"># general</button>
+                <button type="button" class="comm-tab" data-comm-tab="groups" role="tab" aria-selected="false"># groups</button>
+                <button type="button" class="comm-tab" data-comm-tab="announcements" role="tab" aria-selected="false"># announcements</button>
+              </div>
+
+              <div class="community-layout">
+                <div class="comm-panel is-on" id="commPanelGeneral">
+                  <form class="composer-card" id="communityPostForm">
+                    <div class="composer-avatar" id="communityAv">S</div>
+                    <div class="composer-body">
+                      <textarea id="communityPostInput" rows="3" placeholder="What’s on your mind? Share a tip, question, or update…"></textarea>
+                      <div class="composer-foot">
+                        <span class="muted">Posting to #general · Be kind · Keep it study-related</span>
+                        <button type="submit" class="btn btn-primary">Post update</button>
+                      </div>
+                    </div>
+                  </form>
+                  <div class="feed-list" id="communityFeed"><div class="loading-state">Loading feed…</div></div>
+                </div>
+
+                <div class="comm-panel" id="commPanelGroups" hidden>
+                  <div class="comm-groups-head">
+                    <div>
+                      <h3>Study groups</h3>
+                      <p class="muted">Join a squad or create one for your subjects.</p>
+                    </div>
+                    <button type="button" class="btn btn-primary btn-mini" data-goto="groups">Open Groups →</button>
+                  </div>
+                  <div class="groups-grid" id="communityTabGroups"><div class="loading-state">Loading groups…</div></div>
+                </div>
+
+                <div class="comm-panel" id="commPanelAnnouncements" hidden>
+                  <p class="comm-ann-note">Teacher &amp; school announcements (read-only for students).</p>
+                  <div class="feed-list" id="communityAnnouncements"><div class="loading-state">Loading announcements…</div></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ================= GROUPS ================= -->
+          <section class="page" id="page-groups">
+            <div class="hub groups-hub">
+              <header class="hub-hero groups-hero">
+                <div>
+                  <span class="hub-kicker">Study together</span>
+                  <h2>Groups</h2>
+                  <p>Create a squad, join public groups, and revise with classmates.</p>
+                </div>
+                <button type="button" class="btn btn-primary" id="showCreateGroupBtn">+ New group</button>
+              </header>
+
+              <form class="create-group-card" id="createGroupForm" style="display:none">
+                <h3>Create a study group</h3>
+                <div class="form-row-2">
+                  <div class="form-field">
+                    <label>Group name</label>
+                    <input id="groupNameInput" required placeholder="e.g. JAMB Physics 2026" />
+                  </div>
+                  <div class="form-field">
+                    <label>Description</label>
+                    <input id="groupDescInput" placeholder="What will you study together?" />
+                  </div>
+                </div>
+                <div class="btn-row">
+                  <button type="submit" class="btn btn-primary">Create group</button>
+                  <button type="button" class="btn btn-secondary" id="cancelCreateGroupBtn">Cancel</button>
+                  <span class="form-status" id="groupCreateStatus"></span>
+                </div>
+              </form>
+
+              <label class="groups-search">
+                <span class="visually-hidden">Search groups</span>
+                <input type="search" id="groupSearchInput" placeholder="Search groups by name…" autocomplete="off" />
+              </label>
+
+              <div class="section-title"><h2>My Groups</h2></div>
+              <div class="groups-grid" id="myGroupsList"><div class="loading-state">Loading your groups…</div></div>
+
+              <div class="section-title"><h2>Discover Groups</h2></div>
+              <div class="groups-grid" id="communityGroupsList"><div class="loading-state">Loading community groups…</div></div>
+            </div>
+          </section>
+
+          <!-- ================= ABOUT ================= -->
+          <section class="page" id="page-about">
+            <div class="panel">
+              <h2>About Scholaxia</h2>
+              <p>
+                Scholaxia helps Nigerian students prepare for JAMB, WAEC, NECO, Post-UTME, and school exams
+                with CBT practice, live classes, study materials, and AI tutoring.
+              </p>
+              <p>
+                We combine real teachers, an AI tutor, and computer-based test practice so every student can
+                revise smarter and walk into exam day ready.
+              </p>
+            </div>
+          </section>
+
+          <!-- ================= CONTACT ================= -->
+          <section class="page" id="page-contact">
+            <div class="panel">
+              <h2>Contact</h2>
+              <p>Need help with your account, subscription, or classes?</p>
+              <div class="contact-cards">
+                <a class="contact-card" href="mailto:support@scholaxia.com">
+                  <strong>Email</strong>
+                  <span>support@scholaxia.com</span>
+                </a>
+                <a class="contact-card" href="tel:+2349021661674">
+                  <strong>Phone</strong>
+                  <span>0902 166 1674</span>
+                </a>
+                <a class="contact-card" href="tel:+2349079343919">
+                  <strong>Phone</strong>
+                  <span>0907 934 3919</span>
+                </a>
+                <a class="contact-card" href="https://wa.me/2349021661674?text=Hello%20Scholaxia%2C%20I%20need%20help." target="_blank" rel="noopener">
+                  <strong>WhatsApp</strong>
+                  <span>Chat with support</span>
+                </a>
+              </div>
+              <form class="panel-card" id="contactForm">
+                <div class="form-row-2">
+                  <div class="form-field">
+                    <label>Your name</label>
+                    <input id="contactName" required />
+                  </div>
+                  <div class="form-field">
+                    <label>Your email</label>
+                    <input id="contactEmail" type="email" required />
+                  </div>
+                </div>
+                <div class="form-field">
+                  <label>Message</label>
+                  <textarea id="contactMessage" rows="3" required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Send message</button>
+                <span class="form-status" id="contactStatus"></span>
+              </form>
+            </div>
+          </section>
+
+          <!-- ================= PROFILE ================= -->
+          <section class="page" id="page-profile">
+            <div class="panel">
+              <h2>Profile</h2>
+              <p id="profileText">Loading…</p>
+              <div class="profile-meta">
+                <div><span>Exam type</span><strong id="profileExam">—</strong></div>
+                <div><span>Subjects</span><strong id="profileSubjects">—</strong></div>
+              </div>
+
+              <div class="section-title"><h2>Exam setup</h2></div>
+              <div class="form-row-2">
+                <div class="form-field">
+                  <label>Exam type</label>
+                  <select id="examTypeSelect">
+                    <option value="JAMB">JAMB</option>
+                    <option value="WAEC">WAEC</option>
+                    <option value="NECO">NECO</option>
+                    <option value="POST_UTME">Post-UTME</option>
+                  </select>
+                </div>
+                <div class="form-field">
+                  <label>Education level</label>
+                  <select id="eduLevelSelect">
+                    <option value="SS1">SS1</option>
+                    <option value="SS2">SS2</option>
+                    <option value="SS3">SS3</option>
+                    <option value="JAMB">JAMB candidate</option>
+                    <option value="WAEC">WAEC candidate</option>
+                    <option value="NECO">NECO candidate</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-field">
+                <label>Subjects (select all that apply)</label>
+                <div class="chip-row" id="profileSubjectChips"><div class="loading-state">Loading subjects…</div></div>
+              </div>
+              <button type="button" class="btn btn-primary" id="profileSaveBtn">Save exam setup</button>
+              <span class="form-status" id="profileSaveStatus"></span>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= CBT UNLOCK MODAL ================= -->
+    <div class="modal-overlay" id="cbtUnlockModal">
+      <div class="modal">
+        <div class="modal-head">
+          <h3>Start this exam</h3>
+          <button type="button" class="modal-close" id="cbtUnlockClose">✕</button>
+        </div>
+        <p class="modal-sub">Do you have a coupon code, or do you want to pay?</p>
+        <div class="btn-row" id="cbtUnlockChoice" style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0">
+          <button type="button" class="btn btn-secondary" id="cbtUnlockPickCoupon">I have a coupon</button>
+          <button type="button" class="btn btn-primary" id="cbtUnlockPickPay">I want to pay</button>
+        </div>
+        <div id="cbtUnlockCoupon" hidden>
+          <div class="form-field">
+            <label>Coupon code</label>
+            <input id="cbtUnlockCode" placeholder="SX-XXXX" autocomplete="off" />
+          </div>
+          <button type="button" class="btn btn-primary" id="cbtUnlockRedeem">Redeem &amp; continue</button>
+        </div>
+        <div id="cbtUnlockPay" hidden>
+          <p class="modal-sub">Choose a CBT package and pay with Paystack.</p>
+          <div id="cbtUnlockPayList"></div>
+        </div>
+        <span class="form-status" id="cbtUnlockStatus"></span>
+      </div>
+    </div>
+
+    <!-- ================= SKILL ENROLL MODAL ================= -->
+    <div class="modal-overlay" id="skillEnrollModal">
+      <div class="modal">
+        <div class="modal-head">
+          <h3 id="skillEnrollTitle">Enroll in skill</h3>
+          <button type="button" class="modal-close" id="skillEnrollClose">✕</button>
+        </div>
+        <p class="modal-sub" id="skillEnrollSub">Pay with Paystack to unlock enrollment and live classes.</p>
+        <p class="info-banner" id="skillEnrollFee" style="display:block;margin-bottom:0.5rem"></p>
+        <form id="skillEnrollForm">
+          <input type="hidden" id="skillEnrollId" />
+          <div class="form-field">
+            <label>Full name</label>
+            <input id="skillEnrollName" required />
+          </div>
+          <div class="form-row-2">
+            <div class="form-field">
+              <label>Email</label>
+              <input id="skillEnrollEmail" type="email" required />
+            </div>
+            <div class="form-field">
+              <label>Phone</label>
+              <input id="skillEnrollPhone" required placeholder="080…" />
+            </div>
+          </div>
+          <div class="form-field">
+            <label>Payment option</label>
+            <select id="skillPayMode">
+              <option value="half">Pay half now + balance later</option>
+              <option value="once">Pay full once</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>Preferred start (optional)</label>
+            <input id="skillEnrollStart" placeholder="e.g. Next Monday" />
+          </div>
+          <div class="form-field">
+            <label>Notes (optional)</label>
+            <textarea id="skillEnrollNotes" rows="2"></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary" id="skillEnrollSubmit">Continue to Paystack</button>
+          <span class="form-status" id="skillEnrollStatus"></span>
+        </form>
+      </div>
+    </div>
+
+    <!-- ================= EXAM SCREEN OVERLAY ================= -->
+    <div class="exam-screen" id="exam-screen">
+      <div class="exam-top">
+        <div class="exam-top-title">
+          <strong id="examTitle">Exam</strong>
+          <span id="examSub" class="muted"></span>
+        </div>
+        <div class="exam-timer" id="examTimer">20:00</div>
+        <button type="button" class="btn btn-danger btn-mini" id="examQuitBtn">Quit</button>
+      </div>
+      <div class="exam-section-bar" id="examSectionBar" hidden>
+        <span class="exam-section-label">Subjects</span>
+        <div class="exam-section-tabs" id="examSectionTabs"></div>
+      </div>
+      <div class="exam-section-chooser" id="examSectionChooser" hidden>
+        <div class="exam-section-chooser-card">
+          <h3 id="examChooserTitle">Choose where to start</h3>
+          <p class="muted" id="examChooserHint">Pick a subject section. Questions stay separate by subject.</p>
+          <div class="exam-section-chooser-grid" id="examChooserGrid"></div>
+        </div>
+      </div>
+      <div class="exam-body" id="examBody">
+        <aside class="exam-nav">
+          <p class="exam-nav-label">Questions</p>
+          <div class="exam-nav-grid" id="examQuestionNav"></div>
+          <div class="exam-legend">
+            <span><i class="dot dot-answered"></i>Answered</span>
+            <span><i class="dot dot-current"></i>Current</span>
+            <span><i class="dot dot-unanswered"></i>Unanswered</span>
+          </div>
+          <button type="button" class="btn btn-primary exam-submit-btn" id="examSubmitBtn">Submit exam</button>
+        </aside>
+        <main class="exam-question-area">
+          <div class="exam-q-count" id="examQCount">Question 1 of 1</div>
+          <p class="exam-q-text" id="examQuestionText">Loading question…</p>
+          <div class="exam-options" id="examOptions"></div>
+          <div class="exam-actions">
+            <button type="button" class="btn btn-secondary" id="examPrevBtn">← Previous</button>
+            <button type="button" class="btn btn-secondary" id="examNextBtn">Next →</button>
+          </div>
+        </main>
+      </div>
+    </div>
+
+    <!-- ================= RESULT SCREEN OVERLAY ================= -->
+    <div class="result-screen" id="result-screen">
+      <div class="result-card">
+        <div class="result-score-ring" id="resultRing">—</div>
+        <h2 id="resultTitle">Exam submitted</h2>
+        <p class="muted" id="resultSub"></p>
+        <div class="result-stats" id="resultStats"></div>
+        <div class="btn-row result-actions">
+          <button type="button" class="btn btn-primary" id="resultReviewBtn">Review all answers</button>
+          <button type="button" class="btn btn-secondary" id="resultCloseBtn">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="review-screen" id="review-screen">
+      <div class="review-page">
+        <header class="review-page-head">
+          <div>
+            <span class="hub-kicker">CBT Review</span>
+            <h2 id="reviewPageTitle">Your answers &amp; explanations</h2>
+            <p class="muted" id="reviewPageSub">Every question with the correct answer. Ask Sia for a deeper explanation and book tips.</p>
+          </div>
+          <button type="button" class="btn btn-secondary" id="reviewCloseBtn">Close</button>
+        </header>
+        <div class="review-books-panel" id="reviewBooksPanel" hidden>
+          <h3>Books to read for similar questions</h3>
+          <div id="reviewBooksList" class="review-books-list"></div>
+        </div>
+        <div class="review-list" id="reviewList"></div>
+      </div>
+    </div>
+
+    <div id="libReader" class="lib-reader" hidden>
+      <div class="lib-reader-panel">
+        <div class="lib-reader-bar">
+          <strong id="libReaderTitle">Reading</strong>
+          <button type="button" class="btn btn-secondary btn-mini" id="libReaderClose">Close</button>
+        </div>
+        <div id="libReaderPages" class="lib-reader-pages"></div>
+      </div>
+    </div>
+
+    <!-- Live-class ring sound removed — invitations surface on the Access Codes page. -->
+
+    <script src="js/i18n.js?v=31"></script>
+    <script src="js/api.js?v=20260827u"></script>
+    <script src="js/paystack.js?v=9"></script>
+    <script src="js/games.js?v=20260827a"></script>
+    <script src="js/student.js?v=20261016lib"></script>
+  </body>
+</html>

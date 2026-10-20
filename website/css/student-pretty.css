@@ -930,6 +930,16 @@ body.app-body {
   box-shadow: 0 16px 36px rgba(124, 58, 237, 0.35);
 }
 
+.result-encouragement {
+  margin: 1rem 0 0;
+  padding: 0.8rem 1rem;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f3e8ff, #ede9fe);
+  color: #5b21b6;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
 .profile-meta div {
   border-radius: 14px;
   border: 1px solid var(--line);
@@ -1083,6 +1093,79 @@ body.app-body {
   font: inherit;
 }
 .live-tool-card textarea { width: 100%; padding: 0.65rem 0.85rem; min-height: 4rem; resize: vertical; }
+
+.study-coupon-row {
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  padding: 0.35rem 0 0.85rem;
+}
+
+.study-coupon-row[hidden],
+.study-coupon-fields[hidden],
+.study-skill-search[hidden] {
+  display: none !important;
+}
+
+.study-coupon-fields {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.study-coupon-fields .btn {
+  min-height: 3rem;
+}
+
+.study-coupon-fields [role="status"] {
+  flex: 1 1 100%;
+  font-size: 0.85rem;
+}
+
+.study-coupon-fields [role="status"]:empty {
+  display: none;
+}
+
+.study-activation-input {
+  flex: 1 1 15rem;
+  min-width: 0;
+  width: 100%;
+  max-width: 26rem;
+  min-height: 3.2rem;
+  border: 1px solid #ddd6fe;
+  border-radius: 14px;
+  padding: 0 1rem;
+  color: var(--ink);
+  font: inherit;
+  text-transform: uppercase;
+  background: linear-gradient(180deg, #fff, #fbfaff);
+  box-shadow: 0 3px 10px rgba(76, 29, 149, 0.06);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.study-activation-input:focus,
+.study-skill-search input:focus {
+  outline: none;
+  border-color: #a78bfa;
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.12);
+}
+
+.study-skill-search {
+  flex: 1 1 100%;
+  max-width: 34rem;
+  margin: 0.5rem 0 0;
+}
+
+.study-skill-search input {
+  min-height: 3.2rem;
+  border: 1px solid #ddd6fe;
+  border-radius: 14px;
+  padding: 0 1rem;
+  font: inherit;
+  background: #fff;
+}
 
 .live-grid {
   display: grid;

@@ -88,15 +88,15 @@ class _AssignmentScreenState extends State<AssignmentScreen>
   }
 
   Future<void> _pickPdf() async {
+    // Accept any document: image, PDF, Word, Excel, PowerPoint, text, etc.
     final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['pdf'],
+      type: FileType.any,
       withData: true,
     );
     if (result == null || result.files.isEmpty) return;
     final file = result.files.single;
     if (file.bytes == null) {
-      _show('Could not read that PDF.', error: true);
+      _show('Could not read that file.', error: true);
       return;
     }
     setState(() => _pdf = file);
@@ -104,14 +104,14 @@ class _AssignmentScreenState extends State<AssignmentScreen>
 
   Future<void> _submit() async {
     if (_pdf?.bytes == null || _teacherId == null || _channelId.isEmpty) {
-      _show('Choose a teacher and your completed PDF first.', error: true);
+      _show('Choose a teacher and your completed work first.', error: true);
       return;
     }
     setState(() => _submitting = true);
     try {
       final uploaded = await _api.communityUpload(_pdf!.bytes!, _pdf!.name);
       final url = uploaded['file_url']?.toString() ?? '';
-      if (url.isEmpty) throw ApiException.message('PDF upload failed.');
+      if (url.isEmpty) throw ApiException.message('File upload failed.');
       await _api.submitAssignment(
         channelId: _channelId,
         teacherId: _teacherId!,
@@ -384,7 +384,7 @@ class _AssignmentScreenState extends State<AssignmentScreen>
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              _pdf?.name ?? 'Choose completed PDF',
+                              _pdf?.name ?? 'Choose completed work (PDF, image, Word, Excel…)',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(

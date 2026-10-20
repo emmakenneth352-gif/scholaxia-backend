@@ -89,7 +89,7 @@ class CouponCreate(BaseModel):
     max_uses: int = Field(default=1, ge=1, le=1000)
     days_valid: int = Field(default=365, ge=1, le=3650)   # how long the CODE itself stays redeemable
     access_days: int = Field(default=30, ge=1, le=3650)   # how long STUDENT ACCESS lasts after redeem
-    skill: str = Field(default="all", max_length=60)
+    skill: str = Field(..., min_length=1, max_length=60)
     note: Optional[str] = None
 
 
@@ -102,7 +102,12 @@ async def admin_create_coupons(
     """Issue N codes at once for ONE skill with an access duration."""
     now = naive_utc_now()
     expires = now + timedelta(days=payload.days_valid)
-    skill = _normalize_skill(payload.skill)
+    skill = (payload.skill or "").strip().lower()
+    if skill not in SKILL_CHOICES:
+        raise HTTPException(
+            status_code=400,
+            detail="Select a valid category for this activation code.",
+        )
     codes = []
     for _ in range(payload.count):
         row = StudyCoupon(

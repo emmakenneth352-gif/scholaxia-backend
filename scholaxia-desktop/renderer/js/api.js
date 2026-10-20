@@ -613,7 +613,7 @@ function isStudentLoggedIn() {
   }
 }
 
-var PUBLIC_APP_PAGES = ["dashboard", "school-portal", "marketplace", "study-materials", "past-questions", "about", "contact"];
+var PUBLIC_APP_PAGES = ["dashboard", "cbt", "games", "school-portal", "marketplace", "study-materials", "past-questions", "about", "contact"];
 
 function isPagePublic(page) {
   return PUBLIC_APP_PAGES.indexOf(page) >= 0;

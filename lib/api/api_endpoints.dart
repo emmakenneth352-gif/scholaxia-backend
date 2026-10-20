@@ -39,6 +39,7 @@ class ApiEndpoints {
 
   // Sia AI
   static const String siaAsk = '$_v1/sia/ask';
+  static const String siaTranscribe = '$_v1/sia/transcribe';
   static const String siaExplain = '$_v1/sia/explain';
   static const String siaSolve = '$_v1/sia/solve';
   static const String siaEvaluate = '$_v1/sia/evaluate';

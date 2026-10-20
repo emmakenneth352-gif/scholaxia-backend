@@ -26,6 +26,16 @@ class ProfileAvatarCache {
 
   Future<void> clear() async {
     final f = await _file();
-    if (await f.exists()) await f.delete();
+    try {
+      if (await f.exists()) await f.delete();
+    } on FileSystemException {
+      // Windows can keep the JPG open while a screen still displays it.
+      // Retry once after the widget tree lets go; if it still fails, leave
+      // the stale file — it is only a cached avatar, not session data.
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      try {
+        if (await f.exists()) await f.delete();
+      } catch (_) {}
+    }
   }
 }

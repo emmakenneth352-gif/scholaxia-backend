@@ -9,7 +9,7 @@
     <link rel="icon" type="image/png" href="media/logo-main.png" />
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="css/app.css?v=15" />
-    <link rel="stylesheet" href="css/student-pretty.css?v=20261018mob1" />
+    <link rel="stylesheet" href="css/student-pretty.css?v=20261020skillsearch1" />
     <script>
       // Drop stale caches so CBT updates are not stuck on old JS
       try {
@@ -140,7 +140,7 @@
               <div class="panel-head">
                 <div>
                   <h2>Video Tutorials</h2>
-                  <p>YouTube lessons from Admin → Video Tutorials. PDF lesson notes are under <strong>Library</strong>.</p>
+                  <p>Learn with video tutorials from our tutors. To unlock a skill’s lessons, enter the activation code provided by your school or a Scholaxia administrator.</p>
                 </div>
                 <button type="button" class="btn btn-mini" data-refresh="study-materials">⟲ Refresh</button>
               </div>
@@ -148,29 +148,10 @@
                 <div class="study-gate-card">
                   <span class="study-gate-ico">🔒</span>
                   <h3 id="studyGateTitle">Activation code required</h3>
-                  <button type="button" class="btn btn-primary" data-goto="study-materials" id="studyGateFocusCode" hidden>Unlock with a code →</button>
+                  <p>Enter the activation code provided by your school or a Scholaxia administrator for the skill you want to unlock.</p>
                 </div>
               </div>
-              <div class="form-field" id="lessonSearchWrap" style="margin:0.75rem 0 0.5rem">
-                <label for="lessonNotesSearch">Search</label>
-                <input
-                  id="lessonNotesSearch"
-                  type="search"
-                  placeholder="Search by topic or tutor name…"
-                  autocomplete="off"
-                />
-              </div>
-              <div class="tabs video-cat-chips" id="videosCatWrap" style="margin-bottom:1rem;flex-wrap:wrap;gap:0.4rem">
-                <button type="button" class="tab is-active" data-vcat="all">All</button>
-                <button type="button" class="tab" data-vcat="academics">Academics</button>
-                <button type="button" class="tab" data-vcat="web design">Web Design</button>
-                <button type="button" class="tab" data-vcat="app development">App Development</button>
-                <button type="button" class="tab" data-vcat="software development">Software Development</button>
-                <button type="button" class="tab" data-vcat="digital marketing">Digital Marketing</button>
-                <button type="button" class="tab" data-vcat="graphics design">Graphics Design</button>
-                <button type="button" class="tab" data-vcat="cyber security">Cyber Security</button>
-                <button type="button" class="tab" data-vcat="data analysis">Data Analysis</button>
-              </div>
+              <div id="studyCouponRows" aria-label="Redeem a tutorial activation code"></div>
               <div class="card-grid" id="studyMaterialsList"><div class="loading-state">Loading video tutorials…</div></div>
             </div>
           </section>
@@ -801,6 +782,7 @@
         <h2 id="resultTitle">Exam submitted</h2>
         <p class="muted" id="resultSub"></p>
         <div class="result-stats" id="resultStats"></div>
+        <p class="result-encouragement" id="resultEncouragement" role="status"></p>
         <div class="btn-row result-actions">
           <button type="button" class="btn btn-primary" id="resultReviewBtn">Review all answers</button>
           <button type="button" class="btn btn-secondary" id="resultCloseBtn">Close</button>
@@ -842,6 +824,6 @@
     <script src="js/api.js?v=20260827u"></script>
     <script src="js/paystack.js?v=9"></script>
     <script src="js/games.js?v=20260827a"></script>
-    <script src="js/student.js?v=20261017g2"></script>
+    <script src="js/student.js?v=20261020skillsearch1"></script>
   </body>
 </html>

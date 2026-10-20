@@ -535,6 +535,11 @@ html[data-app-theme="dark"] .subject-start-box h3,
 html[data-app-theme="dark"] .subject-start-box p {
   color: #f2f3f5 !important;
 }
+html[data-app-theme="dark"] .result-encouragement {
+  background: #352f45 !important;
+  border-color: #574778 !important;
+  color: #ddd6fe !important;
+}
 html[data-app-theme="dark"] .opt {
   background: #1e1f22 !important;
   border-color: #4e5058 !important;

@@ -1,5 +1,6 @@
 ﻿import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
@@ -25,14 +26,49 @@ final ValueNotifier<String?> sessionExpiredNotifier =
 class ApiException implements Exception {
   final int statusCode;
   final String message;
+  final String? originalError;
+  final bool isNetworkError;
+  final bool isTimeout;
 
-  const ApiException(this.statusCode, this.message);
+  const ApiException(this.statusCode, this.message, {this.originalError, this.isNetworkError = false, this.isTimeout = false});
 
   /// Convenience when status is unknown (client-side failures).
-  const ApiException.message(this.message) : statusCode = 0;
+  const ApiException.message(this.message, {this.originalError, this.isNetworkError = false, this.isTimeout = false}) : statusCode = 0;
+
+  /// Network error constructor
+  const ApiException.network(this.message, {this.originalError}) : statusCode = 0, isNetworkError = true, isTimeout = false;
+
+  /// Timeout error constructor
+  const ApiException.timeout(this.message, {this.originalError}) : statusCode = 0, isNetworkError = false, isTimeout = true;
 
   @override
   String toString() => message;
+  
+  /// User-friendly error message
+  String get userMessage {
+    if (isNetworkError) {
+      return 'Network error. Please check your internet connection and try again.';
+    }
+    if (isTimeout) {
+      return 'Request timed out. Please try again.';
+    }
+    if (statusCode == 401) {
+      return 'Session expired. Please log in again.';
+    }
+    if (statusCode == 403) {
+      return 'Access denied. You don\'t have permission for this action.';
+    }
+    if (statusCode == 404) {
+      return 'Resource not found. It may have been moved or deleted.';
+    }
+    if (statusCode == 500) {
+      return 'Server error. Please try again later.';
+    }
+    if (statusCode == 503) {
+      return 'Service unavailable. Please try again later.';
+    }
+    return message;
+  }
 }
 
 // ── API client ──────────────────────────────────────────────────────────────
@@ -250,7 +286,7 @@ class ApiService {
     try {
       final response = await http
           .get(uri, headers: headers)
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 30));
       if (response.statusCode >= 200 && response.statusCode < 300) {
         if (trackConnectivity) OfflineStatusService.instance.markOnline();
         final trimmed = response.body.trimLeft();
@@ -263,15 +299,37 @@ class ApiService {
         }
         return response;
       }
+      // Non-2xx: serve the offline cache on server trouble, else map to a
+      // typed error the UI can display properly.
       if (response.statusCode >= 500) {
         final cached = await _cachedResponse(uri);
         if (cached != null) {
           if (trackConnectivity) OfflineStatusService.instance.markOffline();
           return cached;
         }
+        throw ApiException(response.statusCode, 'Server error: ${response.statusCode}');
       }
-      return response;
-    } catch (_) {
+      if (response.statusCode == 401) {
+        sessionExpiredNotifier.value = 'Session expired. Please log in again.';
+        throw ApiException(response.statusCode, 'Session expired');
+      }
+      if (response.statusCode == 403) {
+        throw ApiException(response.statusCode, 'Access denied');
+      }
+      if (response.statusCode == 404) {
+        throw ApiException(response.statusCode, 'Resource not found');
+      }
+      throw ApiException(response.statusCode, 'Request failed: ${response.statusCode}');
+    } on TimeoutException catch (e) {
+      if (trackConnectivity) OfflineStatusService.instance.markOffline();
+      throw ApiException.timeout('Request timed out', originalError: e.toString());
+    } on SocketException catch (e) {
+      if (trackConnectivity) OfflineStatusService.instance.markOffline();
+      throw ApiException.network('Network error: ${e.message}', originalError: e.toString());
+    } on HttpException catch (e) {
+      throw ApiException.message('HTTP error: ${e.message}', originalError: e.toString());
+    } catch (e) {
+      if (e is ApiException) rethrow;
       if (trackConnectivity) OfflineStatusService.instance.markOffline();
       final cached = await _cachedResponse(uri);
       if (cached != null) return cached;
@@ -1834,6 +1892,27 @@ class ApiService {
     }
   }
 
+  /// Upload a recorded voice clip and get the transcript (server Whisper).
+  /// Works with .m4a/.wav/.mp3 clips from the `record` plugin.
+  Future<String> transcribeVoiceFile(File file) async {
+    final token = await getToken();
+    final request = http.MultipartRequest(
+      'POST',
+      _uri(ApiEndpoints.siaTranscribe),
+    );
+    if (token != null && token.isNotEmpty) {
+      request.headers['Authorization'] = 'Bearer $token';
+    }
+    request.files.add(
+      await http.MultipartFile.fromPath('audio', file.path),
+    );
+    request.fields['language'] = 'en';
+    final streamed = await request.send().timeout(const Duration(seconds: 60));
+    final res = await http.Response.fromStream(streamed);
+    final data = _parseMap(res);
+    return (data['text'] ?? '').toString();
+  }
+
   // ── Teacher AI ─────────────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> teacherAiAsk({
@@ -1937,6 +2016,19 @@ class ApiService {
       _uri(ApiEndpoints.cbtSessionReview(sessionId)),
       headers: await _authHeaders(),
     );
+    return _parseMap(res);
+  }
+
+  /// Answer-key review for a board practice attempt (JAMB/WAEC/NECO).
+  /// Returns full_review: every question with correct key, your answer and
+  /// explanation. Only works after the attempt has been submitted.
+  Future<Map<String, dynamic>> cbtPracticeReview(String attemptId) async {
+    final res = await http
+        .get(
+          _uri('/api/v1/cbt/practice/attempts/$attemptId/review'),
+          headers: await _authHeaders(),
+        )
+        .timeout(const Duration(seconds: 60));
     return _parseMap(res);
   }
 
@@ -3444,6 +3536,12 @@ class CbtResult {
   final int totalCorrect;
   final int totalWrong;
   final List<String> weakTopics;
+  // Percentage-scale reporting (e.g. "220 / 400" for JAMB, or 78 / 100 for
+  // WAEC subjects) plus the motivational rating from the server.
+  final String? scoreDisplay;
+  final String? rating;
+  final String? ratingMessage;
+  final Map<String, double> perSubjectScores;
 
   const CbtResult({
     required this.score,
@@ -3451,6 +3549,10 @@ class CbtResult {
     required this.totalCorrect,
     required this.totalWrong,
     this.weakTopics = const [],
+    this.scoreDisplay,
+    this.rating,
+    this.ratingMessage,
+    this.perSubjectScores = const {},
   });
 
   factory CbtResult.fromJson(Map<String, dynamic> json) => CbtResult(
@@ -3461,5 +3563,13 @@ class CbtResult {
     weakTopics: json['weak_topics'] is List
         ? (json['weak_topics'] as List).map((e) => e.toString()).toList()
         : const [],
+    scoreDisplay: json['score_display']?.toString(),
+    rating: json['rating']?.toString(),
+    ratingMessage: json['rating_message']?.toString(),
+    perSubjectScores: json['per_subject_scores'] is Map
+        ? (json['per_subject_scores'] as Map).map(
+            (k, v) => MapEntry(k.toString(), (v as num?)?.toDouble() ?? 0),
+          )
+        : const {},
   );
 }

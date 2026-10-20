@@ -288,7 +288,12 @@ class _SiaVoiceTeachingScreenState extends State<SiaVoiceTeachingScreen>
         onFinal: autoSubmit ? (_) => finishUp() : null,
       );
       if (!autoSubmit) return;
-      Future.delayed(const Duration(seconds: 7), finishUp);
+      // Server-STT (Windows) has no live "final result" — give it a longer
+      // window since transcription happens after release anyway.
+      Future.delayed(
+        Duration(seconds: SiaVoiceInputService.serverStt ? 15 : 7),
+        finishUp,
+      );
     } catch (_) {
       if (mounted) setState(() => _listening = false);
     }
@@ -347,15 +352,15 @@ class _SiaVoiceTeachingScreenState extends State<SiaVoiceTeachingScreen>
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
                 child: LayoutBuilder(
                   builder: (ctx, cons) {
-                    // One classroom: the teacher stands INSIDE the board
-                    // (bottom corner), like a real teacher at a blackboard.
+                    // One classroom: the teacher stays in a SMALL corner of
+                    // the board so the written work is always readable.
                     return Column(children: [
                       Expanded(
                         child: _board(
                           context,
                           accent,
                           teacher: _teacherOverlay(
-                            height: math.min(cons.maxHeight * 0.62, 300.0),
+                            height: math.min(cons.maxHeight * 0.2, 92.0),
                           ),
                         ),
                       ),
@@ -413,9 +418,8 @@ class _SiaVoiceTeachingScreenState extends State<SiaVoiceTeachingScreen>
     );
   }
 
-  /// The teacher image, standing INSIDE the board at the bottom-right —
-  /// like a real teacher in front of the blackboard. Pinned to the overlay
-  /// bounds so it can never spill outside the board.
+  /// The teacher image, tucked into a small bottom-right corner of the board
+  /// so it never covers the written work.
   Widget _teacherOverlay({double height = 220}) {
     final pose = _currentPose();
     return AnimatedBuilder(

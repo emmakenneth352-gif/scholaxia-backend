@@ -14,6 +14,17 @@ How it works:
 Per-school steps after this one-time setup: **none.** Approve the school
 and its link is live.
 
+## Optional school-owned domain
+
+Every registered school keeps its generated `<slug>.scholaxia.com` link.
+If a school later requests its own domain, add that hostname in the main
+Scholaxia admin's school editor after the domain has been hosted. Point the
+domain's DNS to the Render service and add it under that service's custom
+domains so HTTPS is provisioned. The backend matches the configured hostname
+to the same school record, so both links open and manage the same portal.
+Use the school's Scholaxia subdomain if its custom-domain DNS or TLS is not
+ready yet.
+
 ---
 
 ## One-time setup (~15 minutes)

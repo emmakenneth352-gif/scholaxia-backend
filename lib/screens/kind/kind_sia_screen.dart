@@ -20,10 +20,12 @@ class _KindSiaScreenState extends State<KindSiaScreen> {
   final _scroll = ScrollController();
   final _messages = <_Msg>[];
   bool _loading = false;
-  bool _voiceOn = true;
+  bool _voiceOn = false; // kids tap 🔊 to hear a reply — no auto-read
   String _subject = 'General';
   List<String> _subjects = ['General'];
   String _childName = 'Friend';
+
+  final GlobalKey _lastMsgKey = GlobalKey();
 
   @override
   void initState() {
@@ -171,13 +173,21 @@ class _KindSiaScreenState extends State<KindSiaScreen> {
   }
 
   void _scrollToBottom() {
+    // When a new AI reply lands, align its TOP with the top of the screen —
+    // the child reads downwards naturally instead of landing at the bottom
+    // of the reply.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scroll.hasClients) {
-        _scroll.animateTo(
-          _scroll.position.maxScrollExtent,
+      if (!mounted) return;
+      final ctx = _lastMsgKey.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          alignment: 0.0,
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
         );
+      } else if (_scroll.hasClients) {
+        _scroll.jumpTo(_scroll.position.maxScrollExtent);
       }
     });
   }
@@ -285,7 +295,13 @@ class _KindSiaScreenState extends State<KindSiaScreen> {
               controller: _scroll,
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               itemCount: _messages.length,
-              itemBuilder: (_, i) => _bubble(context, _messages[i]),
+              // Tag the newest message so _scrollToBottom aligns its top.
+              itemBuilder: (_, i) {
+                final child = _bubble(context, _messages[i]);
+                return i == _messages.length - 1
+                    ? KeyedSubtree(key: _lastMsgKey, child: child)
+                    : child;
+              },
             ),
           ),
           if (_loading)

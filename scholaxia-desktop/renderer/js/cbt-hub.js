@@ -592,6 +592,9 @@ function _cbtRowFromQuestion(q) {
     question_text: q.question_text || "",
     topic: q.topic,
     image_url: q.image_url,
+    correct_option: q.correct_option || q.correct_key || "",
+    explanation: q.explanation || "",
+    subject: q.subject || "",
   };
   (q.options || []).forEach(function (opt) {
     var k = String(opt.key || "").toUpperCase();
@@ -600,27 +603,61 @@ function _cbtRowFromQuestion(q) {
   return row;
 }
 
+var CBT_OFFLINE_PRACTICE_PREFIX = "sia_cbt_offline_practice_";
+var _cbtOfflinePackSaveQueue = Promise.resolve();
+
 function _cbtOfflinePackSave() {
-  try {
-    if (!window.__cbtOfflineAttempt || !currentExam) return;
-    localStorage.setItem("sia_cbt_attempt_last", JSON.stringify(window.__cbtOfflineAttempt));
-    localStorage.setItem(
-      "sia_cbt_rows_" + window.__cbtOfflineAttempt.attempt_id,
-      JSON.stringify(currentExam.questions || [])
-    );
-  } catch (eQuota) {}
+  if (!window.__cbtOfflineAttempt || !currentExam) return Promise.resolve();
+  var attempt = Object.assign({}, window.__cbtOfflineAttempt, {
+    answers_by_index: Object.assign({}, answers || {}),
+    offline_ready: (currentExam.questions || []).length > 0 &&
+      currentExam.questions.every(function (q) {
+        return !!(q && (q.correct_option || q.correct_key));
+      }),
+  });
+  var snapshot = { attempt: attempt, rows: currentExam.questions || [] };
+  var saveSnapshot = async function () {
+    try {
+      localStorage.setItem("sia_cbt_attempt_last", JSON.stringify(attempt));
+      var key = CBT_OFFLINE_PRACTICE_PREFIX + attempt.attempt_id;
+      if (typeof ssSet === "function") {
+        await ssSet(key, snapshot);
+      } else {
+        localStorage.setItem(key, JSON.stringify(snapshot));
+      }
+    } catch (eSave) {
+      console.warn("Could not save the CBT offline pack", eSave);
+    }
+  };
+  _cbtOfflinePackSaveQueue = _cbtOfflinePackSaveQueue.then(saveSnapshot, saveSnapshot);
+  return _cbtOfflinePackSaveQueue;
 }
 
-function _cbtOfflinePackLoad() {
+async function _cbtOfflinePackLoad() {
   try {
     var attempt = JSON.parse(localStorage.getItem("sia_cbt_attempt_last") || "null");
     if (!attempt || !attempt.attempt_id) return null;
+    var key = CBT_OFFLINE_PRACTICE_PREFIX + attempt.attempt_id;
+    var saved = typeof ssGet === "function"
+      ? await ssGet(key)
+      : JSON.parse(localStorage.getItem(key) || "null");
+    if (saved && saved.rows && saved.rows.length && saved.rows.some(function (r) { return !!r; })) {
+      return saved;
+    }
     var rows = JSON.parse(localStorage.getItem("sia_cbt_rows_" + attempt.attempt_id) || "null");
     if (!rows || !rows.length || !rows.some(function (r) { return !!r; })) return null;
     return { attempt: attempt, rows: rows };
   } catch (e) {
     return null;
   }
+}
+
+async function completeOfflinePracticeAttempt() {
+  if (!window.__cbtOfflineAttempt) return;
+  window.__cbtOfflineAttempt = Object.assign({}, window.__cbtOfflineAttempt, {
+    completed_at: new Date().toISOString(),
+  });
+  await _cbtOfflinePackSave();
 }
 
 function _cbtApplySectionRows(qs, start, questionIndex, fresh) {
@@ -671,7 +708,7 @@ async function maybeFetchPracticeSection(questionIndex) {
     _cbtSectionsFetched[key] = false;
     // OFFLINE: play the already-downloaded copy of this subject.
     var offlineNow = typeof navigator !== "undefined" && !navigator.onLine;
-    var offlinePack = offlineNow ? _cbtOfflinePackLoad() : null;
+    var offlinePack = offlineNow ? await _cbtOfflinePackLoad() : null;
     if (offlinePack && offlinePack.rows) {
       var fresh2 = _cbtSectionForIndex(questionIndex) || sec;
       var slice = offlinePack.rows.slice(fresh2.start, fresh2.start + (fresh2.count || 0));
@@ -731,13 +768,14 @@ async function cbtHubStartPractice(examType, subjects) {
   // offline path (hub shows them in "Ready offline").
   if (cbtHubState.offlineMode || (typeof navigator !== "undefined" && !navigator.onLine)) {
     // OFFLINE RESUME: relaunch the cached attempt + downloaded questions.
-    var saved = _cbtOfflinePackLoad();
+    var saved = await _cbtOfflinePackLoad();
     if (
       saved &&
+      saved.attempt.offline_ready &&
       String((saved.attempt && saved.attempt.exam_type) || "").toUpperCase() ===
         String(examType || "").toUpperCase()
     ) {
-      launchPracticeAttempt(saved.attempt, saved.rows);
+      await launchPracticeAttempt(saved.attempt, saved.rows, !!saved.attempt.completed_at);
       return;
     }
     alert(
@@ -752,7 +790,43 @@ async function cbtHubStartPractice(examType, subjects) {
       method: "POST",
       body: JSON.stringify({ exam_type: examType, subjects: subjects }),
     });
-    launchPracticeAttempt(attempt);
+    var offlineRows = null;
+    try {
+      var offlinePack = await api(
+        "/api/v1/cbt/practice/attempts/" + encodeURIComponent(attempt.attempt_id) + "/offline-pack",
+        { method: "POST", timeout: 90000, retries: 0 }
+      );
+      offlineRows = [];
+      (offlinePack.sections || []).forEach(function (section) {
+        var sectionQuestions = [];
+        (section.questions || []).forEach(function (q) {
+          var row = _cbtRowFromQuestion(q);
+          row.subject = section.subject || "Subject";
+          sectionQuestions.push(row);
+        });
+        var sectionTotal = parseInt(section.total || sectionQuestions.length, 10) || 0;
+        offlineRows = offlineRows.concat(sectionQuestions);
+        for (var i = sectionQuestions.length; i < sectionTotal; i++) offlineRows.push(null);
+      });
+      if (!offlineRows.length || offlineRows.some(function (q) { return !q.correct_option; })) {
+        throw new Error("The downloaded practice paper is missing answer keys.");
+      }
+      attempt.sections = (attempt.sections || []).map(function (section, index) {
+        var offlineSection = (offlinePack.sections || [])[index] || {};
+        return Object.assign({}, section, {
+          subject: offlineSection.subject || section.subject,
+          total: parseInt(offlineSection.total || (offlineSection.questions || []).length, 10) || 0,
+        });
+      });
+    } catch (offlineError) {
+      console.warn("Could not prepare CBT for offline scoring", offlineError);
+      offlineRows = null;
+    }
+    await launchPracticeAttempt(attempt, offlineRows);
+    if (!offlineRows) {
+      var meta = document.getElementById("exam-meta");
+      if (meta) meta.textContent += " · Offline score not downloaded";
+    }
   } catch (e) {
     var msg = (e && e.message) || "";
     if (/402|cbt_package|package|paid|required/i.test(msg) || (e && e.status === 402)) {
@@ -771,7 +845,7 @@ async function cbtHubStartPractice(examType, subjects) {
   }
 }
 
-function launchPracticeAttempt(attempt, offlineRows) {
+async function launchPracticeAttempt(attempt, offlineRows, localReplay) {
   var pack = cbtAttemptToPack(attempt);
   // Sections arrive as stubs (questions load per subject on demand). Only fail
   // when the attempt has no sections at all.
@@ -790,28 +864,39 @@ function launchPracticeAttempt(attempt, offlineRows) {
       if (slice.some(function (r) { return !!r; })) s.questions_loaded = true;
     });
   }
-  window.__cbtOfflineAttempt = attempt;
+  window.__cbtOfflineAttempt = localReplay ? null : attempt;
   currentSession = {
     session_id: null,
-    practice_attempt_id: attempt.attempt_id,
+    practice_attempt_id: localReplay ? null : attempt.attempt_id,
     is_practice: true,
+    is_local_replay: !!localReplay,
   };
+  window._lastPracticeReview = null;
+  window._lastPracticeAttemptId = null;
   answers = {};
   // Restore saved answers by question index (rows can be null placeholders
   // for sections whose questions load on demand)
-  (pack.questions || []).forEach(function (q, i) {
-    if (q && pack.answers && pack.answers[q.id]) answers[i] = pack.answers[q.id];
-  });
+  if (!localReplay) {
+    (pack.questions || []).forEach(function (q, i) {
+      if (q && pack.answers && pack.answers[q.id]) answers[i] = pack.answers[q.id];
+    });
+    if (attempt.answers_by_index) {
+      Object.keys(attempt.answers_by_index).forEach(function (i) {
+        answers[i] = attempt.answers_by_index[i];
+      });
+    }
+  }
   currentQ = 0;
-  if (pack.sections && pack.sections.length > 1 && pack.section_index) {
+  if (!localReplay && pack.sections && pack.sections.length > 1 && pack.section_index) {
     var sec = pack.sections[pack.section_index];
     if (sec) currentQ = sec.start || 0;
   }
   var totalCount = pack.sections.reduce(function (n, s) { return n + (s.count || 0); }, 0);
-  secondsLeft =
-    typeof pack.seconds_left === "number" ? pack.seconds_left : (pack.duration_minutes || 60) * 60;
+  secondsLeft = localReplay
+    ? (pack.duration_minutes || 60) * 60
+    : (typeof pack.seconds_left === "number" ? pack.seconds_left : (pack.duration_minutes || 60) * 60);
 
-  if (!offlineRows) _cbtOfflinePackSave();
+  await _cbtOfflinePackSave();
   if (typeof showCbtExamView === "function") showCbtExamView();
   document.getElementById("exam-title").textContent = pack.title;
   document.getElementById("exam-meta").textContent =

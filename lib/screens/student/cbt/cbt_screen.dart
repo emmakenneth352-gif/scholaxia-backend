@@ -392,36 +392,44 @@ class _CbtScreenState extends State<CbtScreen> {
     final locked = !_hasAccess(_tab);
     final color = context.accentColor;
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [color, color.withOpacity(0.75)],
+          colors: [color, color.withValues(alpha: 0.75)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Row(children: [
         Container(
-          width: 56,
-          height: 56,
-          padding: const EdgeInsets.all(8),
+          width: 64,
+          height: 64,
+          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(14),
+            color: Colors.white.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 2),
           ),
           child: CustomPaint(painter: _BoardSealPainter(_tab, color: Colors.white)),
         ),
-        const SizedBox(width: 14),
+        const SizedBox(width: 16),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [              Text(_tab == 'JUNIOR_WAEC' ? 'JUNIOR WAEC CBT' : '$_tab CBT',
+            children: [
+              Text(_tab == 'JUNIOR_WAEC' ? 'JUNIOR WAEC CBT' : '$_tab CBT',
                   style: const TextStyle(
-                      color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 2),
+                      color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 4),
               Text(
-
                 locked
                     ? 'Locked — unlock with coupon or payment'
                     : _tab == 'JAMB'
@@ -429,19 +437,34 @@ class _CbtScreenState extends State<CbtScreen> {
                         : _tab == 'JUNIOR_WAEC'
                             ? 'One combined exam · all your selected subjects'
                             : 'Subject practice from your registered subjects',
-                style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 12),
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 13, height: 1.3),
               ),
             ],
           ),
         ),
         if (locked)
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: color,
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
             ),
-            onPressed: _starting ? null : () => _ensureUnlocked(_tab),
-            child: const Text('Unlock'),
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: color,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
+              onPressed: _starting ? null : () => _ensureUnlocked(_tab),
+              child: const Text('Unlock', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
           ),
       ]),
     );
@@ -459,27 +482,64 @@ class _CbtScreenState extends State<CbtScreen> {
 
   Widget _lockedInfo(String board) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: context.cardColor,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: context.borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: context.accentColor.withValues(alpha: 0.1),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(children: [
-        Icon(Icons.lock_outline_rounded, color: context.accentColor, size: 40),
-        const SizedBox(height: 10),
+        Container(
+          width: 80,
+          height: 80,
+          decoration: BoxDecoration(
+            color: context.accentColor.withValues(alpha: 0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(Icons.lock_outline_rounded, color: context.accentColor, size: 40),
+        ),
+        const SizedBox(height: 16),
         const Text('This exam board is locked',
-            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-        const SizedBox(height: 6),
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
+        const SizedBox(height: 8),
         Text(
           'Unlock $board with your coupon code or an annual package to practise its own question bank.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: context.greyColor, fontSize: 13, height: 1.4),
+          style: TextStyle(color: context.greyColor, fontSize: 14, height: 1.5),
         ),
-        const SizedBox(height: 14),
-        FilledButton(
-          onPressed: _starting ? null : () => _ensureUnlocked(board),
-          child: const Text('Enter coupon or pay'),
+        const SizedBox(height: 20),
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [context.accentColor, context.accentColor.withValues(alpha: 0.8)],
+            ),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: context.accentColor.withValues(alpha: 0.3),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.transparent,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+            onPressed: _starting ? null : () => _ensureUnlocked(board),
+            child: const Text('Enter coupon or pay', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          ),
         ),
       ]),
     );
@@ -494,51 +554,134 @@ class _CbtScreenState extends State<CbtScreen> {
     final locked = profileJamb.length == need;
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(
-        locked
-            ? 'Your $need JAMB subjects (locked with your registration)'
-            : 'Select exactly $need subjects, then START CBT',
-        style: TextStyle(color: context.greyColor, fontSize: 12),
-      ),
-      const SizedBox(height: 12),
-      Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: selectable.map((s) {
-          final on = locked || _picked.contains(s);
-          return FilterChip(
-            selected: on,
-            onSelected: locked
-                ? null
-                : (_) {
-                    setState(() {
-                      if (_picked.contains(s)) {
-                        _picked.remove(s);
-                      } else if (_picked.length < need) {
-                        _picked.add(s);
-                      } else {
-                        _snack('You can only pick $need subjects.');
-                      }
-                    });
-                  },
-            label: Text(s),
-            selectedColor: context.accentColor.withOpacity(0.25),
-            checkmarkColor: context.accentColor,
-          );
-        }).toList(),
-      ),
-      const SizedBox(height: 18),
-      SizedBox(
-        width: double.infinity,
-        child: FilledButton.icon(
-          onPressed: _starting ? null : _startPractice,
-          icon: _starting
-              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Icon(Icons.play_arrow_rounded),
-          label: Text(_starting ? 'Opening…' : 'START CBT'),
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: context.surfColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: context.borderColor),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  locked ? Icons.lock_rounded : Icons.edit_note_rounded,
+                  color: context.accentColor,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    locked
+                        ? 'Your $need JAMB subjects (locked with your registration)'
+                        : 'Select exactly $need subjects, then START CBT',
+                    style: TextStyle(color: context.textColor, fontSize: 13, fontWeight: FontWeight.w500),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: selectable.map((s) {
+                final on = locked || _picked.contains(s);
+                return GestureDetector(
+                  onTap: locked
+                      ? null
+                      : () {
+                          setState(() {
+                            if (_picked.contains(s)) {
+                              _picked.remove(s);
+                            } else if (_picked.length < need) {
+                              _picked.add(s);
+                            } else {
+                              _snack('You can only pick $need subjects.');
+                            }
+                          });
+                        },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      gradient: on
+                          ? LinearGradient(
+                              colors: [context.accentColor, context.accentColor.withValues(alpha: 0.8)],
+                            )
+                          : null,
+                      color: on ? null : context.cardColor,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: on ? context.accentColor : context.borderColor,
+                        width: on ? 2 : 1,
+                      ),
+                      boxShadow: on
+                          ? [
+                              BoxShadow(
+                                color: context.accentColor.withValues(alpha: 0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (on)
+                          Icon(Icons.check_circle_rounded, color: Colors.white, size: 16)
+                        else
+                          Icon(Icons.radio_button_unchecked_rounded, color: context.greyColor, size: 16),
+                        const SizedBox(width: 8),
+                        Text(
+                          s,
+                          style: TextStyle(
+                            color: on ? Colors.white : context.textColor,
+                            fontWeight: on ? FontWeight.bold : FontWeight.normal,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
         ),
       ),
-      const SizedBox(height: 10),
+      const SizedBox(height: 20),
+      Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [context.accentColor, context.accentColor.withValues(alpha: 0.8)],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: context.accentColor.withValues(alpha: 0.3),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: FilledButton.icon(
+          onPressed: _starting ? null : _startPractice,
+          style: FilledButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            padding: const EdgeInsets.symmetric(vertical: 18),
+          ),
+          icon: _starting
+              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.play_arrow_rounded, size: 24),
+          label: Text(_starting ? 'Opening…' : 'START CBT', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        ),
+      ),
+      const SizedBox(height: 12),
       _changeRequestHint('JAMB', locked),
     ]);
   }

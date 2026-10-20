@@ -19,8 +19,8 @@ class _SiaScreenState extends State<SiaScreen> {
   final _inputCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   final _api = ApiService();
-  String _subject = 'Physics';
-  List<String> _subjects = ['Physics', 'Mathematics', 'Biology', 'Chemistry', 'English'];
+  String _subject = 'General';
+  List<String> _subjects = ['General', 'Physics', 'Mathematics', 'Biology', 'Chemistry', 'English'];
   String? _educationLevel;
   String _studentName = 'there';
   bool _loading = false;
@@ -233,7 +233,9 @@ class _SiaScreenState extends State<SiaScreen> {
         _studentName = name;
         _subjects = subjects;
         if (!subjects.contains(_subject)) {
-          _subject = subjects.first;
+          // Keep the neutral default unless the student picked a subject
+          // themselves — never force their first subject as active.
+          _subject = 'General';
         }
         _educationLevel = (level != null && level.isNotEmpty) ? level : null;
         final onlyWelcome = _messages.length == 1 &&

@@ -19,6 +19,7 @@ class KindBookingScreen extends StatefulWidget {
 
 class _KindPlan {
   final String id;
+  final String name;
   final int classes;
   final int priceNaira;
   final String? savings;
@@ -26,6 +27,7 @@ class _KindPlan {
 
   const _KindPlan({
     required this.id,
+    required this.name,
     required this.classes,
     required this.priceNaira,
     required this.subtitle,
@@ -47,21 +49,25 @@ class _KindPlan {
 }
 
 class _KindBookingScreenState extends State<KindBookingScreen> {
+  // Same plans as the website & desktop app (renderer/js/class-packages.js).
   static const _plans = [
     _KindPlan(
       id: 'single_class',
+      name: 'Special Single Class',
       classes: 1,
       priceNaira: 5000,
-      subtitle: '90 minutes',
+      subtitle: '1 session · 90 minutes',
     ),
     _KindPlan(
       id: 'nursery_school',
+      name: 'Nursery School',
       classes: 2,
       priceNaira: 25000,
       subtitle: '2 subjects · 2 sessions weekly',
     ),
     _KindPlan(
       id: 'primary_school',
+      name: 'Primary School',
       classes: 3,
       priceNaira: 25000,
       subtitle: '3 subjects · 3 sessions weekly',
@@ -295,7 +301,7 @@ class _KindBookingScreenState extends State<KindBookingScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '${p.classes} Class${p.classes == 1 ? '' : 'es'}',
+                            p.name,
                             style: TextStyle(
                               color: context.textColor,
                               fontSize: 17,

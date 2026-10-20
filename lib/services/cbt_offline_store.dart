@@ -27,27 +27,36 @@ class CbtOfflineStore {
   }
 
   Future<void> savePack(String examId, Map<String, dynamic> pack) async {
-    if (kIsWeb) {
-      _memory[examId] = Map<String, dynamic>.from(pack);
-      return;
-    }
+    // Keep a session cache so peekCached works on every platform.
+    _memory[examId] = Map<String, dynamic>.from(pack);
+    if (kIsWeb) return;
     final f = await _file(examId);
     await f.writeAsString(jsonEncode(pack));
   }
 
   Future<Map<String, dynamic>?> loadPack(String examId) async {
-    if (kIsWeb) {
-      final cached = _memory[examId];
-      if (cached == null) return null;
-      return Map<String, dynamic>.from(cached);
-    }
+    final cached = _memory[examId];
+    if (cached != null) return Map<String, dynamic>.from(cached);
+    if (kIsWeb) return null;
     final f = await _file(examId);
     if (!await f.exists()) return null;
     try {
       final raw = jsonDecode(await f.readAsString());
-      if (raw is Map) return Map<String, dynamic>.from(raw);
+      if (raw is Map) {
+        final map = Map<String, dynamic>.from(raw);
+        _memory[examId] = map;
+        return Map<String, dynamic>.from(map);
+      }
     } catch (_) {}
     return null;
+  }
+
+  /// Synchronous read of the in-memory cache (no I/O).
+  /// Only populated after [loadPack] ran for the same key in this session.
+  Map<String, dynamic>? peekCached(String examId) {
+    final cached = _memory[examId];
+    if (cached == null) return null;
+    return Map<String, dynamic>.from(cached);
   }
 
   Future<bool> isDownloaded(String examId) async {

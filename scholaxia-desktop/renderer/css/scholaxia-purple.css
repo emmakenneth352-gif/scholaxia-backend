@@ -1761,6 +1761,72 @@ html[data-app-theme="dark"] .subj-chip { border-color: #3a3357; color: #f0edff; 
 .study-gate-card h3 { margin: 0; font-size: 1.05rem; }
 .study-gate-card p { margin: 0; max-width: 34rem; color: #5b21b6; font-size: 0.92rem; }
 
+.study-coupon-row {
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 6px 0 14px;
+}
+.study-coupon-row[hidden],
+.study-coupon-fields-desktop[hidden],
+.study-skill-search-desktop[hidden] { display: none !important; }
+.study-coupon-fields-desktop {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+.study-activation-input-desktop {
+  flex: 1 1 240px;
+  min-width: 0;
+  width: 100%;
+  max-width: 420px;
+  min-height: 48px;
+  padding: 0 15px;
+  border: 1px solid #ddd6fe;
+  border-radius: 14px;
+  color: #0f172a;
+  font: inherit;
+  text-transform: uppercase;
+  background: linear-gradient(180deg, #fff, #fbfaff);
+  box-shadow: 0 3px 10px rgba(76, 29, 149, 0.06);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.study-activation-input-desktop:focus,
+.study-skill-search-desktop input:focus {
+  outline: none;
+  border-color: #a78bfa;
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.12);
+}
+.study-coupon-fields-desktop .btn-sm { min-height: 44px; }
+.study-coupon-fields-desktop [role="status"] {
+  flex: 1 1 100%;
+  font-size: 0.85rem;
+}
+.study-coupon-fields-desktop [role="status"]:empty { display: none; }
+.study-skill-search-desktop {
+  display: grid;
+  gap: 5px;
+  flex: 1 1 100%;
+  max-width: 540px;
+  margin-top: 8px;
+}
+.study-skill-search-desktop label {
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.study-skill-search-desktop input {
+  min-height: 48px;
+  padding: 0 15px;
+  border: 1px solid #ddd6fe;
+  border-radius: 14px;
+  color: #0f172a;
+  font: inherit;
+  background: #fff;
+}
+
 /* Study gate — dark mode */
 html[data-app-theme="dark"] .study-gate-card {
   background: #2a2540;
@@ -1768,18 +1834,19 @@ html[data-app-theme="dark"] .study-gate-card {
 }
 html[data-app-theme="dark"] .study-gate-card h3 { color: #f0edff; }
 html[data-app-theme="dark"] .study-gate-card p { color: #c4bce4; }
-html[data-app-theme="dark"] .study-gate-card input[type="text"] {
+html[data-app-theme="dark"] .study-activation-input-desktop,
+html[data-app-theme="dark"] .study-skill-search-desktop input {
   background: #221d36;
-  border-color: #3a3357;
+  border-color: #4c4070;
   color: #f0edff;
 }
-html[data-app-theme="dark"] .study-gate-card input[type="text"]::placeholder { color: #8f87ad; }
-html[data-app-theme="dark"] .study-gate-card input[type="text"]:focus {
+html[data-app-theme="dark"] .study-activation-input-desktop::placeholder,
+html[data-app-theme="dark"] .study-skill-search-desktop input::placeholder { color: #8f87ad; }
+html[data-app-theme="dark"] .study-activation-input-desktop:focus,
+html[data-app-theme="dark"] .study-skill-search-desktop input:focus {
   border-color: #8b5cf6;
-  outline: none;
+  box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.14);
 }
-html[data-app-theme="dark"] .study-gate-card p[id$="CouponMsgDesktop"],
-html[data-app-theme="dark"] .study-gate-card p[id$="CouponMsg"] { color: #b9a7e8; }
 html[data-app-theme="dark"] .study-mat-card {
   background: #242038;
   border-color: #3a3357;

@@ -68,11 +68,9 @@ class _SiaVoiceClassroomScreenState extends State<SiaVoiceClassroomScreen> {
     final name = widget.studentName.split(' ').first;
     return [
       SiaBoardItem(type: 'heading', content: 'Welcome, $name!'),
-      SiaBoardItem(
+      const SiaBoardItem(
         type: 'point',
-        content: _useMic
-            ? 'Hold the purple mic and ask your question'
-            : 'Type your question below, then tap Ask Sia',
+        content: 'Hold the purple mic and ask your question',
       ),
       const SiaBoardItem(
         type: 'point',
@@ -387,24 +385,25 @@ class _SiaVoiceClassroomScreenState extends State<SiaVoiceClassroomScreen> {
       ),
       child: Column(
         children: [
-          if (!_useMic) ...[
-            TextField(
-              controller: _windowsQuestionCtrl,
-              style: TextStyle(color: context.textColor),
-              decoration: InputDecoration(
-                hintText: 'Ask Sia anything…',
-                hintStyle: TextStyle(color: context.greyColor),
-                filled: true,
-                fillColor: context.surfColor,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide(color: context.borderColor),
-                ),
+          // Text field is available on every platform — the mic now works
+          // everywhere too, but typing is still handy (and required if the
+          // mic is denied).
+          TextField(
+            controller: _windowsQuestionCtrl,
+            style: TextStyle(color: context.textColor),
+            decoration: InputDecoration(
+              hintText: 'Ask Sia anything…',
+              hintStyle: TextStyle(color: context.greyColor),
+              filled: true,
+              fillColor: context.surfColor,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: context.borderColor),
               ),
-              onSubmitted: (_) => _askFromField(),
             ),
-            const SizedBox(height: 10),
-          ],
+            onSubmitted: (_) => _askFromField(),
+          ),
+          const SizedBox(height: 10),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -486,9 +485,7 @@ class _SiaVoiceClassroomScreenState extends State<SiaVoiceClassroomScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            _useMic
-                ? 'Hold mic → speak → release. Sia talks back; key points on the board.'
-                : 'Type your question — Sia answers with voice. Key points on the board.',
+            'Hold mic → speak → release, or type above. Sia answers with voice.',
             textAlign: TextAlign.center,
             style: TextStyle(color: context.greyColor, fontSize: 11),
           ),

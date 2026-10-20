@@ -16,55 +16,47 @@ class ClassPackagesScreen extends StatelessWidget {
   final bool kidsOnly;
   final bool holidayOnly;
 
-  /// Exact Scholaxia packages from product pricing.
+  /// Exact Scholaxia packages from product pricing — same as the website
+  /// and desktop app (renderer/js/class-packages.js).
   static const _kidSections = [
     _PackageSection(
-      title: 'Holiday Classes',
+      title: 'Kids Live Classes',
       plans: [
         _ClassPackage(
-          id: 'holiday_primary',
-          name: 'Primary Holiday Classes',
-          price: 15000,
-          billing: '₦15,000 · 5 live sessions weekly',
+          id: 'single_class',
+          name: 'Special Single Class',
+          price: 5000,
+          billing: '₦5,000 · 1 session',
           features: [
-            'Mathematics',
-            'English language',
-            'Phonics',
-            'Moral values',
-          ],
-        ),
-      ],
-    ),
-    _PackageSection(
-      title: 'One-on-One Classes',
-      plans: [
-        _ClassPackage(
-          id: 'nursery_standard',
-          name: 'Nursery One-on-One Classes',
-          price: 50000,
-          billing: '₦50,000 / Month · 4 sessions weekly',
-          features: [
-            'Reading',
-            'Phonics',
-            'Counting',
-            'Fun games',
-            'Learning activities',
-            'Parent feedback session',
+            '1 live session',
+            'One-on-one tutor',
+            'Class notes',
           ],
         ),
         _ClassPackage(
-          id: 'primary_standard',
-          name: 'Primary School One-on-One Classes',
-          price: 55000,
-          billing: '₦55,000 / Monthly',
+          id: 'nursery_school',
+          name: 'Nursery School',
+          price: 25000,
+          billing: '₦25,000 / Month · 2 sessions weekly',
           features: [
-            'Mathematics',
-            'Phonics',
-            'English language',
-            'Moral values',
-            'Homework',
-            'Parent feedback session',
-            'Progress report',
+            '2 subjects',
+            '2 sessions weekly',
+            'Reading & Phonics',
+            'Counting & fun games',
+            'Parent feedback',
+          ],
+        ),
+        _ClassPackage(
+          id: 'primary_school',
+          name: 'Primary School',
+          price: 25000,
+          billing: '₦25,000 / Month · 3 sessions weekly',
+          features: [
+            '3 subjects',
+            '3 sessions weekly',
+            'Mathematics, English & Phonics',
+            'Homework help',
+            'Parent feedback',
           ],
         ),
       ],
@@ -73,76 +65,83 @@ class ClassPackagesScreen extends StatelessWidget {
 
   static const _studentSections = [
     _PackageSection(
-      title: 'Scholaxia Holiday Promo Classes',
+      title: 'Single & Exam Prep',
       plans: [
         _ClassPackage(
-          id: 'holiday_ss_science',
-          name: 'Senior Secondary SS 1–3 · Science',
-          price: 11000,
-          billing: '₦11,000 · 5 live sessions weekly',
+          id: 'single_class',
+          name: 'Special Single Class',
+          price: 5000,
+          billing: '₦5,000 · 1 session',
           features: [
-            'Mathematics',
-            'English',
-            'Physics',
-            'Chemistry',
-            'Biology',
+            '1 live session',
+            'One-on-one tutor',
+            'Class notes',
+            'Questions and answers',
           ],
         ),
         _ClassPackage(
-          id: 'holiday_ss_art',
-          name: 'Senior Secondary SS 1–3 · Art',
-          price: 11000,
-          billing: '₦11,000 · 5 live sessions weekly',
+          id: 'jamb_prep',
+          name: 'JAMB Prep',
+          price: 10000,
+          billing: '₦10,000 / Month · 4 sessions weekly',
           features: [
-            'Mathematics',
-            'English',
-            'Lit. In English',
-            'CRS/IRS',
-            'Government',
+            '4 subjects',
+            '4 sessions weekly',
+            'JAMB past questions & CBT drills',
+            'Progress tracking',
           ],
         ),
         _ClassPackage(
-          id: 'holiday_ss_commercial',
-          name: 'Senior Secondary SS 1–3 · Commercial',
-          price: 11000,
-          billing: '₦11,000 · 5 live sessions weekly',
+          id: 'jamb_waec_neco_prep',
+          name: 'JAMB + WAEC/NECO Prep',
+          price: 15000,
+          billing: '₦15,000 / Month · 5 sessions weekly',
           features: [
-            'Mathematics',
-            'English',
-            'F. Accounting',
-            'Commerce',
-            'Economics',
-          ],
-        ),
-        _ClassPackage(
-          id: 'holiday_jss',
-          name: 'Junior Secondary / JSS 1–3',
-          price: 10500,
-          billing: '₦10,500 · 5 live sessions weekly',
-          features: [
-            'Mathematics',
-            'English Language',
-            'Phonics',
-            'French',
-            'Computer',
+            '6 subjects',
+            '5 sessions weekly',
+            'JAMB, WAEC & NECO practice',
+            'Mock exams',
           ],
         ),
       ],
     ),
     _PackageSection(
-      title: 'One-on-One Classes',
+      title: 'Private & School Lessons',
       plans: [
         _ClassPackage(
-          id: 'secondary_standard',
-          name: 'High School (JSS & SSS) One-on-One Classes',
-          price: 50000,
-          billing: '₦50,000',
+          id: 'private_lesson',
+          name: 'Private Lesson (One-on-One)',
+          price: 25000,
+          billing: '₦25,000 / Month · 4 sessions weekly',
           features: [
-            '3 subjects of choice',
-            'One-on-one with tutor',
-            'Topic-based assessments',
-            'Performance analytics',
+            '4 subjects',
+            '4 sessions weekly',
+            'Dedicated one-on-one tutor',
             'Unlimited Sia AI Tutor',
+          ],
+        ),
+        _ClassPackage(
+          id: 'primary_school',
+          name: 'Primary School',
+          price: 25000,
+          billing: '₦25,000 / Month · 3 sessions weekly',
+          features: [
+            '3 subjects',
+            '3 sessions weekly',
+            'Mathematics, English & Phonics',
+            'Parent feedback',
+          ],
+        ),
+        _ClassPackage(
+          id: 'nursery_school',
+          name: 'Nursery School',
+          price: 25000,
+          billing: '₦25,000 / Month · 2 sessions weekly',
+          features: [
+            '2 subjects',
+            '2 sessions weekly',
+            'Reading & Phonics',
+            'Parent feedback',
           ],
         ),
       ],
@@ -155,7 +154,9 @@ class ClassPackagesScreen extends StatelessWidget {
         ? _kidSections
         : holidayOnly
             ? _studentSections
-                .where((section) => section.title.contains('Holiday'))
+                .where((section) =>
+                    section.title.contains('Single') ||
+                    section.title.contains('Prep'))
                 .toList()
             : _studentSections;
     final total = sections.fold<int>(0, (sum, s) => sum + s.plans.length);
@@ -168,7 +169,7 @@ class ClassPackagesScreen extends StatelessWidget {
           kidsOnly
               ? 'Kids class packages'
               : holidayOnly
-                  ? 'Holiday Promo Classes'
+                  ? 'Live Class Plans'
                   : 'Class packages',
         ),
       ),
@@ -179,8 +180,8 @@ class ClassPackagesScreen extends StatelessWidget {
             kidsOnly
                 ? 'Nursery & Primary packages'
                 : holidayOnly
-                    ? 'Scholaxia Holiday Promo Classes'
-                    : 'Holiday packages first, then High School options',
+                    ? 'Single & Exam Prep plans'
+                    : 'Exam prep first, then Private & School lessons',
             style: TextStyle(
               color: context.textColor,
               fontSize: 23,
@@ -192,8 +193,8 @@ class ClassPackagesScreen extends StatelessWidget {
             kidsOnly
                 ? '$total packages for Nursery and Primary learners.'
                 : holidayOnly
-                    ? 'SS 1–3 and JSS 1–3 · 5 live sessions weekly.'
-                    : '$total packages — Holiday Classes are listed first.',
+                    ? 'Special Single Class, JAMB Prep and JAMB + WAEC/NECO Prep.'
+                    : '$total packages — pay securely with Paystack.',
             style: TextStyle(color: context.greyColor),
           ),
           const SizedBox(height: 18),

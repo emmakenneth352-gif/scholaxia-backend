@@ -208,7 +208,8 @@
       <div class="page-head">
         <h2>Study Coupons (Video Tutorials unlock)</h2>
         <button class="btn-sm" onclick="loadStudyCoupons()">Refresh</button>
-      </div>        <p class="page-desc">Issue codes that unlock <strong>Video Tutorials + Coding</strong> <em>without any payment</em>. Student types the code on the locked page and the lessons open. Codes can be reused N times, disabled anytime.</p>
+      </div>
+      <p class="page-desc">Issue codes that unlock one selected <strong>Video Tutorials</strong> category, or all categories, for the chosen duration. Students redeem codes on the Video Tutorials page.</p>
       <div class="panel" style="margin-bottom:16px">
         <h3>Students' tutorial access</h3>
         <div class="form-row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin:8px 0">
@@ -233,8 +234,9 @@
         <h3>Generate activation code</h3>
         <p style="font-size:0.8rem;color:#47546a;margin:0 0 8px">Code-only unlocking: each code opens ONE skill (or all skills) for the chosen duration — plans never unlock tutorials.</p>
         <div class="form-grid">
-          <label><span>Skill this code unlocks</span><select id="study-coupon-skill">
-            <option value="all">All skills (master code)</option>
+          <label><span>Category this code unlocks *</span><select id="study-coupon-skill" required>
+            <option value="" selected disabled>Select a category</option>
+            <option value="all">All categories (master code)</option>
             <option value="academics">Academics</option>
             <option value="web design">Web Design</option>
             <option value="app development">App Development</option>
@@ -1396,7 +1398,7 @@
 
 <script src="js/admin-api.js?v=20260903addq1"></script>
 <script src="js/admin-auth.js?v=20260902adminfix"></script>
-<script src="js/admin.js?v=20260928c"></script>
+<script src="js/admin.js?v=20261019studycategory1"></script>
 <script src="js/responsive.js?v=20260805e"></script>
 </body>
 </html>

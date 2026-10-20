@@ -1,0 +1,120 @@
+
+── 1. Exam bank ──
+  ✓ bank created
+  ✓ bank questions added
+
+── 2. Create exam (OFFLINE, display 3, total_mark 50, randomized) ──
+  ✓ exam created published
+  ✓ 3 questions picked from bank
+  ✓ students assigned via class
+  ✓ access codes generated
+  ✓ reg number format
+  ✓ access code format SCH-XXXX-XXXX
+
+── 3. Student exam login (§14) + brute-force protection ──
+  ✓ login returns student name
+  ✓ wrong code rejected (try 1)
+  ✓ wrong code rejected (try 2)
+  ✓ wrong code rejected (try 3)
+  ✓ wrong code rejected (try 4)
+  ✓ wrong code rejected (try 5)
+  ✓ correct code blocked while locked
+  ✓ login works again after unlock
+
+── 4. Assigned exams (§15) ──
+  ✓ sees exactly 1 exam
+  ✓ needs_download flagged for OFFLINE
+  ✓ meta fields present
+
+── 5. Download (§16/§17) — OFFLINE gate + no answers leaked ──
+  ✓ start blocked before download
+  ✓ download returns 3 questions
+  ✓ no correct answers in package
+  ✓ download verified
+
+── 6. Start attempt — server-side timer + randomization mapping ──
+  ✓ seconds_remaining ≈ duration
+  ✓ questions shown = 3 (display)
+  ✓ labels stay positional A–D
+  ✓ option content shuffled (download mapping)
+
+── 7. Save answers (labels mapped back server-side, §10/§21) ──
+  ✓ question matched to truth key
+  ✓ question matched to truth key
+  ✓ question matched to truth key
+  ✓ 3 answers saved via auto-save
+
+── 8. Offline batch sync + submit (§21/§23) ──
+  ✓ forged question id dropped, valid synced
+  ✓ offline submit ok
+  ✓ correct=3 marked
+  ✓ student submit hides score pre-publish
+
+── 9. Duplicate submit is idempotent ──
+  ✓ duplicate flagged
+
+── 9b. Access-code management (dedicated tab endpoints) ──
+  ✓ list_codes returns 2 slips
+  ✓ slip fields present
+  ✓ reset issues fresh code
+  ✓ fresh code logs in
+  ✓ old code dead after reset
+  ✓ directory is tenant-scoped
+
+── 9c. Schedule endpoints (decoupled from upload) ──
+  ✓ schedule lists the class exam
+  ✓ schedule row fields
+  ✓ reschedule closes the window
+  ✓ window reopens when scheduled now
+
+── 9d. Bank question upload per class+subject (CSV) ──
+  ✓ upload creates class bank
+  ✓ second upload appends to same bank
+
+── 9e. Class roster (Registered Students in Selected Class) ──
+  ✓ roster lists both students
+  ✓ roster shows subjects + reg number
+  ✓ roster has class exams
+
+── 9f. Register Student + Exam Students + Retake lookup (reference flow) ──
+  ✓ register options expose SS2 + subject
+  ✓ register issues reg number + code
+  ✓ registered student can log in
+  ✓ exam-students aggregate finds Ada
+  ✓ retake lookup by reg number
+
+── 9g. Schedule/save (reference: schedule IS the exam setup) ──
+  ✓ schedule save updates existing exam
+  ✓ subject without bank is reported
+  ✓ save applied duration + display count
+  ✓ clear keeps exams with submissions
+
+── 10. Result hidden until publish (§22) ──
+  ✓ student sees no result before publish
+  ✓ student results endpoint empty pre-publish
+
+── 11. Staff results + publish (§29) ──
+  ✓ staff sees 1 result
+  ✓ staff sees raw numbers
+  ✓ raw→total_mark mapping: 3/3 → 50/50
+  ✓ percentage 100 + grade A1
+  ✓ student sees published result
+
+── 12. Grant retake → student can start again ──
+  ✓ retake attempt started
+
+── 13. Tenant isolation (§30) ──
+  ✓ cross-student code rejected
+  ✓ student 2 sees the same exam
+  ✓ foreign attempt blocked
+  ✓ unknown exam 404
+
+── 14. Result upload per class (portal JSON pattern) ──
+  ✓ sheet saved
+  ✓ server computes total/percent/grade
+  ✓ failing grade computed
+  ✓ re-upload replaces sheet
+  ✓ class filter finds sheet
+  ✓ delete removes sheet
+
+════ RESULT: 78 passed, 0 failed ════

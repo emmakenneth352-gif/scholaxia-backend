@@ -579,63 +579,100 @@
   }
 
   function renderStudyGate(unlocked, info) {
-    var bannerHtml = "";
-    if (unlocked) {
-      bannerHtml =
-        '<div class="study-unlock-banner">🔓 ' +
-        esc((info && (info.all_unlocked ? "All skills" : "Activation code")) || "Activation code") +
-        " active — enter a new code below to unlock more skills</div>";
-    }
-    var anySkill = unlocked && !!(Object.keys(_skillAccess.skills || {}).length);
+    _skillAccess = info || _skillAccess;
+    var activeSkills = Object.keys(_skillAccess.skills || {}).some(function (skill) {
+      return _skillAccess.skills[skill] && _skillAccess.skills[skill].active;
+    });
+    var anySkill = !!(unlocked && (_skillAccess.all_unlocked || activeSkills));
     pickGateTags($("page-study-materials")).forEach(function (g) { g.hidden = !!anySkill; });
     pickGateTags($("page-library")).forEach(function (g) { g.hidden = !!anySkill; });
-    ["studyMaterialsList", "libraryGrid", "libToolbar", "lessonSearchWrap", "videosCatWrap"].forEach(function (id) {
-      var el = $(id);
-      if (!el) return;
-      if (anySkill) {
-        el.hidden = false;
-        if (bannerHtml && !el.dataset.gateBanner) {
-          el.insertAdjacentHTML("beforebegin", bannerHtml);
-          el.dataset.gateBanner = "1";
-        }
+    if (_videoCat === "all" && anySkill) {
+      var firstUnlockedSkill = STUDY_SKILL_OPTIONS.filter(function (item) {
+        return _skillAccess.all_unlocked ||
+          (_skillAccess.skills && _skillAccess.skills[item[0]] && _skillAccess.skills[item[0]].active);
+      })[0];
+      _videoCat = firstUnlockedSkill ? firstUnlockedSkill[0] : "academics";
+    }
+    var rows = $("studyCouponRows");
+    if (rows && !rows.dataset.rendered) {
+      rows.innerHTML =
+        '<div class="study-coupon-picker" role="group" aria-label="Choose tutorial category" style="display:flex;gap:0.5rem;overflow-x:auto;overscroll-behavior-x:contain;white-space:nowrap;padding:0.35rem 0 0.65rem;scrollbar-width:thin">' +
+        STUDY_SKILL_OPTIONS.map(function (item) {
+        var id = studySkillId(item[0]);
+        return '<button type="button" data-study-coupon-open="' + esc(item[0]) + '" aria-controls="studyCouponPanel-' + id + '" aria-expanded="false" style="flex:0 0 auto;padding:0.55rem 0.85rem;border:1px solid #ddd6fe;border-radius:999px;background:#fff;color:#312e81;font:inherit;font-size:0.9rem;font-weight:600;cursor:pointer">' +
+          esc(item[1]) + ' <span id="studyAccessStatus-' + id + '" style="font-size:0.75rem;color:#0a7d33"></span></button>';
+      }).join("") +
+        '</div>' +
+        STUDY_SKILL_OPTIONS.map(function (item) {
+          var id = studySkillId(item[0]);
+          return '<div class="study-coupon-row" id="studyCouponPanel-' + id + '" data-study-coupon-panel="' + esc(item[0]) + '" hidden>' +
+            '<div class="study-coupon-fields" data-study-code-fields>' +
+            '<input class="study-activation-input" id="studyCouponCode-' + id + '" data-study-coupon-code="' + esc(item[0]) + '" type="text" placeholder="Enter activation code" aria-label="Activation code for ' + esc(item[1]) + '" autocomplete="off" />' +
+            '<button type="button" class="btn btn-primary" data-study-coupon-redeem="' + esc(item[0]) + '">Redeem code</button>' +
+            '<span id="studyCouponMsg-' + id + '" role="status"></span>' +
+            '</div>' +
+            '<div class="form-field study-skill-search" data-study-search-wrap hidden>' +
+            '<label for="studyLessonSearch-' + id + '">Search ' + esc(item[1]) + ' tutorials</label>' +
+            '<input id="studyLessonSearch-' + id + '" data-study-search type="search" placeholder="Search by topic or tutor name…" autocomplete="off" />' +
+            '</div>' +
+            '</div>';
+      }).join("");
+      rows.dataset.rendered = "1";
+    }
+    STUDY_SKILL_OPTIONS.forEach(function (item) {
+      var id = studySkillId(item[0]);
+      var status = $("studyAccessStatus-" + id);
+      var panel = $("studyCouponPanel-" + id);
+      var active = _skillAccess.all_unlocked ||
+        (_skillAccess.skills && _skillAccess.skills[item[0]] && _skillAccess.skills[item[0]].active);
+      var selected = _videoCat === item[0];
+      var button = document.querySelector('[data-study-coupon-open="' + item[0] + '"]');
+      if (button) {
+        button.setAttribute("aria-expanded", selected ? "true" : "false");
+        button.style.background = selected ? "#ede9fe" : "#fff";
+        button.style.color = selected ? "#6d28d9" : "#312e81";
+      }
+      if (panel) {
+        panel.hidden = !selected;
+        panel.style.display = selected ? "flex" : "none";
+        var codeFields = panel.querySelector("[data-study-code-fields]");
+        var searchWrap = panel.querySelector("[data-study-search-wrap]");
+        if (codeFields) codeFields.hidden = !!active;
+        if (searchWrap) searchWrap.hidden = !(active && selected);
+      }
+      if (status) {
+        status.textContent = active ? "Unlocked" : "";
+        status.style.color = active ? "#0a7d33" : "";
       }
     });
-
-    // Redeem box — ALWAYS visible so students can add more skills later.
-    // MOBILE FIX: only sit INSIDE the big lock card when it is actually shown
-    // (i.e. nothing unlocked). Otherwise attach to the category chips row so
-    // the “Activation code required” card never blocks the tutorial list.
-    var sPage = $("page-study-materials");
-    if (sPage && !sPage.querySelector(".study-coupon-box")) {
-      var gate = sPage.querySelector(".study-gate");
-      var gateVisible = gate && !gate.hidden;
-      var host = gateVisible ? gate.querySelector(".study-gate-card") : $("videosCatWrap");
-      if (host) {
-        host.insertAdjacentHTML(
-          "beforeend",
-          '<div class="study-coupon-box" style="margin-top:0.9rem">' +
-            '<div class="form-field" style="margin:0;display:flex;gap:0.5rem">' +
-            '<input id="studyCouponCode" type="text" placeholder="Have a coupon code? Enter it here" ' +
-            'autocomplete="off" style="text-transform:uppercase" />' +
-            '<button type="button" class="btn btn-primary" id="studyCouponRedeemBtn">Redeem</button>' +
-            "</div>" +
-            '<p class="coupon-msg" id="studyCouponMsg" style="margin:0.45rem 0 0;color:#47546a;font-size:0.85rem"></p>' +
-            ((unlocked || anySkill) ? "" : "") +
-          "</div>"
-        );
-      }
-    }
   }
 
-  async function redeemStudyCoupon() {
-    var input = $("studyCouponCode");
-    var msg = $("studyCouponMsg");
-    var btn = $("studyCouponRedeemBtn");
+  var STUDY_SKILL_OPTIONS = [
+    ["academics", "Academics"],
+    ["web design", "Web Design"],
+    ["app development", "App Development"],
+    ["software development", "Software Development"],
+    ["digital marketing", "Digital Marketing"],
+    ["graphics design", "Graphics Design"],
+    ["cyber security", "Cyber Security"],
+    ["data analysis", "Data Analysis"],
+  ];
+
+  function studySkillId(skill) {
+    return skill.replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  }
+
+  async function redeemStudyCoupon(skill) {
+    var id = studySkillId(skill);
+    var input = $("studyCouponCode-" + id);
+    var msg = $("studyCouponMsg-" + id);
+    var btn = document.querySelector('[data-study-coupon-redeem="' + skill + '"]');
     if (!input || !msg) return;
     var code = (input.value || "").trim();
-    if (!code) { msg.textContent = "Enter a coupon code first."; return; }
+    if (!code) { msg.textContent = "Enter an activation code."; msg.style.color = "#b3261e"; return; }
     if (btn) { btn.disabled = true; btn.textContent = "Checking…"; }
     msg.textContent = "Checking code…";
+    msg.style.color = "#47546a";
     try {
       var res = await api.api("/api/v1/study-coupons/redeem", {
         method: "POST",
@@ -649,27 +686,64 @@
       });
       msg.textContent = (res && res.message) || "🎉 Code accepted!";
       msg.style.color = "#0a7d33";
-      // immediate unlock
+      input.value = "";
       _studyAccessPromise = null;
       var access = await fetchStudyAccess();
       renderStudyGate(!!(access && access.unlocked), access);
-      _skillAccess = access || _skillAccess;
       loadStudyMaterials();
     } catch (e2) {
       msg.textContent = (e2 && e2.message) || "Could not redeem this code.";
       msg.style.color = "#b3261e";
     } finally {
-      if (btn) { btn.disabled = false; btn.textContent = "Redeem"; }
+      if (btn) { btn.disabled = false; btn.textContent = "Redeem code"; }
     }
   }
 
   document.addEventListener("click", function (e) {
-    if (e.target && e.target.id === "studyCouponRedeemBtn") redeemStudyCoupon();
+    var openButton = e.target.closest && e.target.closest("[data-study-coupon-open]");
+    if (openButton) {
+      var category = openButton.getAttribute("data-study-coupon-open");
+      var root = openButton.closest("#studyCouponRows");
+      if (root) {
+        var wasOpen = openButton.getAttribute("aria-expanded") === "true";
+        root.querySelectorAll("[data-study-coupon-open]").forEach(function (button) {
+          button.setAttribute("aria-expanded", "false");
+          button.style.background = "#fff";
+          button.style.color = "#312e81";
+        });
+        root.querySelectorAll("[data-study-coupon-panel]").forEach(function (panel) {
+          panel.hidden = true;
+          panel.style.display = "none";
+        });
+        _videoCat = category || "all";
+        if (!wasOpen) {
+          openButton.setAttribute("aria-expanded", "true");
+          openButton.style.background = "#ede9fe";
+          openButton.style.color = "#6d28d9";
+          var panel = root.querySelector('[data-study-coupon-panel="' + category + '"]');
+          if (panel) {
+            panel.hidden = false;
+            panel.style.display = "flex";
+            var active = skillUnlocked(category);
+            var codeFields = panel.querySelector("[data-study-code-fields]");
+            var searchWrap = panel.querySelector("[data-study-search-wrap]");
+            if (codeFields) codeFields.hidden = active;
+            if (searchWrap) searchWrap.hidden = !active;
+            var input = panel.querySelector(active ? "[data-study-search]" : "[data-study-coupon-code]");
+            if (input) input.focus();
+          }
+        }
+        applyVideoChips();
+      }
+      return;
+    }
+    var button = e.target.closest && e.target.closest("[data-study-coupon-redeem]");
+    if (button) redeemStudyCoupon(button.getAttribute("data-study-coupon-redeem"));
   });
   document.addEventListener("keydown", function (e) {
-    if (e.target && e.target.id === "studyCouponCode" && e.key === "Enter") {
+    if (e.target && e.target.hasAttribute("data-study-coupon-code") && e.key === "Enter") {
       e.preventDefault();
-      redeemStudyCoupon();
+      redeemStudyCoupon(e.target.getAttribute("data-study-coupon-code"));
     }
   });
 
@@ -686,11 +760,7 @@
 
   var lessonVideosCache = [];
 
-  /* =====================================================================
-     VIDEO TUTORIALS — one page with category chips.
-     Chips: All · Academics (school subjects) · the 7 skill categories.
-     Admin marks a video's category with the skill name (e.g. "Web Design").
-     ===================================================================== */
+  /* Video categories are used to show only lessons for the selected, unlocked skill. */
 
   var VIDEO_SKILL_CATS = [
     "web design",
@@ -705,11 +775,13 @@
 
   function videoCategoryOf(it) {
     // Admin-assigned category wins when present (upload form now sends it)
+    var savedCategory = "academics";
     if (it && it.category) {
       var c = String(it.category).toLowerCase().trim();
-      if (c === "academics" || VIDEO_SKILL_CATS.indexOf(c) >= 0) return c;
+      if (VIDEO_SKILL_CATS.indexOf(c) >= 0) return c;
+      if (c === "academics") savedCategory = c;
     }
-    var blob = [it.subject, it.topic, it.tags, it.title, it.exam_type]
+    var blob = [it.category, it.subject, it.topic, it.tags, it.title, it.exam_type]
       .filter(Boolean)
       .join(" ")
       .toLowerCase();
@@ -723,7 +795,7 @@
         if (blob.indexOf(words[0]) >= 0) return cat;
       }
     }
-    return "academics";
+    return savedCategory;
   }
 
   function renderLessonVideos(items) {
@@ -733,8 +805,8 @@
       wrap.innerHTML = emptyHtml(
         "▶",
         _videoCat === "all"
-          ? "No video tutorials yet. Admin posts YouTube lessons under Video Tutorials. PDF Lesson Notes are in Library."
-          : "No tutorials in this category yet — check back soon or try another category."
+          ? "No video tutorials are available yet. PDF lesson notes are available in the Library."
+          : "No tutorials are available for this skill yet. Please check back soon."
       );
       return;
     }
@@ -766,11 +838,14 @@
   }
 
   function applyVideoChips() {
-    var q = (($("lessonNotesSearch") && $("lessonNotesSearch").value) || "").trim().toLowerCase();
+    var search = _videoCat !== "all"
+      ? document.querySelector('[data-study-coupon-panel="' + _videoCat + '"] [data-study-search]')
+      : null;
+    var q = ((search && search.value) || "").trim().toLowerCase();
     var items = lessonVideosCache.filter(function (it) {
       var cat = videoCategoryOf(it);
       if (_videoCat !== "all" && cat !== _videoCat) return false;
-      // Per-skill activation: a chip's videos stay hidden until that skill is unlocked.
+      // Per-skill activation keeps locked tutorials hidden.
       if (!skillUnlocked(cat)) return false;
       if (!q) return true;
       var blob = [
@@ -812,20 +887,11 @@
   }
 
   document.addEventListener("input", function (e) {
-    if (e.target && e.target.id === "lessonNotesSearch") applyVideoChips();
+    if (e.target && e.target.matches && e.target.matches("[data-study-search]")) applyVideoChips();
     if (e.target && e.target.id === "libSearch") return; // handled by renderLibrary below
   });
 
   document.addEventListener("click", function (e) {
-    var chip = e.target.closest("#videosCatWrap .tab[data-vcat]");
-    if (chip) {
-      var wrap = $("videosCatWrap");
-      if (wrap) wrap.querySelectorAll(".tab").forEach(function (t) { t.classList.remove("is-active"); });
-      chip.classList.add("is-active");
-      _videoCat = chip.getAttribute("data-vcat") || "all";
-      applyVideoChips();
-      return;
-    }
     if (e.target.closest("#libReaderClose")) {
       closeLibraryReader();
       return;
@@ -2610,6 +2676,36 @@
       wrong_count: res.wrong_count != null ? res.wrong_count : lastExamReview ? lastExamReview.length : 0,
       attempt_id: res.attempt_id || (st && st.practiceAttemptId),
     };
+    var resultSubjects = [];
+    (st && st.sections || []).forEach(function (section) {
+      var subject = String(section && section.subject || "").trim();
+      if (subject && resultSubjects.indexOf(subject) < 0) resultSubjects.push(subject);
+    });
+    var scoredSubjects = res.per_subject_scores || res.by_subject;
+    if (resultSubjects.length <= 1 && scoredSubjects && typeof scoredSubjects === "object") {
+      var scoredSubjectNames = Object.keys(scoredSubjects).filter(function (subject) {
+        return subject && resultSubjects.indexOf(subject) < 0;
+      });
+      if (scoredSubjectNames.length > 1) resultSubjects = resultSubjects.concat(scoredSubjectNames);
+    }
+    var resultExamLabel = resultSubjects.length > 1
+      ? (st.examType || "CBT") + " · " + resultSubjects.join(", ") + " (" + resultSubjects.length + " subjects)"
+      : st ? st.title : "";
+    var encouragement = $("resultEncouragement");
+    if (encouragement) {
+      encouragement.hidden = false;
+      if (res.unscored) {
+        encouragement.textContent = "Great job completing your exam. Review your answers and keep practicing.";
+      } else if (res.rating_message) {
+        encouragement.textContent = String(res.rating_message);
+      } else if (pct != null && Number(pct) >= 80) {
+        encouragement.textContent = "Excellent work! Your preparation is paying off—keep it up.";
+      } else if (pct != null && Number(pct) >= 50) {
+        encouragement.textContent = "Good effort! Review the questions you missed and keep practicing—you're making progress.";
+      } else {
+        encouragement.textContent = "Every attempt is a chance to learn. Review your answers, focus on the topics you missed, and try again—you can improve.";
+      }
+    }
 
     // Owner spec §22/§25: school-exam scores stay hidden until the school
     // publishes — the student sees a confirmation instead of a score.
@@ -2620,7 +2716,8 @@
     if (schoolResultHidden) {
       $("resultRing").textContent = "✓";
       $("resultTitle").textContent = "Exam submitted successfully";
-      $("resultSub").textContent = st ? st.title : "";
+      $("resultSub").textContent = resultExamLabel;
+      if (encouragement) encouragement.hidden = true;
       $("resultStats").innerHTML =
         '<div style="grid-column:1/-1;text-align:center;padding:8px 4px">' +
         "Your examination has been submitted. Your result will be available " +
@@ -2632,7 +2729,7 @@
     } else {
     $("resultRing").textContent = pct != null ? pct + "%" : "—";
     $("resultTitle").textContent = res.unscored ? "Exam submitted" : "Exam completed";
-    $("resultSub").textContent = st ? st.title : "";
+    $("resultSub").textContent = resultExamLabel;
     $("resultStats").innerHTML =
       '<div><strong>' +
       (score != null ? score : "—") +

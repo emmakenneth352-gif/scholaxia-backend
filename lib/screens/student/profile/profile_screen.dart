@@ -145,8 +145,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _logout() async {
     if (_loggingOut) return;
     if (mounted) setState(() => _loggingOut = true);
-    await _api.clearTokens();
-    await ProfileAvatarCache.instance.clear();
+    // Clear local session, then ALWAYS leave — sign-out must never hang on a
+    // stuck pref or a locked avatar file (Windows keeps the JPG open while
+    // this screen shows it). Errors here are non-fatal by design.
+    try {
+      await _api.clearTokens().timeout(const Duration(seconds: 5));
+    } catch (_) {}
+    try {
+      await ProfileAvatarCache.instance.clear().timeout(const Duration(seconds: 3));
+    } catch (_) {}
     if (!mounted) return;
     Navigator.pushAndRemoveUntil(
       context,

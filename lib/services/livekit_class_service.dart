@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:livekit_client/livekit_client.dart';
 
+import 'screen_share_native.dart';
+
 /// Manages a LiveKit room for live class video/audio.
 class LiveKitClassService {
   LiveKitClassService({
@@ -247,6 +249,22 @@ class LiveKitClassService {
   Future<void> setScreenShareEnabled(bool enabled, {String? sourceId}) async {
     error = null;
     try {
+      if (enabled && !kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        // Android 14+ order: consent dialog -> foreground service -> publish.
+        final consent = await ScreenShareNative.requestConsent();
+        if (!consent) {
+          screenShareOn = false;
+          onChanged();
+          return;
+        }
+        final fgs = await ScreenShareNative.start();
+        if (!fgs) {
+          error = 'Could not start screen sharing service';
+          screenShareOn = false;
+          onChanged();
+          return;
+        }
+      }
       final local = room?.localParticipant;
       if (enabled && sourceId != null && sourceId.isNotEmpty) {
         // Desktop: a specific screen/window was chosen from the picker.
@@ -259,11 +277,17 @@ class LiveKitClassService {
         await local?.setScreenShareEnabled(enabled);
       }
       screenShareOn = enabled;
+      if (!enabled && !kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        await ScreenShareNative.stop();
+      }
       _scanLocal();
       _rescanAll();
     } catch (e) {
       error = e.toString();
       screenShareOn = false;
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        await ScreenShareNative.stop();
+      }
     }
     onChanged();
   }
@@ -293,6 +317,9 @@ class LiveKitClassService {
     studentCameras.clear();
     screenShareOn = false;
     connected = false;
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      unawaited(ScreenShareNative.stop());
+    }
   }
 
   void dispose() {

@@ -67,6 +67,16 @@ async def practice_bank(
     current_user: dict = Depends(require_student),
 ):
     """Proxy Scholaxia CBT question bank (avoids browser CORS blocks)."""
+    return await _load_practice_bank(category)
+
+
+@router.get("/practice-bank/guest/{category}")
+async def guest_practice_bank(category: str):
+    """Public question-bank feed for local-only guest CBT practice."""
+    return await _load_practice_bank(category)
+
+
+async def _load_practice_bank(category: str):
     cat = category.strip().upper()
     if cat not in {"JAMB", "WAEC", "NECO", "POST_UTME", "POST-UTME"}:
         raise HTTPException(status_code=400, detail="category must be JAMB, WAEC, NECO, or POST_UTME")

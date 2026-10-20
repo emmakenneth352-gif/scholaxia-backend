@@ -1,0 +1,12 @@
+
+Could not expose app version TypeError: Cannot read properties of undefined (reading 'exposeInMainWorld')
+    at exposeVersion (C:\Users\EMMA\Scholaxia1-1\scholaxia-desktop\main.js:135:19)
+    at Object.<anonymous> (C:\Users\EMMA\Scholaxia1-1\scholaxia-desktop\main.js:141:3)
+    at Module._compile (node:internal/modules/cjs/loader:1271:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1326:10)
+    at Module.load (node:internal/modules/cjs/loader:1126:32)
+    at Module._load (node:internal/modules/cjs/loader:967:12)
+    at c._load (node:electron/js2c/node_init:2:13672)
+    at ModuleWrap.<anonymous> (node:internal/modules/esm/translators:171:29)
+    at ModuleJob.run (node:internal/modules/esm/module_job:194:25)
+[Scholaxia] desktop running version 1.0.5 from C:\Users\EMMA\Scholaxia1-1\scholaxia-desktop\node_modules\electron\dist\electron.exe

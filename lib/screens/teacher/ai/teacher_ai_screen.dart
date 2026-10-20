@@ -21,9 +21,11 @@ class _TeacherAiScreenState extends State<TeacherAiScreen> {
   final _scrollCtrl = ScrollController();
   final _messages = <_AiMsg>[];
   bool _loading = false;
-  bool _voiceOn = true;
+  bool _voiceOn = false; // teacher taps 🔊 to hear a reply — no auto-read
   int _unread = 0;
   String? _teacherName;
+
+  final GlobalKey _lastMsgKey = GlobalKey();
 
   @override
   void initState() {
@@ -117,8 +119,20 @@ class _TeacherAiScreenState extends State<TeacherAiScreen> {
   }
 
   void _scrollToEnd() {
+    // When a new AI reply lands, align its TOP with the top of the screen —
+    // read downwards naturally instead of being dropped at the bottom of a
+    // long answer and forced to scroll back up.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollCtrl.hasClients) {
+      if (!mounted) return;
+      final ctx = _lastMsgKey.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          alignment: 0.0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      } else if (_scrollCtrl.hasClients) {
         _scrollCtrl.jumpTo(_scrollCtrl.position.maxScrollExtent);
       }
     });
@@ -304,7 +318,13 @@ class _TeacherAiScreenState extends State<TeacherAiScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 20, vertical: 8),
                       itemCount: _messages.length,
-                      itemBuilder: (_, i) => _bubble(context, _messages[i]),
+                      // Tag the newest message so _scrollToEnd aligns its top.
+                      itemBuilder: (_, i) {
+                        final child = _bubble(context, _messages[i]);
+                        return i == _messages.length - 1
+                            ? KeyedSubtree(key: _lastMsgKey, child: child)
+                            : child;
+                      },
                     ),
             ),
             if (_loading)

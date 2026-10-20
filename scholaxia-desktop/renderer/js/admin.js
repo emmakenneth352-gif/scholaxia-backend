@@ -3917,8 +3917,12 @@ async function generateStudyCoupons() {
   var uses = parseInt((document.getElementById("study-coupon-uses") || {}).value || "1", 10) || 1;
   var days = parseInt((document.getElementById("study-coupon-days") || {}).value || "365", 10) || 365;
   var accessDays = parseInt((document.getElementById("study-coupon-access-days") || {}).value || "30", 10) || 30;
-  var skill = ((document.getElementById("study-coupon-skill") || {}).value || "all");
+  var skill = ((document.getElementById("study-coupon-skill") || {}).value || "").trim();
   var note = ((document.getElementById("study-coupon-note") || {}).value || "").trim();
+  if (!skill) {
+    if (msg) msg.textContent = "Select the category this code should unlock.";
+    return;
+  }
   if (msg) msg.textContent = "Generating…";
   try {
     var d = await adminApi("/api/v1/study-coupons/admin/create", {
@@ -3926,6 +3930,8 @@ async function generateStudyCoupons() {
       body: JSON.stringify({ count: count, max_uses: uses, days_valid: days, access_days: accessDays, skill: skill, note: note }),
     });
     if (msg) msg.textContent = "Generated for " + (STUDY_SKILL_LABELS[d.skill || skill] || skill) + ", " + accessDays + " days access: " + (d.codes || []).join(", ");
+    var skillSelect = document.getElementById("study-coupon-skill");
+    if (skillSelect) skillSelect.value = "";
     loadStudyCoupons();
   } catch (e) {
     if (msg) msg.textContent = e.message;
@@ -4047,6 +4053,7 @@ async function createKindAdminVideo() {
 async function createAdminVideo() {
   var msg = document.getElementById("vid-msg");
   try {
+    var categorySelect = document.getElementById("vid-category");
     await adminApi("/api/v1/admin/videos", {
       method: "POST",
       body: JSON.stringify({
@@ -4054,6 +4061,7 @@ async function createAdminVideo() {
         subject: (document.getElementById("vid-subject").value || "General").trim(),
         tutor_name: (document.getElementById("vid-tutor") && document.getElementById("vid-tutor").value || "").trim(),
         video_url: (document.getElementById("vid-url").value || "").trim(),
+        category: (categorySelect && categorySelect.value || "academics").trim(),
         audience: "student",
       }),
     });

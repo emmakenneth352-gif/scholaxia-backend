@@ -1,0 +1,10 @@
+
+> scholaxia-desktop@1.0.5 build:installer
+> electron-builder --win nsis portable --x64
+
+  • electron-builder  version=24.13.3 os=10.0.19045
+  • loaded configuration  file=package.json ("build" field)
+  • packaging       platform=win32 arch=x64 electron=28.3.3 appOutDir=dist\win-unpacked
+  • building        target=nsis file=dist\Scholaxia-Student-Setup-1.0.5.exe archs=x64 oneClick=false perMachine=false
+  • building block map  blockMapFile=dist\Scholaxia-Student-Setup-1.0.5.exe.blockmap
+  • building        target=portable file=dist\Scholaxia-Student-Portable-1.0.5.exe archs=x64

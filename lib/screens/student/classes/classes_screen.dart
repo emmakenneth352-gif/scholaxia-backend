@@ -303,7 +303,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
             ),
             icon: const Icon(Icons.school_rounded, size: 20),
             label: const Text(
-              'Scholaxia Holiday Promo Classes',
+              'Live Class Plans',
               style: TextStyle(fontWeight: FontWeight.w800),
             ),
             style: ElevatedButton.styleFrom(
@@ -318,7 +318,7 @@ class _ClassesScreenState extends State<ClassesScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'SS Science, Art & Commercial — ₦11,000 · JSS — ₦10,500',
+            'Special Single Class ₦5,000 · JAMB Prep ₦10,000 · JAMB + WAEC/NECO ₦15,000',
             textAlign: TextAlign.center,
             style: TextStyle(color: ctx.greyColor, fontSize: 11),
           ),

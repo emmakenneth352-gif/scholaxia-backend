@@ -8,7 +8,7 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30"/>
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
-    <!-- Screen sharing (MediaProjection) needs a foreground service -->
+    <!-- Screen sharing (MediaProjection) needs a foreground service on Android 14+ -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
@@ -40,9 +40,11 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <!-- Foreground service used by flutter_webrtc/LiveKit for screen capture -->
+        <!-- Foreground service required on Android 14+ while MediaProjection
+             screen sharing is active. Started AFTER the user grants the
+             system screen-capture consent dialog (see MainActivity). -->
         <service
-            android:name="com.cloudwebrtc.webrtc.ScreenCapturerService"
+            android:name=".ScreenShareForegroundService"
             android:foregroundServiceType="mediaProjection"
             android:exported="false" />
         <!-- Don't delete the meta-data below.
@@ -63,6 +65,11 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- On-device speech recognition (speech_to_text) needs to SEE the
+             recognition service on Android 11+ or initialize() always fails. -->
+        <intent>
+            <action android:name="android.speech.RecognitionService"/>
         </intent>
     </queries>
 </manifest>

@@ -66,12 +66,14 @@ class _KindCbtScreenState extends State<KindCbtScreen> {
   /// Show "English Language / Verbal Reasoning", never "COMMON_ENTRANCE …Question Bank".
   String _cleanTitle(String raw) {
     var t = raw.trim();
-    if (t.toLowerCase().startsWith('common_entrance')) {
+    final lower = t.toLowerCase();
+    if (lower.startsWith('common_entrance')) {
       t = t.substring('common_entrance'.length);
-    } else if (t.toLowerCase().startsWith('common entrance')) {
+    } else if (lower.startsWith('common entrance')) {
       t = t.substring('common entrance'.length);
     }
-    t = t.replaceAll('_question_bank', ' ').replaceAll('question bank', ' ');
+    // Case-insensitive strip of any "Question Bank" suffix (any case).
+    t = t.replaceAll(RegExp(r'_?question[_ ]bank', caseSensitive: false), ' ');
     t = t.replaceAll('_', ' ').trim();
     return t.isEmpty ? 'Practice' : t;
   }

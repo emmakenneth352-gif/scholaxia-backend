@@ -1,0 +1,34 @@
+[PASS] school-features endpoint 200 — 200
+[PASS] 11 features in catalog — got 11
+[PASS] cbt feature present
+[PASS] school register 201 — {"school_id":"f7a0d906-9da8-45bf-b85e-42cfa3664c1b","slug":"pass-seven-academy-066491","custom_domain":null,"live_setup":{"model":"admin_hosted_domain","status":"pending_review","note":"The Scholaxia 
+[PASS] requested_features echoed — ['attendance', 'cbt', 'fees', 'results']
+[PASS] invalid feature rejected 422 — 422
+[PASS] platform admin login — {"access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4MTQ2OTMyNC0xOGRhLTQ1MTUtOGE2Ni05YzIwNjg1MTQ2ODYiLCJyb2xlIjoiYWRtaW4iLCJleHAiOjE3OTE2
+[PASS] school approved — {"school_id":"f7a0d906-9da8-45bf-b85e-42cfa3664c1b","approval_status":"approved","custom_domain":null,"live_setup_note":"School approved. Once its own
+[PASS] school admin login — {"access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjZWMxNjRhNS0zMjExLTQyODctYTQ3My1jNzhjNWU3NzE5MDIiLCJyb2xlIjoic2Nob29sX2FkbWluIiwiZXhw
+[PASS] exam student register 201 — {"student_id":"7627a50b-c855-4f5d-9e22-9f571a31e86a","full_name":"Ada Obi","class_name":"JSS1","exams_assigned":0,"subjects":[],"requested_subjects":["ALL"],"reg_number":"PSA/26/780777","access_code":
+[PASS] reg_number present — PSA/26/780777
+[PASS] access_code present immediately — SCH-W6D3-CMTN
+[PASS] reg pattern is CODE/YY/NNNNNN — PSA/26/780777
+[PASS] reg prefix is school-derived (not SCHX) — PSA/26/780777
+[PASS] second student different reg — PSA/26/780777 vs PSA/26/697986
+[PASS] bank created — {"id":"045be809-65bc-459a-937b-343b4b6b795e","name":"BS JSS1","question_count":0}
+[PASS] 5 questions added — {"added":5,"ids":["f9cc8efa-532f-4538-9509-a384beda082d","b614e39a-3588-4d1a-a524-7ea054a729cf","c3cd8afc-874e-4c2f-b658
+[PASS] schedule saved — {"ok":true,"class_name":"JSS1","created":1,"updated":0,"removed":0,"missing_questions":[]}
+[PASS] 1 exam created — {'ok': True, 'class_name': 'JSS1', 'created': 1, 'updated': 0, 'removed': 0, 'missing_questions': []}
+[PASS] student login with registration slip credentials — {"access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3NjI3YTUwYi1jODU1LTRmNWQtOWUyMi05ZjU3MWEzMWU4NmEiLCJyb2xlIjoic3R1ZGVudCIsImV4cCI6MTc5MTEzMTI5NCwidHlwZSI6ImFjY2VzcyIsInN2IjotMSwic2NvcG
+[PASS] my-exams lists scheduled exam — {"student":"Ada Obi","exams":[{"id":"3a0e8219-4764-488c-ab27-214a7b2d601e","title":"Basic Science — JSS1","subject":"Basic Science","class_name":"JSS1","session":null,"term":null,"questions":5,"questi
+[PASS] start exam 200 — {"attempt_id":"40fd2c00-44a1-4407-8d0f-6e15911059aa","exam":{"id":"3a0e8219-4764-488c-ab27-214a7b2d601e","title":"Basic Science — JSS1","subject":"Bas
+[PASS] 5 questions served — 5
+[PASS] 5 answers saved
+[PASS] submit exam 200 — {"ok":true,"already_submitted":false,"sync_status":"synced","summary":{"total_questions":5,"answered":5,"correct":3,"wrong":2,"raw_score":3.0,"total_m
+[PASS] score computed (3 of 5 correct) — {"ok": true, "already_submitted": false, "sync_status": "synced", "summary": {"total_questions": 5, "answered": 5, "correct": 3, "wrong": 2, "raw_scor
+[PASS] candidate register 201 — {"id":"24d965a2-a5a2-4c06-b3de-9bf157a8837d","school_name":"Pass Seven Academy 066491","class_name":"JSS1","full_name":"Ngozi Candidate","email":null,"phone":null,"rec_number":"PSA/26/611607","candida
+[PASS] candidate reg_number uses new pattern — PSA/26/611607
+[PASS] candidate access_code present — SCH-NW9Q-HUEV
+[PASS] CANDIDATE credentials work at exam login (THE FIX) — {"access_token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1NDhmNjhmMy0zYzc4LTQ3YjAtYTllMC1iYmVhZTBlYzBmNzQiLCJyb2xlIjoic3R1ZGVudCIsImV4cCI6MTc5MTEzMTI5NiwidHlwZSI6ImFjY2VzcyIsInN2IjotMSwic2NvcG
+[PASS] candidate sees the scheduled exam — {"student":"Ngozi Candidate","exams":[{"id":"3a0e8219-4764-488c-ab27-214a7b2d601e","title":"Basic Science — JSS1","subject":"Basic Science","class_nam
+[PASS] slip reprint shows same credentials — {"id":"24d965a2-a5a2-4c06-b3de-9bf157a8837d","school_name":"Pass Seven Academy 066491","class_name":"JSS1","full_name":"Ngozi Candidate","email":null,
+
+✓ ALL PASS 7 CHECKS PASSED

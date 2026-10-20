@@ -7,11 +7,14 @@ import '../../../services/cbt_offline_store.dart';
 import '../../../theme/app_theme.dart';
 import 'cbt_result_screen.dart';
 
-/// Runs a board practice attempt (JAMB / WAEC / NECO).
-/// - Subject tabs like the desktop app; each subject loads ONLY its own board bank.
-/// - First online load caches every opened subject for offline use.
-/// - Offline: cached subjects play and score locally; new questions sync when
-///   the device is back online (auto-refresh on start).
+/// Runs a board practice attempt (JAMB / WAEC / NECO / Junior WAEC).
+/// - On open, every subject's paper is downloaded once ("Synchronizing…") so
+///   the whole attempt then plays offline.
+/// - Answering the last question of a subject auto-advances to the next one,
+///   like the desktop app — no manual subject hunting.
+/// - Subjects the bank has no questions for are skipped gracefully.
+/// - Submit tries server scoring first, then falls back to on-device scoring.
+/// - Review works offline from the cached questions + answer key.
 class CbtPracticeRunnerScreen extends StatefulWidget {
   const CbtPracticeRunnerScreen({
     super.key,
@@ -33,7 +36,8 @@ class _SectionQ {
   final List<String> options;
   final String? topic;
   final String? imageUrl;
-  final String? correctKey; // kept locally for offline scoring only
+  final String? correctKey; // kept locally for offline scoring/review only
+  final String? explanation;
 
   const _SectionQ({
     required this.id,
@@ -42,6 +46,7 @@ class _SectionQ {
     this.topic,
     this.imageUrl,
     this.correctKey,
+    this.explanation,
   });
 
   factory _SectionQ.from(Map q) {
@@ -56,6 +61,7 @@ class _SectionQ {
       topic: q['topic']?.toString(),
       imageUrl: q['image_url']?.toString(),
       correctKey: q['correct_key']?.toString(),
+      explanation: q['explanation']?.toString(),
     );
   }
 
@@ -69,6 +75,7 @@ class _SectionQ {
         'topic': topic,
         'image_url': imageUrl,
         'correct_key': correctKey,
+        'explanation': explanation,
       };
 }
 
@@ -86,12 +93,18 @@ class _CbtPracticeRunnerScreenState extends State<CbtPracticeRunnerScreen> {
   String? _sectionError;
   bool _offline = false;
 
+  // Sync progress: [downloaded count, total subjects]
+  int _syncedCount = 0;
+  final Set<int> _synced = {};
+  final Map<int, String> _syncErrors = {};
+
   List<_SectionQ> _questions = [];
   final Map<String, String> _answers = {}; // qid -> A/B/C/D
   int _current = 0; // 0-based
   bool _submitting = false;
 
   String get _cacheKey => 'attempt:$_attemptId:$_section';
+  bool get _syncing => _synced.length < _subjects.length;
 
   @override
   void initState() {
@@ -106,7 +119,7 @@ class _CbtPracticeRunnerScreenState extends State<CbtPracticeRunnerScreen> {
     _secondsLeft = (left == null || left <= 0) ? dur * 60 : left;
     _restoreLocalAnswers();
     _startTimer();
-    _openSection(0);
+    _syncAllSections();
   }
 
   @override
@@ -137,16 +150,75 @@ class _CbtPracticeRunnerScreenState extends State<CbtPracticeRunnerScreen> {
     }
   }
 
-  Future<void> _persistAnswersLocally() async {
-    await _store.savePack('attempt:$_attemptId:answers', {'answers': _answers});
+  /// Fill every subject's paper — but check the device cache FIRST so a
+  /// student who already downloaded this attempt opens instantly (no
+  /// "Synchronizing…" every time). Only uncached sections hit the network.
+  Future<void> _syncAllSections() async {
+    if (!mounted) return;
+    setState(() {
+      _sectionError = null;
+      _offline = false;
+    });
+    for (var i = 0; i < _subjects.length; i++) {
+      if (!mounted) return;
+      // 1) Cached from a previous run/session? Use it, skip the download.
+      final cached = await _store.loadPack('attempt:$_attemptId:$i');
+      if (cached != null &&
+          (cached['questions'] as List?)?.isNotEmpty == true) {
+        setState(() => _synced.add(i));
+        continue;
+      }
+      // 2) Not cached — download now so the attempt plays offline later.
+      try {
+        final sec = await _api.cbtPracticeSection(_attemptId, i);
+        await _store.savePack('attempt:$_attemptId:$i',
+            Map<String, dynamic>.from(sec));
+        if (!mounted) return;
+        setState(() => _synced.add(i));
+      } catch (e) {
+        if (!mounted) return;
+        setState(() => _syncErrors[i] = _friendly(e));
+      }
+    }
+    if (!mounted) return;
+    final okSections = <int>[
+      for (var i = 0; i < _subjects.length; i++)
+        if (_synced.contains(i) && ((_pack(i)?['total'] as num?)?.toInt() ?? 0) > 0)
+          i,
+    ];
+    if (okSections.isEmpty) {
+      // Nothing downloaded — surface the first error.
+      setState(() {
+        _loadingSection = false;
+        _sectionError = _syncErrors.isEmpty
+            ? 'Could not download questions. Check your internet and try again.'
+            : _syncErrors.values.first;
+      });
+      return;
+    }
+    setState(() => _offline = _syncErrors.isNotEmpty);
+    await _openSection(okSections.first);
   }
 
-  /// Load the active subject section: cache-first, then network (auto-sync).
+  Map<String, dynamic>? _pack(int index) =>
+      _store.peekCached('attempt:$_attemptId:$index');
+
+  String _friendly(Object e) {
+    final msg = e.toString();
+    if (msg.contains('No practice questions available yet') ||
+        msg.contains('No questions in bank')) {
+      return 'No practice questions have been published for this subject yet.';
+    }
+    return msg;
+  }
+
+  /// Load the active subject section from the downloaded cache.
   Future<void> _openSection(int index, {bool forceOnline = false}) async {
     if (index < 0 || index >= _subjects.length) return;
     setState(() {
       _section = index;
       _sectionError = null;
+      _loadingSection = true;
     });
 
     final cached = await _store.loadPack(_cacheKey);
@@ -155,7 +227,6 @@ class _CbtPracticeRunnerScreenState extends State<CbtPracticeRunnerScreen> {
       if (!forceOnline) return;
     }
 
-    if (forceOnline) setState(() => _loadingSection = true);
     try {
       final sec = await _api.cbtPracticeSection(_attemptId, index);
       await _store.savePack(_cacheKey, Map<String, dynamic>.from(sec));
@@ -177,7 +248,7 @@ class _CbtPracticeRunnerScreenState extends State<CbtPracticeRunnerScreen> {
       }
       setState(() {
         _loadingSection = false;
-        _sectionError = e.toString();
+        _sectionError = _friendly(e);
       });
     }
   }
@@ -192,6 +263,7 @@ class _CbtPracticeRunnerScreenState extends State<CbtPracticeRunnerScreen> {
       _questions = qs;
       _current = 0;
       _offline = fromCache ? _offline : false;
+      if (!qs.isEmpty) _loadingSection = false;
     });
   }
 
@@ -209,6 +281,28 @@ class _CbtPracticeRunnerScreenState extends State<CbtPracticeRunnerScreen> {
     });
     _persistAnswersLocally();
     _saveOnline();
+    // Desktop behaviour: answering the last question of a subject moves to the
+    // next subject automatically; at the very end, offer submit.
+    if (_current >= _questions.length - 1 && _answers.containsKey(q.id)) {
+      _advanceOrOfferSubmit();
+    }
+  }
+
+  void _advanceOrOfferSubmit() {
+    var next = _section + 1;
+    while (next < _subjects.length &&
+        ((_pack(next)?['total'] as num?)?.toInt() ?? 0) == 0) {
+      next++; // skip subjects with no questions
+    }
+    if (next < _subjects.length) {
+      _openSection(next);
+    } else {
+      _confirmSubmit();
+    }
+  }
+
+  Future<void> _persistAnswersLocally() async {
+    await _store.savePack('attempt:$_attemptId:answers', {'answers': _answers});
   }
 
   Future<void> _saveOnline() async {
@@ -232,8 +326,11 @@ class _CbtPracticeRunnerScreenState extends State<CbtPracticeRunnerScreen> {
         if (!mounted) return;
         final score = (res['score'] as num?)?.toDouble() ?? 0;
         final max = (res['max_score'] as num?)?.toDouble() ?? 0;
-        final pct = max > 0 ? score / max * 100 : 0.0;
+        final pct = (res['percent'] as num?)?.toDouble() ??
+            (max > 0 ? score / max * 100 : 0.0);
         final wrong = (res['wrong_count'] as num?)?.toInt() ?? 0;
+        await _store.savePack('attempt:$_attemptId:review',
+            {'full_review': res['full_review']});
         await _store.deletePack('attempt:$_attemptId:answers');
         Navigator.pushReplacement(
           context,
@@ -245,7 +342,17 @@ class _CbtPracticeRunnerScreenState extends State<CbtPracticeRunnerScreen> {
                 percentage: pct,
                 totalCorrect: score.toInt(),
                 totalWrong: wrong,
+                scoreDisplay: res['score_display']?.toString(),
+                rating: res['rating']?.toString(),
+                ratingMessage: res['rating_message']?.toString(),
+                perSubjectScores: res['per_subject_scores'] is Map
+                    ? (res['per_subject_scores'] as Map).map(
+                        (k, v) => MapEntry(
+                            k.toString(), (v as num?)?.toDouble() ?? 0),
+                      )
+                    : const {},
               ),
+              attemptId: _attemptId,
             ),
           ),
         );
@@ -283,7 +390,39 @@ class _CbtPracticeRunnerScreenState extends State<CbtPracticeRunnerScreen> {
             totalWrong: total - correct < 0 ? 0 : total - correct,
             weakTopics: weak.toList(),
           ),
+          attemptId: _attemptId,
         ),
+      ),
+    );
+  }
+
+  void _confirmSubmit() {
+    final unanswered = _questions.length - [
+      for (final q in _questions)
+        if (_answers.containsKey(q.id)) q,
+    ].length;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Finish exam?'),
+        content: Text(
+          unanswered > 0
+              ? 'You have $unanswered unanswered question${unanswered == 1 ? '' : 's'} in this subject. Submit everything now?'
+              : 'You have answered everything. Submit now?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Keep going'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _submit();
+            },
+            child: const Text('Submit'),
+          ),
+        ],
       ),
     );
   }
@@ -343,16 +482,23 @@ class _CbtPracticeRunnerScreenState extends State<CbtPracticeRunnerScreen> {
         itemCount: _subjects.length,
         itemBuilder: (_, i) {
           final on = i == _section;
+          final empty = ((_pack(i)?['total'] as num?)?.toInt() ?? 0) == 0 && _synced.contains(i);
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: ChoiceChip(
               selected: on,
-              onSelected: (_) => _openSection(i),
+              onSelected: _syncing
+                  ? null
+                  : (_) => _openSection(i),
               label: Text(_subjects[i]),
               labelStyle: TextStyle(
                 fontSize: 12,
                 fontWeight: on ? FontWeight.w800 : FontWeight.w500,
-                color: on ? Colors.white : context.textColor,
+                color: on
+                    ? Colors.white
+                    : empty
+                        ? context.greyColor.withOpacity(0.6)
+                        : context.textColor,
               ),
               selectedColor: accent,
               showCheckmark: false,
@@ -364,6 +510,34 @@ class _CbtPracticeRunnerScreenState extends State<CbtPracticeRunnerScreen> {
   }
 
   Widget _body(Color accent) {
+    // Synchronizing first-run download of all subjects.
+    if (_syncing) {
+      final failed = _syncErrors.length;
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 18),
+            Text(
+              'Synchronizing…',
+              style: TextStyle(
+                  color: context.textColor, fontSize: 17, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Downloading questions for ${_synced.length + failed} of ${_subjects.length} subjects',
+              style: TextStyle(color: context.greyColor, fontSize: 13),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Practice works offline once this finishes.',
+              style: TextStyle(color: context.greyColor, fontSize: 12),
+            ),
+          ],
+        ),
+      );
+    }
     if (_loadingSection) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -372,16 +546,16 @@ class _CbtPracticeRunnerScreenState extends State<CbtPracticeRunnerScreen> {
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.wifi_off_rounded, size: 40, color: Color(0xFFF59E0B)),
+            const Icon(Icons.error_outline_rounded, size: 40, color: Color(0xFFF59E0B)),
             const SizedBox(height: 10),
             Text(
-              'This subject needs one online load before it works offline.\n$_sectionError',
+              _sectionError!,
               textAlign: TextAlign.center,
               style: TextStyle(color: context.greyColor, fontSize: 13, height: 1.4),
             ),
             const SizedBox(height: 12),
             FilledButton(
-              onPressed: () => _openSection(_section, forceOnline: true),
+              onPressed: () => _syncAllSections(),
               child: const Text('Try again'),
             ),
           ]),
@@ -471,6 +645,9 @@ class _CbtPracticeRunnerScreenState extends State<CbtPracticeRunnerScreen> {
   }
 
   Widget _bottomBar(Color accent) {
+    if (_syncing) return const SizedBox.shrink();
+    final isLast = _current >= _questions.length - 1;
+    final isLastSubject = _section >= _subjects.length - 1;
     return Container(
       padding: EdgeInsets.fromLTRB(16, 10, 16, 10 + MediaQuery.of(context).padding.bottom * 0.3),
       decoration: BoxDecoration(
@@ -494,7 +671,7 @@ class _CbtPracticeRunnerScreenState extends State<CbtPracticeRunnerScreen> {
         const SizedBox(width: 10),
         FilledButton(
           style: FilledButton.styleFrom(backgroundColor: accent),
-          onPressed: _submitting ? null : _submit,
+          onPressed: _submitting ? null : (isLast && isLastSubject ? _submit : _confirmSubmit),
           child: _submitting
               ? const SizedBox(
                   width: 18, height: 18,
