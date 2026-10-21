@@ -1835,6 +1835,10 @@ async function loadGuestCbtPractice() {
 
 async function loadCbtExams() {
   if (isCbtExamActive()) return;
+  if (typeof loadCbtHubPage === "function") {
+    await loadCbtHubPage();
+    return;
+  }
   if (!isStudentLoggedIn()) {
     try {
       await loadGuestCbtPractice();
@@ -1845,10 +1849,6 @@ async function loadCbtExams() {
         grid.innerHTML = `<div class="empty-state-premium"><h3>Guest CBT is unavailable</h3><p>${escHtml(e.message || "Connect to the internet and try again.")}</p><button type="button" class="btn-action" onclick="refreshPage()">Try again</button></div>`;
       }
     }
-    return;
-  }
-  if (typeof loadCbtHubPage === "function") {
-    await loadCbtHubPage();
     return;
   }
   showCbtListView();
