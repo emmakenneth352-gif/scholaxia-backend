@@ -134,8 +134,10 @@ async def send_otp(email: str, full_name: str, purpose: str) -> str:
     await _store_set(_redis_key(purpose, email), otp, OTP_TTL)
     print(f"[OTP] generated for {email} purpose={purpose}")
 
-    subject, html_body, text_body = _build_email(purpose, full_name, otp)
-    try:
+    if settings.DEBUG:
+        print(f"[OTP] email sending skipped in DEBUG mode for {email}")
+    else:
+        subject, html_body, text_body = _build_email(purpose, full_name, otp)
         await _send_email(
             to_email=email,
             to_name=full_name,
@@ -143,11 +145,6 @@ async def send_otp(email: str, full_name: str, purpose: str) -> str:
             html_body=html_body,
             text_body=text_body,
         )
-    except Exception as e:
-        # Keep OTP in store so DEBUG / retry still works even if the provider fails
-        print(f"[OTP] email send failed for {email}: {e}")
-        if not settings.DEBUG:
-            raise
     return otp
 
 

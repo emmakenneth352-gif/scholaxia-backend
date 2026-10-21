@@ -1,5 +1,5 @@
 """Build the cPanel site zip for scholaxia.com deploy (same layout as
-Scholaxia-Website-cPanel.zip: files at zip root, media/ included, downloads/ skipped).
+Scholaxia-Website-cPanel.zip: files at zip root, including downloads/).
 
 Run:  .venv/Scripts/python.exe scripts/_zip_site_cpanel.py
 """
@@ -9,7 +9,7 @@ import zipfile
 
 ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "website")
 OUT = os.path.join(os.path.dirname(ROOT), "Scholaxia-Website-cPanel.zip")
-SKIP_DIRS = {".git", "__pycache__", ".nitrogen", "downloads"}
+SKIP_DIRS = {".git", "__pycache__", ".nitrogen"}
 
 count, raw = 0, 0
 with zipfile.ZipFile(OUT, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:

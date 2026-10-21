@@ -919,6 +919,21 @@ async def _login_user(payload: LoginRequest, db: AsyncSession):
         )
 
     role = str(getattr(user, "role", "student") or "student").replace("UserRole.", "").lower()
+    if role == "teacher":
+        teacher_profile = (
+            await db.execute(
+                text(
+                    "SELECT COALESCE(is_approved, false) FROM teacher_profiles "
+                    "WHERE user_id = :id LIMIT 1"
+                ),
+                {"id": user.id},
+            )
+        ).scalar_one_or_none()
+        if not teacher_profile:
+            raise HTTPException(
+                status_code=403,
+                detail="Your teacher account is awaiting admin approval. You can log in after it is approved.",
+            )
     school_name = None
     school_sub = False
     if getattr(user, "school_id", None):

@@ -254,15 +254,23 @@
       throw new Error(roleMismatch(role, actual));
     }
 
+    if (actual === "teacher" && data && data.user && data.user.is_approved === false) {
+      showErr(
+        $("otpError"),
+        "Account created. Your teacher account is awaiting admin approval. You can log in after it is approved."
+      );
+      if ($("otpError")) $("otpError").style.color = "#166534";
+      if ($("btnVerify")) {
+        $("btnVerify").disabled = true;
+        $("btnVerify").textContent = "Awaiting approval";
+      }
+      if ($("signupOtp")) $("signupOtp").disabled = true;
+      return;
+    }
+
     if (data) data.role = actual;
 
     api.saveSession(data, email, name);
-
-    if (actual === "teacher" && data && data.user && data.user.is_approved === false) {
-      localStorage.setItem("sia_teacher_pending_approval", "1");
-      window.location.href = "teacher.html#profile";
-      return;
-    }
 
     if (actual === "vendor") {
       if (!nextUrl || nextUrl.indexOf("marketplace") >= 0) {
@@ -381,14 +389,14 @@
             preferXhr: true,
           });
       if (finished) return;
-      finished = true;
-      clearTimeout(watchdog);
       if (!data || !data.access_token) {
         throw new Error("Login did not return a session. Try again.");
       }
+      clearTimeout(watchdog);
       showErr(errEl, "Success — opening your portal…");
       if (errEl) errEl.style.color = "#166534";
       await afterAuth(data, email, data.user && data.user.full_name);
+      finished = true;
     } catch (err) {
       if (finished) return;
       finished = true;
