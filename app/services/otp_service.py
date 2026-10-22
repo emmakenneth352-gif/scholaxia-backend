@@ -124,6 +124,36 @@ async def _store_delete(key: str) -> None:
         _MEMORY_STORE.pop(key, None)
 
 
+def _encode_codes(new_otp: str, previous_raw: Optional[str]) -> str:
+    """Serialize the OTP bucket: newest code first, previous code kept as a
+    grace fallback. Emails from the provider can arrive late (spam filters,
+    slow relay), so re-requesting a code must not silently invalidate the one
+    still sitting in the student's inbox — both stay answerable.
+    """
+    codes = [new_otp]
+    if previous_raw:
+        for code in _decode_codes(previous_raw):
+            if code not in codes:
+                codes.append(code)
+    return json.dumps({"codes": codes[:2]})  # newest first, cap at two
+
+
+def _decode_codes(raw: str) -> list[str]:
+    """Accept the new JSON bucket AND the legacy plain-code format."""
+    if not raw:
+        return []
+    raw = raw.strip()
+    if raw.startswith("{"):
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict):
+                return [str(c).strip() for c in parsed.get("codes", []) if str(c).strip()]
+        except Exception:
+            pass
+        return []
+    return [raw] if raw else []
+
+
 async def send_otp(email: str, full_name: str, purpose: str) -> str:
     """
     Generate an OTP, store it, and send it through the configured email provider.
@@ -131,7 +161,13 @@ async def send_otp(email: str, full_name: str, purpose: str) -> str:
     Returns the OTP (only expose to clients when DEBUG=True).
     """
     otp = _generate_otp()
-    await _store_set(_redis_key(purpose, email), otp, OTP_TTL)
+    key = _redis_key(purpose, email)
+    previous: Optional[str] = None
+    try:
+        previous = await _store_get(key)
+    except Exception:
+        previous = None  # store hiccups must not block sending a fresh code
+    await _store_set(key, _encode_codes(otp, previous), OTP_TTL)
     print(f"[OTP] generated for {email} purpose={purpose}")
 
     if settings.DEBUG:
@@ -354,10 +390,11 @@ async def verify_otp(email: str, otp: str, purpose: str) -> bool:
     key = _redis_key(purpose, email)
     stored = await _store_get(key)
 
-    if not stored:
+    codes = _decode_codes(stored or "")
+    if not codes:
         return False  # expired or never sent
 
-    if stored.strip() != (otp or "").strip():
+    if (otp or "").strip() not in codes:
         return False  # wrong code
 
     # Consume — delete so it can't be reused
