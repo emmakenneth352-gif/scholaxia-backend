@@ -123,6 +123,18 @@ services:
       - key: LIVEKIT_API_SECRET
         sync: false
 
+      # plugNmeet Cloud (live classes — uses plugNmeet's own classroom client).
+      # Values are secrets: set them in the Render dashboard, not in this file.
+      - key: PLUGNMEET_URL
+        value: https://edge.plugnmeet.cloud
+      - key: PLUGNMEET_API_KEY
+        sync: false
+      - key: PLUGNMEET_API_SECRET
+        sync: false
+      # Where plugNmeet sends everyone after a meeting is ended/closed.
+      - key: PLUGNMEET_LOGOUT_URL
+        value: https://scholaxia.com/student.html
+
       # ALOC CBT past questions (questions.aloc.com.ng)
       - key: ALOC_ACCESS_TOKEN
         sync: false
