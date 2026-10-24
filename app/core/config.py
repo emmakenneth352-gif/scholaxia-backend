@@ -60,11 +60,11 @@ class Settings(BaseSettings):
     # and shows a download banner when its version is older. Set this to the
     # public download link for the newest Scholaxia-Student-Setup installer.
     APP_LATEST_DESKTOP_VERSION: str = "1.0.9"
-    # Serve the installer from the same static tree the site deploys with
-    # (static/app/downloads → GET /app/downloads/…), so the link keeps working
-    # on Render and on any self-hosted copy of the site bundle.
+    # Serve the installer from the cPanel site's downloads/ folder (uploaded
+    # with Scholaxia-Website-cPanel.zip). The 160 MB exe is too large to push
+    # through GitHub, so the static-file host is the reliable download path.
     APP_DESKTOP_URL: str = (
-        "https://scholaxia1.onrender.com/app/downloads/Scholaxia-Student-Setup-1.0.9.exe"
+        "https://scholaxia.com/downloads/Scholaxia-Student-Setup-1.0.9.exe"
     )
     APP_DESKTOP_UPDATE_MESSAGE: str = (
         "A new version of the Scholaxia desktop app is available. Please download "
