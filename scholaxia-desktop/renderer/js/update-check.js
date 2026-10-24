@@ -1,5 +1,7 @@
 /* Desktop update check — asks the backend which desktop version is current.
-   If the installed app is older, shows a banner with a download link. */
+   If the installed app is older, shows a centered POPUP telling the user to
+   download & install the latest update (opens the installer URL in the
+   system browser, then the user runs the Setup like before). */
 (function () {
   var APP_VERSION =
     (window.scholaxiaDesktop && window.scholaxiaDesktop.appVersion) || "1.0.0";
@@ -20,39 +22,62 @@
     return "sia_desktop_update_dismissed_" + v;
   }
 
-  function bannerHtml(msg, url) {
-    return (
-      '<div id="desktop-update-banner" role="alert" style="' +
-      "position:fixed;left:0;right:0;bottom:0;z-index:9999;display:flex;gap:12px;" +
-      "align-items:center;justify-content:center;flex-wrap:wrap;padding:12px 16px;" +
-      "background:#5b21b6;color:#fff;font-size:0.95rem;box-shadow:0 -4px 14px rgba(0,0,0,.35);\">" +
-      "<span>⬆️ " + esc(msg) + "</span>" +
-      '<a href="' + esc(url) + '" target="_blank" rel="noopener" style="' +
-      "color:#fff;background:#8b5cf6;padding:6px 14px;border-radius:8px;" +
-      'text-decoration:none;font-weight:600;">Download update</a>' +
-      '<button type="button" id="desktop-update-dismiss" style="' +
-      "background:none;border:0;color:#e0d7ff;cursor:pointer;font-size:1.1rem;" +
-      '">✕</button>' +
-      "</div>"
-    );
-  }
-
   function esc(s) {
     return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
   }
 
-  function showBanner(msg, url, latest) {
-    if (document.getElementById("desktop-update-banner")) return;
+  function popupHtml(msg, url, latest) {
+    return (
+      '<div id="desktop-update-popup" role="dialog" aria-modal="true" style="' +
+      "position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;" +
+      'background:rgba(0,0,0,.6);">' +
+      '<div style="max-width:420px;width:90%;background:#fff;border-radius:16px;padding:26px 24px;' +
+      "text-align:center;font-family:inherit;box-shadow:0 12px 40px rgba(0,0,0,.35);\">" +
+      '<div style="font-size:44px;line-height:1;">⬆️</div>' +
+      '<h2 style="margin:10px 0 6px;font-size:1.15rem;color:#5b21b6;">Update Scholaxia</h2>' +
+      '<p style="margin:0 0 4px;color:#111827;font-size:0.95rem;">' + esc(msg) + "</p>" +
+      '<p style="margin:0 0 18px;color:#6b7280;font-size:0.8rem;">' +
+      "Your version: <strong>" + esc(APP_VERSION) + "</strong> &middot; Latest: <strong>" +
+      esc(latest) + "</strong></p>" +
+      '<a id="desktop-update-go" href="' + esc(url) + '" target="_blank" rel="noopener" style="' +
+      "display:inline-block;background:#5b21b6;color:#fff;padding:11px 24px;border-radius:10px;" +
+      'text-decoration:none;font-weight:700;font-size:0.95rem;">Download latest update</a>' +
+      '<div><button type="button" id="desktop-update-dismiss" style="' +
+      "background:none;border:0;color:#6b7280;cursor:pointer;margin-top:12px;font-size:0.85rem;" +
+      '">Maybe later</button></div>' +
+      "</div></div>"
+    );
+  }
+
+  function showPopup(msg, url, latest) {
+    if (document.getElementById("desktop-update-popup")) return;
     var dismissed = false;
     try { dismissed = !!localStorage.getItem(dismissKey(latest)); } catch (e) {}
     if (dismissed) return;
-    document.body.insertAdjacentHTML("beforeend", bannerHtml(msg, url));
+    document.body.insertAdjacentHTML("beforeend", popupHtml(msg, url, latest));
+
+    // Opening the link must go through the system browser — the popup is an
+    // in-app window so target=_blank alone can be blocked by Electron.
+    var go = document.getElementById("desktop-update-go");
+    if (go) {
+      go.addEventListener("click", function (ev) {
+        try {
+          ev.preventDefault();
+          if (window.scholaxiaDesktop && window.scholaxiaDesktop.openExternal) {
+            window.scholaxiaDesktop.openExternal(url);
+          } else {
+            window.open(url, "_blank", "noopener");
+          }
+          document.getElementById("desktop-update-popup").remove();
+        } catch (e2) { /* fall back to default link behavior */ }
+      });
+    }
     var btn = document.getElementById("desktop-update-dismiss");
     if (btn) {
       btn.addEventListener("click", function () {
         try { localStorage.setItem(dismissKey(latest), "1"); } catch (e) {}
-        var b = document.getElementById("desktop-update-banner");
-        if (b) b.remove();
+        var p = document.getElementById("desktop-update-popup");
+        if (p) p.remove();
       });
     }
   }
@@ -74,7 +99,11 @@
         if (!versionLess(APP_VERSION, data.desktop_latest_version)) return;
         var url = data.desktop_url || "";
         if (!url) return;
-        showBanner(data.desktop_message || "A new version of the Scholaxia desktop app is available.", url, data.desktop_latest_version);
+        showPopup(
+          data.desktop_message || "A new version of the Scholaxia desktop app is available. Please download and install the latest update.",
+          url,
+          data.desktop_latest_version
+        );
       })
       .catch(function () { /* offline — try next load */ });
   }

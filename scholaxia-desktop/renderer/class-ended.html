@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scholaxia — Class ended</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      padding: 40px 32px;
+      max-width: 460px;
+      width: 100%;
+      text-align: center;
+    }
+    .icon { font-size: 56px; line-height: 1; margin-bottom: 20px; }
+    h1 { font-size: 24px; margin-bottom: 10px; color: #f8fafc; }
+    p { color: #94a3b8; font-size: 15px; line-height: 1.6; margin-bottom: 28px; }
+    .btn {
+      display: inline-block;
+      padding: 12px 28px;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      margin: 4px;
+      cursor: pointer;
+      border: none;
+    }
+    .btn-open { background: #7c3aed; color: #fff; }
+    .btn-open:hover { background: #6d28d9; }
+    .btn-signin { background: #334155; color: #e2e8f0; }
+    .btn-signin:hover { background: #475569; }
+    .brand { margin-top: 26px; font-size: 12px; color: #64748b; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="icon">🎓</div>
+    <h1>Your class has ended</h1>
+    <p>The live class was closed by the teacher. You can go back to Scholaxia to continue learning.</p>
+    <button class="btn btn-open" onclick="location.href = 'app.html'">Back to Scholaxia</button>
+    <div class="brand">Scholaxia — Smart. Simple. Learning.</div>
+  </main>
+</body>
+</html>

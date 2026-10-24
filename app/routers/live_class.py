@@ -3,7 +3,8 @@ import hashlib
 import json
 import secrets
 import asyncio
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+import re as _re
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_, and_
 from pydantic import BaseModel
@@ -260,6 +261,7 @@ async def join_class_by_code(
     payload: JoinByCodeRequest,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    request: Request = None,
 ):
     """Join a live class using the unique access code for that class."""
     normalized = (payload.code or "").strip().upper()
@@ -351,7 +353,7 @@ async def join_class_by_code(
         except Exception:
             pass
 
-    return await join_class(str(live_class.id), current_user, db)
+    return await join_class(str(live_class.id), current_user, db, request)
 
 
 # â”€â”€ LiveKit token helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -437,6 +439,64 @@ def _livekit_token_payload(
 def _user_uid(user_id: str) -> int:
     """Legacy numeric UID (kept for older clients)."""
     return int(hashlib.md5(user_id.encode()).hexdigest()[:8], 16) % (2**31)
+
+
+def _request_logout_url(request: Request | None) -> str:
+    """Where plugNmeet should send users after the room closes.
+
+    Derived from the caller's origin so "end class" lands on a friendly
+    class-ended page of the SAME app they came from — never on a foreign
+    login screen. Falls back to the configured default when no origin is
+    available (desktop file:// contexts etc.).
+    """
+    origin = ""
+    try:
+        origin = (request.headers.get("origin") or "").strip() if request else ""
+        if not origin and request is not None:
+            m = _re.match(r"^(https?://[^/\s]+)", request.headers.get("referer") or "")
+            if m:
+                origin = m.group(1)
+    except Exception:
+        origin = ""
+    if not origin or not origin.lower().startswith("http"):
+        return ""
+    # Desktop renderer is served at the root (no /app prefix).
+    if ":17890" in origin:
+        return origin.rstrip("/") + "/class-ended.html"
+    return origin.rstrip("/") + "/app/class-ended.html"
+
+
+async def _pnm_join_info(
+    room_id: str,
+    title: str,
+    user_id: str,
+    display_name: str,
+    is_admin: bool,
+    logout_url: str | None = None,
+) -> dict:
+    """plugNmeet room/token for this class — empty dict when not configured.
+
+    Room is created on demand (idempotent); token is short-lived and one-time,
+    minted server-side so the API secret never leaves the backend.
+    """
+    from app.services import plugnmeet_client as pnm
+
+    rid = str(room_id or "").strip()
+    if not rid or not pnm.pnm_configured():
+        return {}
+    try:
+        if not await pnm.ensure_room(rid, title or "Scholaxia Live Class", logout_url):
+            return {}
+        info = await pnm.join_token(rid, str(user_id), display_name, is_admin)
+        if not info or not info.get("join_url"):
+            return {}
+        return {
+            "pnm_token": info["token"],
+            "pnm_join_url": info["join_url"],
+            "pnm_is_admin": bool(is_admin),
+        }
+    except Exception:
+        return {}
 
 
 def _can_manage_class(current_user: dict, live_class: LiveClass) -> bool:
@@ -1117,6 +1177,7 @@ async def join_class(
     class_id: str,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    request: Request = None,
 ):
     """Join a live class and return LiveKit credentials.
 
@@ -1190,6 +1251,52 @@ async def join_class(
                 raise
             except Exception as gexc:
                 log.warning("school group check skipped: %s", gexc)
+
+        # class_level / legacy subject classes: a student may join only when
+        # their profile matches, OR they hold a delivered access code for this
+        # class (join-by-code creates one — the code IS the credential). This
+        # closes the open join bypass where any student could POST /join freely.
+        if visibility in (LiveClassVisibility.class_level.value, LiveClassVisibility.subject.value):
+            invited_any = sid in _parse_id_list(invited_raw)
+            if not invited_any:
+                try:
+                    code_res = await db.execute(
+                        select(LiveClassAccessCodeDelivery).where(
+                            LiveClassAccessCodeDelivery.student_id == student_uid,
+                            LiveClassAccessCodeDelivery.live_class_id == class_uuid,
+                        ).limit(1)
+                    )
+                    invited_any = code_res.first() is not None
+                except Exception as code_exc:
+                    log.warning("access-code delivery check skipped: %s", code_exc)
+            if not invited_any:
+                if visibility == LiveClassVisibility.class_level.value:
+                    profile_res = await db.execute(
+                        select(StudentProfile).where(StudentProfile.user_id == student_uid)
+                    )
+                    profile = profile_res.scalar_one_or_none()
+                    want = (live_class.academic_class or "").replace(" ", "").upper()
+                    have = ((profile.education_level if profile else "") or "").replace(" ", "").upper()
+                    matched = bool(want and have and (want == have or have.startswith(want) or want.startswith(have)))
+                    if not matched:
+                        raise HTTPException(
+                            status_code=403,
+                            detail="This live class is only for "
+                            + (live_class.academic_class or "that class")
+                            + ". Enter the class access code to join.",
+                        )
+                else:
+                    profile_res = await db.execute(
+                        select(StudentProfile).where(StudentProfile.user_id == student_uid)
+                    )
+                    profile = profile_res.scalar_one_or_none()
+                    subjects = list(profile.selected_subjects or []) if profile else []
+                    if not subjects or not subject_matches(live_class.subject, subjects):
+                        raise HTTPException(
+                            status_code=403,
+                            detail="This live class is not for one of your selected subjects."
+                            + (" Enter the class access code to join." if subjects else ""),
+                        )
 
         if not is_live:
             # Do not resurrect a class that already has an end_time in the past
@@ -1399,12 +1506,21 @@ async def join_class(
             can_publish=can_publish_final,
             role=actual_role,
         )
+        pnm_info = await _pnm_join_info(
+            room_id,
+            title,
+            sid,
+            current_user.get("full_name") or current_user.get("email") or "Student",
+            actual_role in ("teacher", "admin", "host"),
+            logout_url=_request_logout_url(request),
+        )
         return {
             "class_id": str(class_uuid),
             "title": title,
             "subject": subject,
             **teacher_meta,
             **payload,
+            **pnm_info,
             "is_muted": False,
             "is_live": is_live,
             "session_status": "LIVE" if is_live else "LOBBY",
@@ -1430,6 +1546,7 @@ async def get_livekit_token(
     class_id: str,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    request: Request = None,
 ):
     """Get a fresh LiveKit token for a live class room."""
     try:
@@ -1461,11 +1578,20 @@ async def get_livekit_token(
         can_publish=can_publish,
         role="teacher" if is_teacher else "student",
     )
+    pnm_info = await _pnm_join_info(
+        str(live_class.room_id or ""),
+        live_class.title or "Live class",
+        uid,
+        display,
+        is_teacher,
+        logout_url=_request_logout_url(request),
+    )
     mic_ok = is_teacher or _mic_allowed_for(live_class.room_id, uid, att)
     cam_ok = is_teacher or _camera_allowed_for(live_class.room_id, uid, att)
 
     return {
         **payload,
+        **pnm_info,
         "uid": _user_uid(uid),
         "teacher_id": str(live_class.teacher_id),
         "end_time": live_class.end_time.isoformat() if live_class.end_time else None,
@@ -2449,6 +2575,18 @@ async def end_class(
         )
     except Exception:
         pass
+
+    # Close the host plugNmeet room too. Best-effort: closes everyone out and
+    # guarantees the NEXT session is created fresh with the corrected logout_url
+    # (an old room keeps its old 'end meeting → login' redirect forever).
+    if room_id:
+        try:
+            from app.services.plugnmeet_client import pnm_configured, end_room
+
+            if pnm_configured():
+                await end_room(str(room_id))
+        except Exception:
+            pass
 
     return {
         "message": "Class ended",

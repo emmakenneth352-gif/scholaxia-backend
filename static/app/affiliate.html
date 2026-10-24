@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scholaxia — Refer & Earn (Affiliate)</title>
+  <meta name="description" content="Join the Scholaxia affiliate program. Share your link, earn on every signup, withdraw by manual bank transfer." />
+  <link rel="icon" type="image/png" href="media/logo-main.png" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Outfit',system-ui,sans-serif;background:#f8f7ff;color:#1a0533;line-height:1.7;font-size:1rem}
+    .page-nav{background:#fff;border-bottom:1px solid #ede9fe;padding:.9rem 1.5rem;display:flex;align-items:center;gap:.75rem}
+    .page-nav img{height:32px;width:auto}
+    .page-nav a{font-weight:700;font-size:1.05rem;color:#6d28d9;text-decoration:none}
+    .page-nav .spacer{margin-left:auto}
+    .page-nav .cta{background:#6d28d9;color:#fff;border:0;border-radius:8px;padding:.45rem 1rem;font-weight:600;cursor:pointer;text-decoration:none;font-size:.9rem}
+    .wrap{max-width:860px;margin:0 auto;padding:2.2rem 1.25rem 4rem}
+    h1{font-size:clamp(1.6rem,4vw,2.2rem);font-weight:800;color:#4c1d95;margin-bottom:.4rem}
+    .lead{color:#6b5b8a;margin-bottom:1.6rem}
+    .card{background:#fff;border:1px solid #ede9fe;border-radius:14px;padding:1.4rem;margin-bottom:1.2rem;box-shadow:0 2px 10px rgba(124,58,237,.05)}
+    .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.8rem;margin-bottom:1.2rem}
+    .stat{background:#fff;border:1px solid #ede9fe;border-radius:12px;padding:1rem}
+    .stat strong{display:block;font-size:1.4rem;color:#4c1d95}
+    .stat span{color:#8a7ba1;font-size:.85rem}
+    h2{font-size:1.05rem;font-weight:700;color:#6d28d9;margin:0 0 .8rem}
+    .ref-row{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
+    .ref-code{font-weight:800;letter-spacing:.08em;background:#f3eeff;border:1px dashed #c4b5fd;border-radius:8px;padding:.35rem .8rem;font-size:1.05rem}
+    input,button{font-family:inherit}
+    input{width:100%;padding:.7rem .8rem;border:1px solid #ddd3f5;border-radius:9px;margin-bottom:.8rem;font-size:.95rem}
+    label{display:block;font-size:.85rem;font-weight:600;color:#5b4676;margin-bottom:.3rem}
+    .btn{background:#6d28d9;color:#fff;border:0;border-radius:9px;padding:.7rem 1.3rem;font-weight:700;cursor:pointer}
+    .btn.secondary{background:#f3eeff;color:#6d28d9;border:1px solid #c4b5fd}
+    .btn[disabled]{opacity:.55;cursor:not-allowed}
+    .muted{color:#8a7ba1;font-size:.85rem}
+    table{width:100%;border-collapse:collapse;font-size:.92rem}
+    th,td{text-align:left;padding:.5rem .4rem;border-bottom:1px solid #f0eafc}
+    th{color:#8a7ba1;font-weight:600;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em}
+    .pay-status{padding:.12rem .55rem;border-radius:999px;font-size:.78rem;font-weight:700}
+    .pay-status.pending{background:#fef3c7;color:#92400e}
+    .pay-status.paid{background:#dcfce7;color:#166534}
+    .pay-status.rejected{background:#fee2e2;color:#991b1b}
+    .msg{border-radius:9px;padding:.7rem .9rem;margin:.7rem 0;font-size:.92rem}
+    .msg.ok{background:#dcfce7;color:#166534}
+    .msg.err{background:#fee2e2;color:#991b1b}
+    .how li{margin-bottom:.45rem;color:#3b2060}
+    .hidden{display:none}
+    .login-note a{color:#6d28d9;font-weight:700}
+  </style>
+</head>
+<body>
+  <nav class="page-nav">
+    <a href="index.html"><img src="media/logo-main.png" alt="Scholaxia" /> Scholaxia</a>
+    <span class="spacer"></span>
+    <a class="cta" href="index.html">Back to site</a>
+  </nav>
+
+  <div class="wrap">
+    <h1>Refer &amp; Earn 💜</h1>
+    <p class="lead">Tell friends, classmates or parents about Scholaxia with your personal link. You earn a commission when they create an account, and you withdraw your earnings straight to your bank account.</p>
+
+    <div id="need-login" class="card login-note hidden">
+      <h2>Sign in first</h2>
+      <p>You need a Scholaxia account to join the affiliate program.</p>
+      <p><a href="auth.html">Sign in / create an account</a></p>
+    </div>
+
+    <div id="affiliate-app" class="hidden">
+      <div class="stats">
+        <div class="stat"><strong id="st-balance">—</strong><span>Available balance (₦)</span></div>
+        <div class="stat"><strong id="st-referrals">—</strong><span>Signups referred</span></div>
+        <div class="stat"><strong id="st-earned">—</strong><span>Total earned (₦)</span></div>
+        <div class="stat"><strong id="st-per">—</strong><span>Per referral (₦)</span></div>
+      </div>
+
+      <div class="card">
+        <h2>Your referral link</h2>
+        <div class="ref-row">
+          <span class="ref-code" id="ref-code">—</span>
+          <button type="button" class="btn secondary" id="btn-copy-link">Copy link</button>
+          <button type="button" class="btn secondary" id="btn-share">Share…</button>
+        </div>
+        <p class="muted" style="margin-top:.7rem" id="ref-link">—</p>
+      </div>
+
+      <div class="card">
+        <h2>Withdraw your earnings (manual payout)</h2>
+        <p class="muted" style="margin-bottom:.8rem">
+          Payouts are processed <strong>manually</strong> by our team: submit the bank account details and
+          the admin sends your money from the Scholaxia account, then marks your request paid.
+        </p>
+        <form id="payout-form">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem">
+            <div><label for="poBank">Bank name</label><input id="poBank" required placeholder="e.g. GTBank" /></div>
+            <div><label for="poAcctNum">Account number</label><input id="poAcctNum" required inputmode="numeric" placeholder="e.g. 0123456789" /></div>
+          </div>
+          <label for="poAcctName">Account name</label>
+          <input id="poAcctName" required placeholder="Name on the account" />
+          <p class="muted" id="po-amount-note">You will request your full available balance.</p>
+          <button type="submit" class="btn" id="btn-payout">Submit payout request</button>
+        </form>
+        <div id="payout-msg"></div>
+      </div>
+
+      <div class="card">
+        <h2>Your referrals</h2>
+        <p class="muted" id="refs-empty" style="margin-bottom:.6rem">No referrals yet — share your link!</p>
+        <table id="refs-table" class="hidden">
+          <thead><tr><th>#</th><th>Student</th><th>Commission</th><th>Date</th></tr></thead>
+          <tbody id="refs-body"></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h2>Payout history</h2>
+        <p class="muted" id="pays-empty" style="margin-bottom:.6rem">No payout requests yet.</p>
+        <table id="pays-table" class="hidden">
+          <thead><tr><th>Amount</th><th>Bank / account</th><th>Status</th><th>Requested</th><th>Note</th></tr></thead>
+          <tbody id="pays-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script>
+  (function () {
+    var api = window.ScholaxiaAPI;
+    if (!api) return;
+
+    var $ = function (id) { return document.getElementById(id); };
+    function errText(e) {
+      var d = e && (e.message || (e.data && e.data.detail));
+      return typeof d === "string" ? d : (e && e.message) || "Something went wrong";
+    }
+
+    if (!api.requireAuth()) return;
+
+    function fmt(n) {
+      return "₦" + Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
+    }
+    function fmtDate(iso) {
+      if (!iso) return "—";
+      try { return new Date(iso).toLocaleString(); } catch (err) { return String(iso); }
+    }
+
+    function render(state) {
+      $("affiliate-app").classList.remove("hidden");
+      $("st-balance").textContent = fmt(state.balance);
+      $("st-referrals").textContent = String(state.referrals_count || 0);
+      $("st-earned").textContent = fmt(state.total_earned);
+      $("st-per").textContent = fmt(state.commission_per_referral);
+      $("ref-code").textContent = state.code || "—";
+      $("ref-link").textContent = state.link || "—";
+      $("po-amount-note").textContent = fmt(state.balance) + " available — the request takes the full balance.";
+
+      var refs = state.referrals || [];
+      $("refs-empty").style.display = refs.length ? "none" : "";
+      $("refs-table").classList.toggle("hidden", !refs.length);
+      $("refs-body").innerHTML = refs.map(function (r, i) {
+        return "<tr><td>" + (i + 1) + "</td><td>" + esc(r.name) + "</td><td>" + fmt(r.commission) + "</td><td>" + fmtDate(r.created_at) + "</td></tr>";
+      }).join("");
+
+      var pays = state.payouts || [];
+      $("pays-empty").style.display = pays.length ? "none" : "";
+      $("pays-table").classList.toggle("hidden", !pays.length);
+      $("pays-body").innerHTML = pays.map(function (p) {
+        return "<tr><td>" + fmt(p.amount) + "</td><td>" + esc(p.bank_name) + " · " + esc(p.account_number) + "<br><small>" + esc(p.account_name) + "</small></td>" +
+          '<td><span class="pay-status ' + esc(p.status) + '">' + esc(p.status) + "</span></td><td>" + fmtDate(p.requested_at) + "</td><td>" + esc(p.admin_note || "—") + "</td></tr>";
+      }).join("");
+    }
+
+    function esc(s) {
+      return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    async function load() {
+      try {
+        var state = await api.api("/api/v1/affiliate/me", { timeout: 30000, retries: 1, preferXhr: true });
+        if (!state.joined) await api.api("/api/v1/affiliate/join", { method: "POST", preferXhr: true, timeout: 30000, retries: 1 });
+        state = state.joined ? state : await api.api("/api/v1/affiliate/me", { preferXhr: true, timeout: 30000, retries: 1 });
+        render(state);
+      } catch (e) {
+        $("payout-msg").innerHTML = '<div class="msg err">' + esc(errText(e)) + "</div>";
+      }
+    }
+    load();
+
+    $("btn-copy-link").addEventListener("click", async function () {
+      var link = $("ref-link").textContent || "";
+      try { await navigator.clipboard.writeText(link); }
+      catch (e) {
+        var ta = document.createElement("textarea");
+        ta.value = link; document.body.appendChild(ta); ta.select();
+        try { document.execCommand("copy"); } catch (e2) {}
+        ta.remove();
+      }
+      var b = $("btn-copy-link");
+      b.textContent = "Copied!";
+      setTimeout(function () { b.textContent = "Copy link"; }, 1600);
+    });
+
+    $("btn-share").addEventListener("click", function () {
+      var link = $("ref-link").textContent || "";
+      var text = "Learn smarter on Scholaxia — live classes, CBT practice and an AI tutor. Join here: " + link;
+      if (navigator.share) navigator.share({ title: "Scholaxia", text: text, url: link }).catch(function () {});
+      else window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank", "noopener");
+    });
+
+    $("payout-form").addEventListener("submit", async function (ev) {
+      ev.preventDefault();
+      var btn = $("btn-payout");
+      var msg = $("payout-msg");
+      msg.innerHTML = "";
+      btn.disabled = true;
+      btn.textContent = "Submitting…";
+      try {
+        var state = await api.api("/api/v1/affiliate/payout", {
+          method: "POST",
+          preferXhr: true,
+          timeout: 30000,
+          retries: 1,
+          body: {
+            bank_name: $("poBank").value.trim(),
+            account_number: $("poAcctNum").value.trim(),
+            account_name: $("poAcctName").value.trim(),
+          },
+        });
+        msg.innerHTML = '<div class="msg ok">' + esc(state.message || "Payout request submitted.") + "</div>";
+        $("poBank").value = ""; $("poAcctNum").value = ""; $("poAcctName").value = "";
+        render(state);
+      } catch (e) {
+        msg.innerHTML = '<div class="msg err">' + esc(errText(e)) + "</div>";
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Submit payout request";
+      }
+    });
+  })();
+  </script>
+</body>
+</html>

@@ -290,6 +290,11 @@
       var roomId = (res && (res.room_id || res.channel_id)) || "";
       var token = (res && (res.livekit_token || res.token)) || "";
       var url = (res && res.livekit_url) || "";
+      // plugNmeet room ready: jump straight into its own classroom client.
+      if (res && res.pnm_join_url) {
+        window.location.href = res.pnm_join_url;
+        return;
+      }
       if (!roomId || !token) {
         var joinUrl = (res && (res.join_url || res.meeting_url || res.room_url || res.url)) || "";
         if (joinUrl) {

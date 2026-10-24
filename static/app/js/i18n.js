@@ -17,7 +17,8 @@
     /* ── ENGLISH (default) ── */
     en: {
       currency_label: '🌍 Prices shown in:',
-      nav_home: 'Home', nav_cbt: 'CBT Practice', nav_exam: 'School Exam', nav_pq: 'Past questions',
+      nav_home: 'Home', nav_cbt: 'CBT Practice', nav_pq: 'Past questions',
+      nav_exam: 'School Exam',
       nav_market: 'Marketplace', nav_affiliate: 'Affiliate',
       nav_contact: 'Contact', nav_about: 'About',
       btn_marketplace: 'Marketplace', btn_join: 'Join', btn_join_free: 'Join free',
@@ -64,7 +65,7 @@
       cta_p: 'Join 10,000+ students across 20+ countries using Scholaxia for CBT practice, live classes and expert tutors.',
       cta_btn1: 'Explore Courses', cta_btn2: 'Download Desktop',
       dl_kicker: 'Windows app', dl_h2: 'Download Scholaxia Desktop',
-      dl_p: 'Install the Scholaxia Student app on your PC for live classes, CBT practice, and study tools — same account as the website.',
+      dl_p: 'Install the Scholaxia app on your PC for live classes, CBT practice, and study tools — same account as the website.',
       dl_btn: 'Download for Windows',
       footer_about: 'Scholaxia is a global learning platform helping students prepare for WAEC, NECO, JAMB, IGCSE, SAT, KCSE & BECE with CBT, live classes, AI tutoring and community support.',
       footer_links: 'Quick Links', footer_courses: 'Popular Courses',
@@ -77,7 +78,8 @@
     /* ── FRENCH ── */
     fr: {
       currency_label: '🌍 Prix affichés en :',
-      nav_home: 'Accueil', nav_cbt: 'Pratique CBT', nav_exam: 'Examen scolaire', nav_pq: 'Annales',
+      nav_home: 'Accueil', nav_cbt: 'Pratique CBT', nav_pq: 'Annales',
+      nav_exam: 'Examen scolaire',
       nav_market: 'Marché', nav_affiliate: 'Affiliation',
       nav_contact: 'Contact', nav_about: 'À propos',
       btn_marketplace: 'Marché', btn_join: 'Rejoindre', btn_join_free: 'Rejoindre gratuitement',
@@ -137,7 +139,8 @@
     /* ── PORTUGUESE ── */
     pt: {
       currency_label: '🌍 Preços exibidos em:',
-      nav_home: 'Início', nav_cbt: 'Prática CBT', nav_exam: 'Exame escolar', nav_pq: 'Questões anteriores',
+      nav_home: 'Início', nav_cbt: 'Prática CBT', nav_pq: 'Questões anteriores',
+      nav_exam: 'Prova escolar',
       nav_market: 'Mercado', nav_affiliate: 'Afiliado',
       nav_contact: 'Contato', nav_about: 'Sobre',
       btn_marketplace: 'Mercado', btn_join: 'Entrar', btn_join_free: 'Entrar grátis',
@@ -197,7 +200,8 @@
     /* ── ARABIC ── */
     ar: {
       currency_label: '🌍 الأسعار المعروضة بـ:',
-      nav_home: 'الرئيسية', nav_cbt: 'تدريب CBT', nav_exam: 'الاختبار المدرسي', nav_pq: 'أسئلة سابقة',
+      nav_home: 'الرئيسية', nav_cbt: 'تدريب CBT', nav_pq: 'أسئلة سابقة',
+      nav_exam: 'امتحان مدرسي',
       nav_market: 'السوق', nav_affiliate: 'الشراكة',
       nav_contact: 'اتصل بنا', nav_about: 'حول',
       btn_marketplace: 'السوق', btn_join: 'انضم', btn_join_free: 'انضم مجاناً',
@@ -536,11 +540,12 @@
     });
   }
 
-  /* Compact floating EN/FR/PT/AR pills removed (2026-09-19) — the header
-     language picker (#langWrap) is the single language control now. */
   function ensureCompactLanguagePicker() {
-    return;
     if (document.getElementById('langWrap') || document.getElementById('sxPageLang')) return;
+    /* Live classroom: the fixed EN/FR/PT/AR pill sits exactly on top of the
+       bottom toolbar (End class / camera / mic) on phones — never inject it. */
+    if (document.getElementById('classroom') || document.getElementById('classroom-toolbar')
+        || document.body.classList.contains('meet-v2')) return;
     const picker = document.createElement('div');
     picker.id = 'sxPageLang';
     picker.className = 'sx-page-lang';
@@ -765,6 +770,7 @@
   applyLang(currentLang);
   applyCurrency(currentCurrency);
 
+  ensureCompactLanguagePicker();
   applyLang(currentLang);
 
   /* Translate content created later by dashboard and marketplace scripts. */

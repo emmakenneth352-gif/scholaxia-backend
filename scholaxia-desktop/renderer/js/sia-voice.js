@@ -1,8 +1,18 @@
-/** Sia voice — reads the AI Teacher's replies aloud. */
+/**
+ * Sia voice — reads the AI Teacher's replies aloud.
+ *
+ * SPEED FIX: the one-shot TTS call used to synthesize the WHOLE answer before
+ * any audio played (a full reply took ~50s of silence). We now split the text
+ * into short chunks and ask the voice service for them one at a time — the
+ * first chunk starts playing within a couple of seconds and the rest chain
+ * seamlessly. Same Sia voice throughout.
+ */
 
-var siaVoiceEnabled = false; // no auto-read — tap 🔊 on a reply (or "Voice on") to hear it
+var siaVoiceEnabled = true; // ON by default — the AI teacher speaks every answer
+// (tap 🔊 Voice off on a page to mute; the choice is remembered).
 var siaVoiceAudio = null;
 var siaVoiceObjectUrl = null;
+var siaVoiceGen = 0; // generation counter — starting/stopping invalidates queued chunks
 
 function siaVoiceClean(text) {
   return String(text || "")
@@ -16,6 +26,42 @@ function siaVoiceClean(text) {
     .slice(0, 1400);
 }
 
+/** Split cleaned speech into ~maxLen chunks, always cutting at sentence ends. */
+function siaSplitChunks(text, maxLen) {
+  var s = String(text || "").replace(/\s+/g, " ").trim();
+  if (!s) return [];
+  if (s.length <= maxLen) return [s];
+  var sentences = s.match(/[^.!?;]+[.!?;]*\s*/g) || [s];
+  var parts = [];
+  var buf = "";
+  for (var i = 0; i < sentences.length; i++) {
+    var sen = sentences[i].trim();
+    if (!sen) continue;
+    if (!buf) {
+      buf = sen;
+    } else if ((buf + " " + sen).length > maxLen) {
+      if (buf.length > maxLen && sen.length > maxLen) {
+        // A single over-long sentence: hard-split at a word boundary.
+        var combined = buf + " " + sen;
+        while (combined.length > maxLen) {
+          var cut = combined.lastIndexOf(" ", maxLen);
+          if (cut < 40) break;
+          parts.push(combined.slice(0, cut).trim());
+          combined = combined.slice(cut).trim();
+        }
+        buf = combined;
+      } else {
+        buf = sen;
+      }
+    } else {
+      buf = buf + " " + sen;
+    }
+    if (buf.length >= maxLen) { parts.push(buf.trim()); buf = ""; }
+  }
+  if (buf.trim()) parts.push(buf.trim());
+  return parts.length ? parts : [s.slice(0, maxLen)];
+}
+
 function siaVoiceRevokeUrl() {
   if (siaVoiceObjectUrl) {
     try { URL.revokeObjectURL(siaVoiceObjectUrl); } catch (e) { /* ignore */ }
@@ -24,6 +70,7 @@ function siaVoiceRevokeUrl() {
 }
 
 function siaStopVoice() {
+  siaVoiceGen++; // any queued chunks become stale
   if (siaVoiceAudio) {
     try {
       siaVoiceAudio.pause();
@@ -58,40 +105,77 @@ function siaSpeakBrowser(text) {
   }
 }
 
+/** Fetch audio MP3 bytes for one chunk from the server voice service. */
+async function siaFetchChunkAudio(chunk) {
+  var base = typeof API_BASE !== "undefined" ? API_BASE : "";
+  var token = typeof getToken === "function" ? getToken() : "";
+  if (!base || !token) return null;
+  try {
+    var res = await fetch(base + "/api/v1/sia/speak", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + token,
+      },
+      body: JSON.stringify({ text: chunk, language: "english" }),
+    });
+    if (!res.ok) return null;
+    var blob = await res.blob();
+    if (!blob || blob.size < 100) return null;
+    return URL.createObjectURL(blob);
+  } catch (e) {
+    return null;
+  }
+}
+
+function siaPlayUrl(url, gen) {
+  return new Promise(function (resolve) {
+    try {
+      var audio = new Audio(url);
+      siaVoiceAudio = audio;
+      var done = function () {
+        if (siaVoiceAudio === audio) siaVoiceAudio = null;
+        try { audio.pause(); } catch (e) { /* ignore */ }
+        try { audio.currentTime = 0; } catch (e2) { /* ignore */ }
+        URL.revokeObjectURL(url);
+        if (siaVoiceObjectUrl === url) siaVoiceObjectUrl = null;
+        resolve();
+      };
+      audio.onended = done;
+      audio.onerror = done;
+      audio.onpause = function () {
+        // Started by us being stopped via siaStopVoice → resolve quickly.
+        if (siaVoiceAudio !== audio) resolve();
+      };
+      if (gen !== siaVoiceGen) { resolve(); return; }
+      audio.play().catch(done);
+    } catch (e) {
+      resolve();
+    }
+  });
+}
+
 async function siaSpeak(text) {
   if (!siaVoiceEnabled) return;
   var cleaned = siaVoiceClean(text);
-  if (!cleaned) return;
+  var chunks = siaSplitChunks(cleaned, 280);
+  if (!chunks.length) return;
   siaStopVoice();
+  var gen = siaVoiceGen;
 
-  var base = typeof API_BASE !== "undefined" ? API_BASE : "";
-  var token = typeof getToken === "function" ? getToken() : "";
-  if (base && token) {
-    try {
-      var res = await fetch(base + "/api/v1/sia/speak", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + token,
-        },
-        body: JSON.stringify({ text: cleaned, language: "english" }),
-      });
-      if (res.ok) {
-        var blob = await res.blob();
-        if (blob && blob.size > 0) {
-          siaVoiceRevokeUrl();
-          siaVoiceObjectUrl = URL.createObjectURL(blob);
-          siaVoiceAudio = new Audio(siaVoiceObjectUrl);
-          siaVoiceAudio.onended = function () { siaVoiceRevokeUrl(); };
-          await siaVoiceAudio.play();
-          return;
-        }
-      }
-    } catch (e) {
-      /* fall through to browser TTS */
+  for (var i = 0; i < chunks.length; i++) {
+    if (gen !== siaVoiceGen) return; // user interrupted / new speech started
+    var url = await siaFetchChunkAudio(chunks[i]);
+    if (gen !== siaVoiceGen) { if (url) URL.revokeObjectURL(url); return; }
+    if (!url) {
+      // Voice service hiccup — fall back to the browser voice for what's left.
+      var rest = chunks.slice(i).join(" ");
+      siaSpeakBrowser(rest);
+      return;
     }
+    await siaPlayUrl(url, gen);
+    // Wait only while there is still something to say.
   }
-  siaSpeakBrowser(cleaned);
 }
 
 function siaToggleVoice() {
@@ -104,9 +188,9 @@ function siaToggleVoice() {
   });
 }
 
-/* Init saved preference */
+/* Init saved preference — default ON, only an explicit "0" mutes it. */
 try {
-  if (localStorage.getItem("sia_voice_on") === "1") siaVoiceEnabled = true;
+  if (localStorage.getItem("sia_voice_on") === "0") siaVoiceEnabled = false;
 } catch (e) { /* ignore */ }
 
 if (typeof window !== "undefined") {

@@ -95,6 +95,7 @@
       <button class="nav-btn" data-page="student-groups" onclick="showAdminPage('student-groups')">Student Groups</button>
       <button class="nav-btn" data-page="community" onclick="showAdminPage('community')">Community</button>
       <button class="nav-btn" data-page="marketplace" onclick="showAdminPage('marketplace')">Marketplace</button>
+      <button class="nav-btn" data-page="affiliate-payouts" onclick="showAdminPage('affiliate-payouts')">Affiliate Payouts</button>
     </nav>
     <div class="sidebar-foot">
       <div class="admin-user" id="admin-user-label">Admin</div>
@@ -1369,6 +1370,20 @@
         </div>
         <p id="so-live-msg" class="cbt-hint small"></p>
       </div>
+    </section>
+
+    <section id="page-affiliate-payouts" class="admin-page">
+      <div class="page-head">
+        <h2>Affiliate payouts (manual)</h2>
+        <button class="btn-sm" onclick="loadAffiliatePayouts('')">Refresh</button>
+      </div>
+      <p class="cbt-hint small">“Refer &amp; Earn” requests. Payments are made MANUALLY by you from the Scholaxia bank account — then mark the request <strong>Paid</strong> (or reject it, which returns the amount to the affiliate's balance).</p>
+      <div style="margin:10px 0;gap:8px;flex-wrap:wrap">
+        <button class="btn-sm" onclick="loadAffiliatePayouts('pending')">Pending</button>
+        <button class="btn-sm" onclick="loadAffiliatePayouts('paid')">Paid</button>
+        <button class="btn-sm" onclick="loadAffiliatePayouts('rejected')">Rejected</button>
+      </div>
+      <div id="affiliate-payouts-table"><div class="loading">Loading…</div></div>
     </section>
 
     <div class="panel" id="cbt-edit-panel" style="display:none;margin:16px 0 24px">

@@ -129,14 +129,83 @@ app.whenReady().then(async () => {
   });
 });
 
-(function exposeVersion() {
+// ── plugNmeet classroom window ─────────────────────────────────────────────
+// The site joins live classes with a plugNmeet room; on the desktop we open the
+// SAME room in a dedicated window (mic/camera/screen-share permission handlers
+// above already cover every window via session.defaultSession). When the
+// meeting is ended plugNmeet redirects to the Scholaxia app — we close the
+// classroom window there so the student lands back in the app.
+const PNM_HOST_RE = /(^|\.)plugnmeet\.(cloud|in)$/i;
+let pnmRoomWin = null;
+
+function openPnmRoom(joinUrl) {
   try {
-    const { contextBridge } = require("electron");
-    contextBridge.exposeInMainWorld("scholaxiaDesktop", {
-      appVersion: app.getVersion(),
+    const url = new URL(joinUrl);
+    if (!/^https?:$/.test(url.protocol)) return;
+    if (pnmRoomWin && !pnmRoomWin.isDestroyed()) {
+      // Repeated "Enter live" clicks while a room is already open must not
+      // spawn multiple windows/tokens — reload and focus the existing window.
+      try { pnmRoomWin.loadURL(joinUrl); } catch (err) { /* ignore */ }
+      pnmRoomWin.show();
+      pnmRoomWin.focus();
+      return;
+    }
+    const roomWin = new BrowserWindow({
+      width: 1280,
+      height: 800,
+      minWidth: 800,
+      minHeight: 560,
+      title: "Scholaxia Live Class",
+      backgroundColor: "#111827",
+      autoHideMenuBar: true,
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    });
+    pnmRoomWin = roomWin;
+    roomWin.loadURL(joinUrl);
+    roomWin.webContents.on("will-navigate", (_e, next) => {
+      // plugNmeet ended the meeting → logout_url redirect: close and return.
+      if (typeof next === "string" && !PNM_HOST_RE.test(new URL(next).hostname.split("@").pop() || "")) {
+        try { roomWin.close(); } catch (err) { /* ignore */ }
+      }
+    });
+    roomWin.webContents.setWindowOpenHandler(({ url: target }) => {
+      shell.openExternal(target);
+      return { action: "deny" };
+    });
+    roomWin.on("closed", () => {
+      // Meeting ended (or window closed): bring the Scholaxia window —
+      // the screen the class was hosted from — back in front.
+      if (pnmRoomWin === roomWin) pnmRoomWin = null;
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.focus();
+        try { mainWindow.webContents.send("scholaxia:pnm-room-closed"); } catch (err) { /* ignore */ }
+      }
+    });
+  } catch (err) {
+    console.error("openPnmRoom failed", err);
+    shell.openExternal(String(joinUrl));
+  }
+}
+
+(function registerDesktopBridge() {
+  try {
+    const { ipcMain } = require("electron");
+    ipcMain.on("scholaxia:open-pnm-room", (_ev, joinUrl) => {
+      if (typeof joinUrl === "string" && joinUrl) openPnmRoom(joinUrl);
+    });
+    ipcMain.on("scholaxia:open-external", (_ev, target) => {
+      if (typeof target === "string" && /^https?:/i.test(target)) {
+        try { shell.openExternal(target); } catch (e) { console.error(e); }
+      }
+    });
+    ipcMain.on("scholaxia:get-version", (ev) => {
+      try { ev.returnValue = app.getVersion(); } catch (err) { ev.returnValue = ""; }
     });
   } catch (e) {
-    console.error("Could not expose app version", e);
+    console.error("Could not register desktop bridge", e);
   }
 })();
 

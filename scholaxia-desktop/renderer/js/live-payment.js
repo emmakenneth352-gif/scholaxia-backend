@@ -164,6 +164,15 @@ async function completeJoinClass(classId, card) {
   if (!classId) throw new Error("Class not found.");
   var data = await api("/api/v1/live-classes/" + classId + "/join", { method: "POST" });
   if (!data) throw new Error("Could not join class.");
+  // plugNmeet room ready → same behaviour as the website: enter its own client.
+  if (data.pnm_join_url) {
+    try { localStorage.setItem("sia_stop_live_ring", String(Date.now())); } catch (e) { /* ignore */ }
+    if (typeof launchPnmRoom === "function" && launchPnmRoom(data.pnm_join_url)) {
+      return;
+    }
+    window.location.href = data.pnm_join_url;
+    return;
+  }
   var endTime = data.end_time || (card && card.dataset && card.dataset.end) || null;
   if (typeof normalizeLiveEndTime === "function") {
     endTime = normalizeLiveEndTime(endTime, data.is_live !== false);
@@ -223,6 +232,13 @@ async function joinClassWithAccessCode(code) {
       body: JSON.stringify({ code: normalized }),
     });
     if (!data) throw new Error("Could not join class.");
+    // plugNmeet room ready → open the room (same as the website).
+    if (data.pnm_join_url) {
+      try { localStorage.setItem("sia_stop_live_ring", String(Date.now())); } catch (e) { /* ignore */ }
+      if (typeof launchPnmRoom === "function" && launchPnmRoom(data.pnm_join_url)) return;
+      window.location.href = data.pnm_join_url;
+      return;
+    }
     var endTime = data.end_time || null;
     if (typeof normalizeLiveEndTime === "function") {
       endTime = normalizeLiveEndTime(endTime, data.is_live !== false);

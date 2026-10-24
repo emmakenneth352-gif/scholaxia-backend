@@ -439,6 +439,11 @@ async function endClass(id) {
       var token = await api.api("/api/v1/live-classes/" + encodeURIComponent(classId) + "/token");
       if (!token) throw new Error("Could not get classroom token.");
       var user = api.getUser();
+      // plugNmeet room ready: jump straight into its own classroom client.
+      if (token.pnm_join_url) {
+        window.location.href = token.pnm_join_url;
+        return;
+      }
       localStorage.setItem(
         "live_session",
         JSON.stringify({

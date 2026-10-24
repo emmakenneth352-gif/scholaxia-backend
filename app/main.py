@@ -40,6 +40,7 @@ from app.routers import cbt_subject_change
 from app.routers import school_core, school_results_router
 from app.routers import past_questions_shop
 from app.routers import ai_tokens
+from app.routers import affiliate
 from app.websockets.live_class_ws import live_class_endpoint
 
 
@@ -125,6 +126,7 @@ app.include_router(school_results_router.public_router, prefix="/api/v1")
 app.include_router(materials.router, prefix="/api/v1")
 app.include_router(wallet.router, prefix="/api/v1")
 app.include_router(recommendations.router, prefix="/api/v1")
+app.include_router(affiliate.router, prefix="/api/v1")
 app.include_router(home.router, prefix="/api/v1")
 app.include_router(kind.router, prefix="/api/v1")
 app.include_router(performance.router, prefix="/api/v1")
@@ -372,6 +374,38 @@ if ADMIN_STATIC_DIR.is_dir():
         "/admin",
         StaticFiles(directory=str(ADMIN_STATIC_DIR), html=True),
         name="admin_ui",
+    )
+
+
+# ── Desktop installer downloads (GET /downloads/<file>.exe) ──────────────────
+# The update popup links APP_DESKTOP_URL. Point that setting at this route
+# (e.g. http://<host>/downloads/Scholaxia-Student-Setup-1.0.8.exe) or at any
+# public host that has the installer uploaded.
+import re as _re
+import os as _os
+
+_DESKTOP_INSTALLER_DIR = Path(
+    _os.environ.get("DESKTOP_INSTALLER_DIR", "")
+    or (Path(__file__).resolve().parent.parent / "scholaxia-desktop" / "dist")
+)
+_FILENAME_RE = _re.compile(r"^[\w.\-]+\.exe$")
+
+
+@app.get("/downloads/{filename}", include_in_schema=False)
+async def desktop_installer_download(filename: str):
+    if not _FILENAME_RE.match(filename or ""):
+        raise HTTPException(status_code=404, detail="Not found")
+    target = (_DESKTOP_INSTALLER_DIR / filename).resolve()
+    try:
+        target.relative_to(_DESKTOP_INSTALLER_DIR.resolve())
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Not found")
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="Installer not found on this server")
+    return FileResponse(
+        target,
+        media_type="application/vnd.microsoft.portable-executable",
+        filename=filename,
     )
 
 

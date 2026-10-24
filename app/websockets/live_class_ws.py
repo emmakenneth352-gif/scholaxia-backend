@@ -7,7 +7,13 @@ WebSocket handler for live class real-time features:
 from fastapi import WebSocket, WebSocketDisconnect
 from typing import Dict, List
 import json
+import re
 import asyncio
+
+from sqlalchemy import select as sql_select
+
+from app.core.database import get_db
+from app.models.user import User
 
 from app.services.live_class_room import (
     grant_whiteboard,
@@ -49,6 +55,47 @@ def _uid(user_id: str) -> str:
     return str(user_id or "").strip().lower()
 
 
+_UUID_RE = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
+
+
+def _name_is_stub(display_name: str) -> bool:
+    """True when the client-sent name is empty, a role word, an id or an email
+    (e.g. the WS was opened without a proper display_name)."""
+    n = str(display_name or "").strip()
+    if not n:
+        return True
+    low = n.lower()
+    if low in ("student", "teacher", "user", "admin", "host"):
+        return True
+    if _UUID_RE.match(n):
+        return True
+    if "@" in n and " " not in n:  # bare email
+        return True
+    return False
+
+
+async def resolve_display_name(user_id: str, display_name: str, role: str) -> str:
+    """Never show a user id in the participants list — fall back to the
+    account's real name from the database when the client passes nothing useful."""
+    if not _name_is_stub(display_name):
+        return str(display_name).strip()
+    fallback = "Teacher" if _is_teacher_role(role) else "Student"
+    try:
+        async for db in get_db():
+            res = await db.execute(
+                sql_select(User).where(User.id == str(user_id))
+            )
+            user = res.scalar_one_or_none()
+            if user and user.full_name and str(user.full_name).strip():
+                return str(user.full_name).strip()
+            break
+    except Exception:
+        pass
+    return fallback
+
+
 async def connect(room_id: str, websocket: WebSocket, user_id: str, role: str, display_name: str = ""):
     pending = _pending_room_cleanup.pop(room_id, None)
     if pending and not pending.done():
@@ -81,6 +128,7 @@ async def connect(room_id: str, websocket: WebSocket, user_id: str, role: str, d
         "role": role,
         "display_name": display_name or ("Teacher" if _is_teacher_role(role) else "Student"),
     })
+    websocket._sia_display_name = display_name
 
 
 def disconnect(room_id: str, websocket: WebSocket):
@@ -109,18 +157,20 @@ async def broadcast(room_id: str, message: dict, exclude: WebSocket = None):
     if not conns:
         return
     payload = json.dumps(message)
-    dead = []
-    for conn in conns:
-        if conn["ws"] == exclude:
-            continue
+    recipients = [conn for conn in conns if conn["ws"] != exclude]
+
+    async def send_to_connection(conn):
         try:
-            # A slow/dead client must never stall the room: board text, erase
-            # and clear must reach every healthy student the same frame the
-            # teacher sends them. Cap each send; the laggard is dropped and
-            # rejoins via the normal reconnect path.
             await asyncio.wait_for(conn["ws"].send_text(payload), timeout=3)
+            return None
         except Exception:
-            dead.append(conn)
+            return conn
+
+    # Send concurrently so a slow client cannot delay board/video-control
+    # events to every healthy student in the room.
+    dead = [conn for conn in await asyncio.gather(
+        *(send_to_connection(conn) for conn in recipients)
+    ) if conn is not None]
     if dead:
         remaining = rooms.get(room_id)
         if remaining is not None:
@@ -236,7 +286,7 @@ async def notify_camera_revoked(room_id: str, student_id: str) -> None:
 
 async def live_class_endpoint(websocket: WebSocket, room_id: str, user_id: str, role: str, display_name: str = ""):
     await connect(room_id, websocket, user_id, role, display_name)
-    name = display_name or ("Teacher" if _is_teacher_role(role) else "Student")
+    name = await resolve_display_name(user_id, display_name, role)
 
     # Detect reconnect: participant already existed
     prior = next((p for p in list_participants(room_id) if _uid(p.get("userId")) == _uid(user_id)), None)

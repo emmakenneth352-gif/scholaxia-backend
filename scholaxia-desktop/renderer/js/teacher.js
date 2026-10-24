@@ -388,13 +388,25 @@ async function teacherEndClass(id) {
   } catch (e) { alert(e.message); }
 }
 
+var _enterClassBusy = false;
 async function teacherEnterClassroom(classId, title, subject, endTime, alreadyLive) {
+  // One click at a time: /start + room-create + /token can take a few seconds;
+  // impatient extra clicks used to mint 4 tokens and spawn 4 room windows.
+  if (_enterClassBusy) return;
+  _enterClassBusy = true;
   try {
     if (!alreadyLive) {
       await teacherApi("/api/v1/live-classes/" + classId + "/start", { method: "POST" });
     }
     var token = await teacherApi("/api/v1/live-classes/" + classId + "/token");
     if (!token) return;
+    // plugNmeet room ready → open its own client (same as the website).
+    if (token.pnm_join_url) {
+      try { localStorage.setItem("sia_stop_live_ring", String(Date.now())); } catch (e) { /* ignore */ }
+      if (typeof launchPnmRoom === "function" && launchPnmRoom(token.pnm_join_url)) return;
+      window.location.href = token.pnm_join_url;
+      return;
+    }
     localStorage.setItem("live_session", JSON.stringify({
       class_id: classId,
       classId: classId,
@@ -415,6 +427,8 @@ async function teacherEnterClassroom(classId, title, subject, endTime, alreadyLi
     window.location.href = "classroom.html";
   } catch (e) {
     alert(e.message);
+  } finally {
+    _enterClassBusy = false;
   }
 }
 
@@ -1503,7 +1517,8 @@ function bindTeacherUI() {
       if (btn.dataset.action === "start") teacherStartClass(id);
       else if (btn.dataset.action === "end") teacherEndClass(id);
       else if (btn.dataset.action === "enter") {
-        teacherEnterClassroom(id, btn.dataset.title, btn.dataset.subject, btn.dataset.end);
+        teacherEnterClassroom(id, btn.dataset.title, btn.dataset.subject, btn.dataset.end)
+          .catch(function () { /* alert already shown by the function */ });
       } else if (btn.dataset.action === "mics") {
         openLiveStudentsModal(id, btn.dataset.title);
       }
@@ -1593,4 +1608,11 @@ window.teacherEnterClassroom = teacherEnterClassroom;
 document.addEventListener("DOMContentLoaded", function () {
   bindTeacherUI();
   setDefaultScheduleDate();
+  // The plugNmeet live-class window closed (meeting ended / teacher closed
+  // it): refresh the Live page so the class list and status are current.
+  if (window.scholaxiaDesktop && typeof window.scholaxiaDesktop.onPnmRoomClosed === "function") {
+    window.scholaxiaDesktop.onPnmRoomClosed(function () {
+      try { if (typeof loadTeacherLive === "function") loadTeacherLive(); } catch (e) { /* ignore */ }
+    });
+  }
 });

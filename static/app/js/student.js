@@ -4669,12 +4669,28 @@
   });
 
   function enterLiveClassroom(res) {
+    // plugNmeet room ready: jump straight into its own classroom client.
+    if (res && res.pnm_join_url) {
+      try {
+        localStorage.setItem("sia_stop_live_ring", String(Date.now()));
+      } catch (e) {}
+      window.location.href = res.pnm_join_url;
+      return;
+    }
     var classId = res.class_id || res.classId || res.id || "";
     var roomId = res.room_id || res.channel_id || "";
     var token = res.livekit_token || res.token || "";
     var url = res.livekit_url || "";
     function go(sessRes) {
       var r = sessRes || res || {};
+      // plugNmeet room ready: jump straight into its own classroom client.
+      if (r.pnm_join_url) {
+        try {
+          localStorage.setItem("sia_stop_live_ring", String(Date.now()));
+        } catch (e) {}
+        window.location.href = r.pnm_join_url;
+        return;
+      }
       var rid = r.room_id || r.channel_id || roomId;
       var tok = r.livekit_token || r.token || token;
       var lurl = r.livekit_url || url;

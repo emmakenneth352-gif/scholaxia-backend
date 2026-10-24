@@ -87,6 +87,8 @@ class SignupStartRequest(BaseModel):
 class SignupVerifyRequest(BaseModel):
     email: EmailStr
     otp: str = Field(..., min_length=4, max_length=10)
+    # Optional affiliate "Refer & Earn" code — saved from ?ref= on the portal link.
+    ref_code: Optional[str] = None
 
 
 class FirebaseAuthRequest(BaseModel):
@@ -655,6 +657,12 @@ async def signup_verify(payload: SignupVerifyRequest, db: AsyncSession = Depends
         db.add(StudentProfile(user_id=user.id, selected_subjects=[]))
     await db.flush()
     await clear_pending_signup(email)
+
+    from app.routers.affiliate import credit_referral  # local import avoids cycles
+    try:
+        await credit_referral(db, payload.ref_code, user)
+    except Exception:
+        pass  # affiliate tracking must never block signup
 
     user_info = await _build_user_info(user, db)
     access_token, refresh_token = await issue_auth_tokens(db, user)

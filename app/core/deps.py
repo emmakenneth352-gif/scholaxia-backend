@@ -65,6 +65,9 @@ async def get_current_user(
         )
 
     payload["sub"] = str(user.id)
+    # Real display name (used for LiveKit/plugNmeet display names and the
+    # classroom participant list — without it clients fell back to "Student".
+    payload["full_name"] = str(getattr(user, "full_name", None) or "")
     # Always prefer DB role and normalize (fixes UserRole.student / case mismatches → false 403s)
     payload["role"] = _norm_role(getattr(user, "role", None) or payload.get("role") or "student")
     payload["school_id"] = str(user.school_id) if getattr(user, "school_id", None) else None

@@ -487,18 +487,21 @@
   }
 
   function dashboardForRole(role) {
-    if (role === "school_admin") return "office.html";
-    if (role === "teacher" || role === "admin") return "teacher.html";
+    // Desktop renderer pages: teacher.html / kind.html / app.html / admin.html.
+    // student.html / vendor.html / office.html do NOT exist here — land those
+    // roles on app.html instead of a 404.
+    if (role === "school_admin" || role === "admin") return "admin.html";
+    if (role === "teacher") return "teacher.html";
     if (role === "kind") return "kind.html";
-    if (role === "vendor") return "vendor.html";
-    return "student.html";
+    return "app.html";
   }
 
   function requireAuth(expectedRoles) {
     var role = localStorage.getItem("sia_role") || "";
     var token = getToken();
     if (!token) {
-      window.location.href = "portal.html";
+      // No portal.html in the desktop renderer — sign-in lives on index.html#auth.
+      window.location.href = "index.html#auth";
       return false;
     }
     if (expectedRoles && expectedRoles.indexOf(role) < 0) {

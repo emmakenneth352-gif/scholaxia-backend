@@ -662,6 +662,12 @@ async function adminEnterClassroom(classId, title, subject) {
   try {
     var token = await adminApi("/api/v1/live-classes/" + classId + "/token");
     if (!token) return;
+    // plugNmeet room ready → open its own client (same as the website).
+    if (token.pnm_join_url) {
+      if (typeof launchPnmRoom === "function" && launchPnmRoom(token.pnm_join_url)) return;
+      window.location.href = token.pnm_join_url;
+      return;
+    }
     localStorage.setItem("live_session", JSON.stringify({
       class_id: classId,
       classId: classId,

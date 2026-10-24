@@ -83,9 +83,14 @@ class MarketplaceOrder(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), index=True, nullable=False)
     total_amount: Mapped[float] = mapped_column(Float, default=0.0)
     currency: Mapped[str] = mapped_column(String(10), default="NGN")
-    status: Mapped[str] = mapped_column(String(30), default="pending_payment")  # pending_payment | paid | processing | shipped | delivered | cancelled
+    status: Mapped[str] = mapped_column(String(30), default="pending_payment")  # pending_payment | awaiting_delivery | paid | processing | shipped | delivered | cancelled
     delivery_address: Mapped[str] = mapped_column(String(500), nullable=True)
     contact_phone: Mapped[str] = mapped_column(String(40), nullable=True)
+    # Pay-after-delivery-assignment flow: the buyer sends the order, waits for the
+    # vendor to assign delivery with a fee; only then is payment opened.
+    delivery_fee: Mapped[float] = mapped_column(Float, default=0.0)
+    delivery_assigned: Mapped[bool] = mapped_column(Boolean, default=False)
+    delivery_assigned_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

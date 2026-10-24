@@ -59,12 +59,16 @@ class Settings(BaseSettings):
     # Desktop app (Electron) update support — the desktop checks /app/version
     # and shows a download banner when its version is older. Set this to the
     # public download link for the newest Scholaxia-Student-Setup installer.
-    APP_LATEST_DESKTOP_VERSION: str = "1.0.7"
+    APP_LATEST_DESKTOP_VERSION: str = "1.0.9"
+    # Serve the installer from the same static tree the site deploys with
+    # (static/app/downloads → GET /app/downloads/…), so the link keeps working
+    # on Render and on any self-hosted copy of the site bundle.
     APP_DESKTOP_URL: str = (
-        "https://scholaxia.com/downloads/Scholaxia-Student-Setup-1.0.7.exe"
+        "https://scholaxia1.onrender.com/app/downloads/Scholaxia-Student-Setup-1.0.9.exe"
     )
     APP_DESKTOP_UPDATE_MESSAGE: str = (
-        "A new version of the Scholaxia desktop app is available. Please install it."
+        "A new version of the Scholaxia desktop app is available. Please download "
+        "and install the latest update."
     )
 
     # Flutterwave (live class payments)
@@ -72,6 +76,9 @@ class Settings(BaseSettings):
     FLUTTERWAVE_SECRET_KEY: str = ""
     FLUTTERWAVE_SECRET_HASH: str = ""  # optional webhook hash
     LIVE_CLASS_JOIN_AMOUNT: float = 2000.0  # NGN per live class session
+    # Refer & Earn — NGN credited to the affiliate for every signup through
+    # their code. Payouts are manual (admin pays from the bank account).
+    AFFILIATE_SIGNUP_COMMISSION: float = 200.0
     LIVE_CLASS_MONTHLY_DAYS: int = 30  # one payment unlocks all live classes for 30 days
 
     # Paystack (library books, CBT packages, class packages)
@@ -165,6 +172,18 @@ class Settings(BaseSettings):
     LIVEKIT_URL: str = ""  # e.g. wss://your-project.livekit.cloud
     LIVEKIT_API_KEY: str = ""
     LIVEKIT_API_SECRET: str = ""
+
+    # plugNmeet Cloud (live classes — uses plugNmeet's own classroom client).
+    # Server-side only: the API secret must never reach browser JavaScript.
+    PLUGNMEET_URL: str = ""            # e.g. https://edge.plugnmeet.cloud
+    PLUGNMEET_API_KEY: str = ""
+    PLUGNMEET_API_SECRET: str = ""
+    # Where plugNmeet sends everyone AFTER a meeting is ended/closed.
+    # MUST point at the SAME origin the user logged into (their session lives in
+    # that origin's localStorage) — a foreign origin always shows the login page
+    # (that was the "end meeting → forced to login" bug). Override in .env if the
+    # app is served from another domain.
+    PLUGNMEET_LOGOUT_URL: str = "https://scholaxia1.onrender.com/app/"
 
     # Legacy Agora (unused — kept so old env vars do not break deploy)
     AGORA_APP_ID: str = ""

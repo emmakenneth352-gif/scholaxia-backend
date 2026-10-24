@@ -274,6 +274,10 @@ _SCHEMA_STATEMENTS = (
     "ALTER TABLE marketplace_order_items ADD COLUMN IF NOT EXISTS escrow_status VARCHAR(30) NOT NULL DEFAULT 'none'",
     "ALTER TABLE marketplace_order_items ADD COLUMN IF NOT EXISTS buyer_confirmed BOOLEAN NOT NULL DEFAULT FALSE",
     "ALTER TABLE marketplace_order_items ADD COLUMN IF NOT EXISTS buyer_confirmed_at TIMESTAMP NULL",
+    # Pay-after-delivery-assignment flow (buyer pays only once delivery is assigned)
+    "ALTER TABLE marketplace_orders ADD COLUMN IF NOT EXISTS delivery_fee DOUBLE PRECISION NOT NULL DEFAULT 0",
+    "ALTER TABLE marketplace_orders ADD COLUMN IF NOT EXISTS delivery_assigned BOOLEAN NOT NULL DEFAULT FALSE",
+    "ALTER TABLE marketplace_orders ADD COLUMN IF NOT EXISTS delivery_assigned_at TIMESTAMP NULL",
     """
     CREATE TABLE IF NOT EXISTS vendor_withdrawal_requests (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

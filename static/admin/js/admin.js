@@ -225,6 +225,71 @@ function showAdminPage(page) {
   else if (page === "student-groups") loadStudentGroupsAdmin();
   else if (page === "community") loadCommunityPosts();
   else if (page === "marketplace") loadMarketplace();
+  else if (page === "affiliate-payouts") loadAffiliatePayouts("");
+}
+
+/* ── Affiliate payouts (manual “Refer & Earn” withdrawals) ── */
+var _affiliatePayoutStatus = "";
+
+async function loadAffiliatePayouts(statusFilter) {
+  _affiliatePayoutStatus = typeof statusFilter === "string" ? statusFilter : "";
+  var el = document.getElementById("affiliate-payouts-table");
+  el.innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    var qs = _affiliatePayoutStatus ? ("?status_filter=" + encodeURIComponent(_affiliatePayoutStatus)) : "";
+    var rows = await adminApi("/api/v1/affiliate/admin/payouts" + qs);
+    rows = rows || [];
+    if (!rows.length) {
+      el.innerHTML = '<div class="empty-state">No ' + (escHtml(_affiliatePayoutStatus || "") || "") + ' payout requests.</div>';
+      return;
+    }
+    el.innerHTML = '<table class="data-table"><thead><tr><th>When</th><th>Affiliate</th><th>Amount</th><th>Bank account</th><th>Status</th><th>Note</th><th>Actions</th></tr></thead><tbody>' +
+      rows.map(function (p) {
+        var aff = p.affiliate || {};
+        var actions = "";
+        if (p.status === "pending") {
+          actions = '<button class="btn-sm" onclick="affiliateMarkPaid(\'' + p.id + '\')">Mark paid</button> ' +
+            '<button class="btn-sm" onclick="affiliateReject(\'' + p.id + '\')">Reject</button>';
+        }
+        return '<tr><td>' + escHtml(p.requested_at || "") + '</td>' +
+          '<td>' + escHtml(aff.name || "") + '<br><small>' + escHtml(aff.email || "") + '</small></td>' +
+          '<td><strong>₦' + Number(p.amount).toLocaleString() + '</strong></td>' +
+          '<td>' + escHtml(p.bank_name || "") + '<br>' + escHtml(p.account_number || "") + '<br><small>' + escHtml(p.account_name || "") + '</small></td>' +
+          '<td>' + escHtml(p.status || "") + '</td>' +
+          '<td>' + escHtml(p.admin_note || "—") + '</td>' +
+          '<td>' + actions + '</td></tr>';
+      }).join("") + '</tbody></table>';
+  } catch (e) {
+    el.innerHTML = '<div class="empty-state">' + escHtml(e.message || "Could not load payouts") + '</div>';
+  }
+}
+
+async function affiliateMarkPaid(id) {
+  var note = prompt("Optional reference (e.g. transfer date / bank receipt):", "");
+  if (note === null) note = "";
+  try {
+    await adminApi("/api/v1/affiliate/admin/payouts/" + id + "/process", {
+      method: "POST",
+      body: { status: "paid", admin_note: note || "Paid manually." },
+    });
+    loadAffiliatePayouts(_affiliatePayoutStatus);
+  } catch (e) {
+    alert(e.message || "Could not mark paid");
+  }
+}
+
+async function affiliateReject(id) {
+  var reason = prompt("Reason for rejecting (the amount returns to the affiliate's balance):", "");
+  if (reason === null) return;
+  try {
+    await adminApi("/api/v1/affiliate/admin/payouts/" + id + "/process", {
+      method: "POST",
+      body: { status: "rejected", admin_note: reason || "" },
+    });
+    loadAffiliatePayouts(_affiliatePayoutStatus);
+  } catch (e) {
+    alert(e.message || "Could not reject");
+  }
 }
 
 function openAdminCbtBank(bank) {
