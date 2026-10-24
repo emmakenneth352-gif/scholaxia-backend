@@ -31,7 +31,7 @@ from app.services.notification_service import send_user_notification
 router = APIRouter(prefix="/affiliate", tags=["Affiliate"])
 
 # Where the referral link points. Keep in one place so admin/deploy can change it.
-AFFILIATE_LINK_ORIGIN = "https://scholaxia1.onrender.com/app/"
+AFFILIATE_LINK_ORIGIN = "https://scholaxia.com/"
 
 async def credit_referral(db: AsyncSession, ref_code: str | None, new_user) -> None:
     """Called right after a new account is created. Credits the affiliate whose

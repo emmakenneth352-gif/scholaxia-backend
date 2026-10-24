@@ -439,9 +439,15 @@ async function endClass(id) {
       var token = await api.api("/api/v1/live-classes/" + encodeURIComponent(classId) + "/token");
       if (!token) throw new Error("Could not get classroom token.");
       var user = api.getUser();
-      // plugNmeet room ready: jump straight into its own classroom client.
+      // plugNmeet room ready: open it in a NEW tab so this dashboard tab
+      // stays put — the class keyboard button is one click away, and when
+      // the meeting ends plugNmeet redirects that tab to teacher.html.
       if (token.pnm_join_url) {
-        window.location.href = token.pnm_join_url;
+        var roomWin = null;
+        try {
+          roomWin = window.open(token.pnm_join_url, "_blank", "noopener");
+        } catch (eOpen) { roomWin = null; }
+        if (!roomWin) window.location.href = token.pnm_join_url;
         return;
       }
       localStorage.setItem(

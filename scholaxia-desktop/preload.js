@@ -25,6 +25,13 @@ contextBridge.exposeInMainWorld("scholaxiaDesktop", {
       console.error("openPnmRoom failed", e);
     }
   },
+  openClassroomKeyboard: function () {
+    try {
+      ipcRenderer.send("scholaxia:open-classroom-keyboard");
+    } catch (e) {
+      console.error("openClassroomKeyboard failed", e);
+    }
+  },
   openExternal: function (target) {
     try {
       ipcRenderer.send("scholaxia:open-external", String(target || ""));

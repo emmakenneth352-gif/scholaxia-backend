@@ -7,6 +7,14 @@
     <link rel="icon" type="image/png" href="media/logo-main.png" />
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="css/teacher.css?v=20261024b" />
+    <style>
+      .btn-kb-open {
+        background: #f5f3ff;
+        border: 1px solid #6d28d9;
+        color: #5b21b6;
+      }
+      .btn-kb-open:hover { background: #ede9fe; }
+    </style>
   </head>
   <body class="teacher-body">
     <div class="sidebar-backdrop" id="sidebarBackdrop" hidden></div>
@@ -116,6 +124,7 @@
               <div class="btn-row">
                 <button type="button" class="btn btn-ghost" id="hostScheduleBtn">Schedule class</button>
                 <button type="button" class="btn btn-primary" id="hostLiveBtn">Go live now</button>
+                <button type="button" class="btn btn-kb-open" id="openKbBtn" title="Open the subject & language keyboard in its own window">⌨ Keyboard</button>
               </div>
               <p class="form-status" id="hostError"></p>
             </div>
@@ -442,5 +451,18 @@
     <script src="js/i18n.js?v=20261024b"></script>
     <script src="js/api.js?v=20261024b"></script>
     <script src="js/teacher-app.js?v=20261024b"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        var kbBtn = document.getElementById("openKbBtn");
+        if (!kbBtn) return;
+        kbBtn.addEventListener("click", function () {
+          var w = window.open(
+            "keyboard.html", "sxClassKeyboard",
+            "width=440,height=672,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes"
+          );
+          if (w) { try { w.focus(); } catch (e) {} }
+        });
+      });
+    </script>
   </body>
 </html>

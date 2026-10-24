@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Scholaxia — Class Keyboard</title>
+<style>
+  :root {
+    --bg: #0d0a17;
+    --panel: #1a1228;
+    --panel-2: #231736;
+    --line: #3b2a5c;
+    --accent: #8b5cf6;
+    --accent-2: #6d28d9;
+    --text: #f3e8ff;
+    --muted: #c4b5fd;
+    --ok: #16a34a;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", "Noto Sans", "Charis SIL", "Doulos SIL", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+  }
+
+  header.kb-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px 6px;
+    flex-wrap: wrap;
+  }
+  header.kb-head h1 {
+    font-size: 0.95rem;
+    margin: 0;
+    letter-spacing: 0.02em;
+    flex: 1 1 auto;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  header.kb-head h1 span { color: var(--muted); font-weight: 500; }
+
+  .kb-sets {
+    display: flex;
+    gap: 6px;
+    padding: 4px 12px 8px;
+    flex-wrap: wrap;
+  }
+  .kb-set-btn {
+    appearance: none;
+    border: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--muted);
+    font: 700 0.8rem/1 inherit;
+    padding: 7px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+    user-select: none;
+  }
+  .kb-set-btn:hover { border-color: var(--accent); color: var(--text); }
+  .kb-set-btn.is-active {
+    background: var(--accent-2);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  .kb-output-wrap { padding: 0 12px 6px; position: relative; }
+  #kb-output {
+    width: 100%;
+    min-height: 96px;
+    max-height: 34vh;
+    resize: vertical;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #120c20;
+    color: var(--text);
+    font: 400 1rem/1.5 inherit;
+    padding: 10px 12px;
+    outline: none;
+  }
+  #kb-output:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.25); }
+  #kb-count {
+    position: absolute;
+    right: 20px;
+    bottom: 14px;
+    font-size: 0.68rem;
+    color: var(--muted);
+    background: rgba(13, 10, 23, 0.85);
+    padding: 1px 6px;
+    border-radius: 6px;
+    pointer-events: none;
+  }
+
+  .kb-hint {
+    margin: 0 12px 4px;
+    font-size: 0.72rem;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .kb-hint label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; }
+  .kb-hint input { accent-color: var(--accent); margin: 0; }
+
+  .kb-board {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 6px 12px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .kb-row { display: flex; flex-wrap: wrap; gap: 5px; }
+  .kb-key {
+    appearance: none;
+    min-width: 34px;
+    min-height: 34px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+    color: var(--text);
+    font: 600 1rem/1.2 inherit;
+    padding: 4px 8px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.1s, border-color 0.1s, transform 0.06s;
+  }
+  .kb-key:hover { background: var(--panel-2); border-color: var(--accent); }
+  .kb-key:active { transform: scale(0.94); background: var(--accent-2); }
+  .kb-key.is-word { font: 500 0.82rem/1.2 inherit; color: var(--muted); }
+  .kb-key.is-accent { color: var(--accent); font-weight: 800; }
+  .kb-key.wide { min-width: 58px; }
+
+  footer.kb-foot {
+    display: flex;
+    gap: 8px;
+    padding: 8px 12px 12px;
+    border-top: 1px solid var(--line);
+    position: sticky;
+    bottom: 0;
+    background: rgba(13, 10, 23, 0.96);
+  }
+  .kb-foot .kb-key { flex: 1 1 auto; }
+  #kb-copy:not(.flash) { color: #fff; background: var(--accent-2); border-color: var(--accent); }
+  #kb-copy:active { background: var(--accent); }
+  #kb-copy.flash { background: var(--ok); border-color: #22c55e; color: #fff; }
+  .kb-key.danger:hover { border-color: #ef4444; color: #fca5a5; }
+
+  .kb-live {
+    margin: 0 12px 8px;
+    border: 1px dashed var(--line);
+    border-radius: 10px;
+    padding: 8px 10px;
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+  .kb-live summary { cursor: pointer; color: var(--text); font-weight: 700; }
+  .kb-live p { margin: 6px 0; line-height: 1.5; }
+  #kb-bookmarklet {
+    display: inline-block;
+    background: var(--accent-2);
+    color: #fff;
+    font-weight: 700;
+    padding: 8px 14px;
+    border-radius: 999px;
+    text-decoration: none;
+    border: 1px solid var(--accent);
+  }
+  #kb-bookmarklet:active { cursor: grabbing; }
+  body.embed .kb-live { display: none; }
+  body.embed header.kb-head { padding: 6px 10px 2px; }
+  body.embed header.kb-head h1 { font-size: 0.82rem; }
+  body.embed .kb-hint { display: none; }
+  body.embed #kb-output { min-height: 64px; }
+
+  @media (max-width: 420px) {
+    .kb-key { min-width: 30px; min-height: 32px; font-size: 0.92rem; padding: 3px 6px; }
+    .kb-set-btn { padding: 6px 9px; font-size: 0.75rem; }
+  }
+</style>
+</head>
+<body>
+
+<header class="kb-head">
+  <h1>⌨️ Class keyboard <span>for plugNmeet &amp; chat</span></h1>
+</header>
+
+<div class="kb-sets" id="kb-sets" role="tablist" aria-label="Keyboard set"></div>
+
+<div class="kb-output-wrap">
+  <textarea id="kb-output" spellcheck="false" placeholder="Type or tap symbols here — then Copy to paste into plugNmeet chat or the whiteboard…"></textarea>
+  <span id="kb-count">0</span>
+</div>
+
+<p class="kb-hint">
+  <label><input type="checkbox" id="kb-auto-copy" /> Copy each key instantly</label>
+  <span style="opacity:.6">·</span>
+  <span>Symbols insert at the cursor.</span>
+</p>
+
+<details class="kb-live" id="kb-live">
+  <summary>📌 Use it INSIDE the live class (no going back)</summary>
+  <p><strong>Option 1 — floating panel inside plugNmeet:</strong> drag this button up to your
+  bookmarks bar, then click that bookmark <em>while you are inside the live class</em>.
+  The keyboard floats over the meeting.</p>
+  <p><a id="kb-bookmarklet" href="#" title="Drag me to your bookmarks bar">📌 Scholaxia Keyboard</a></p>
+  <p><strong>Option 2 — side by side:</strong> open this page in a second tab next to the
+  class tab and snap them left/right (<kbd>Win</kbd> + <kbd>←</kbd> / <kbd>→</kbd> on Windows).
+  If the floating panel is ever blocked, it opens in a new tab automatically.</p>
+</details>
+
+<div class="kb-board" id="kb-board" role="group" aria-label="Symbol keys"></div>
+
+<footer class="kb-foot">
+  <button type="button" class="kb-key danger" id="kb-clear" title="Clear everything">Clear</button>
+  <button type="button" class="kb-key danger" id="kb-back" title="Delete last character at cursor">⌫</button>
+  <button type="button" class="kb-key" id="kb-copy">Copy</button>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ── Character sets ────────────────────────────────────────────────
+     rows: array of arrays of key items. A key item is either a string
+     ("abc" inserts abc) or an object {label, ins} where ins is what's
+     inserted and label is shown (words / multi-char keys).               */
+  var SETS = {
+    math: {
+      title: "Math",
+      rows: [
+        ["√", "π", "∑", "∏", "∫", "∞", "∂", "∇", "Δ", "θ", "α", "β", "γ", "λ", "μ", "ω"],
+        ["≈", "≠", "≤", "≥", "±", "×", "÷", { label: "|x|", ins: "|x|" }, "…", "%"],
+        ["→", "⇒", "⇔", "↔", "∈", "∉", "∅", "⊂", "∪", "∩", "∀", "∃"],
+        [{ label: "x²", ins: "x²" }, { label: "x³", ins: "x³" }, { label: "xⁿ", ins: "xⁿ" },
+         { label: "√x", ins: "√x" }, "²", "³", "ⁿ", "⁻", "⁺", "⁄", "½", "⅓", "¼", "¾", "⅔"],
+        ["°", "′", "″", "∴", "∵", "∠", "⌲"],
+        ["+", "−", "=", "<", ">", "(", ")", "[", "]", ",", ".", "0", "1", "2", "3", "4"]
+      ]
+    },
+    physics: {
+      title: "Physics",
+      rows: [
+        ["Δ", "∇", "∂", "∞", "≈", "≠", "±", "≤", "≥", "×", "÷",
+         { label: "×10ⁿ", ins: "×10" }, { label: "10ⁿ", ins: "10" }],
+        ["λ", "ν", "ħ", "Ω", "φ", "ψ", "θ", "ω", "α", "β", "γ", "μ",
+         { label: "ε₀", ins: "ε₀" }, { label: "μ₀", ins: "μ₀" }],
+        ["→", "↑", "↓", "⊥", "∥", "∮", "∫", "°", "°C", "K", "rad", "s"],
+        ["₀", "₁", "₂", "₃", "₄", "₅", "₆", "₇", "₈", "₉",
+         "⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹", "⁻", "⁺"],
+        [{ label: "v₀", ins: "v₀" }, { label: "x₀", ins: "x₀" }, { label: "t₀", ins: "t₀" },
+         { label: "E₀", ins: "E₀" }, { label: "B₀", ins: "B₀" }, { label: "q₀", ins: "q₀" },
+         "c", "h"],
+        ["kg", { label: "m/s", ins: "m/s" }, { label: "m/s²", ins: "m/s²" }, "N", "J", "W",
+         "Hz", "eV", "Ω", "kWh", "mol", "e⁻", "e⁺"],
+        ["G", "F", "k", "g", "( ", " )", "[ ", " ]", "=", ",", "." ]
+      ]
+    },
+    chemistry: {
+      title: "Chemistry",
+      rows: [
+        [{ label: "H₂O", ins: "H₂O" }, { label: "CO₂", ins: "CO₂" }, { label: "O₂", ins: "O₂" },
+         { label: "H₂", ins: "H₂" }, { label: "H₂SO₄", ins: "H₂SO₄" }, { label: "CH₄", ins: "CH₄" },
+         { label: "NH₃", ins: "NH₃" }, { label: "HCl", ins: "HCl" }, { label: "NaCl", ins: "NaCl" },
+         { label: "NaOH", ins: "NaOH" }, { label: "SO₂", ins: "SO₂" }, { label: "CO", ins: "CO" }],
+        ["₀", "₁", "₂", "₃", "₄", "₅", "₆", "₇", "₈", "₉",
+         "⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"],
+        ["→", "⇌", "⇄", "↔", "↑", "↓", "Δ", "d", "e⁻", "⁺", "⁻", "·H₂O", "°C", "℃", "mol", "M"],
+        ["H", "C", "N", "O", "Na", "Cl", "S", "Fe", "Cu", "Zn", "Ca", "Mg", "K", "Al", "Ag"],
+        ["⟶", "⇉", "↯", "λ", "ν", "ħ", "×", "≈", "aq", "(s)", "(l)", "(g)"],
+        ["(", ")", "[", "]", "+", "−", "=", ",", { label: "␣", ins: " " }]
+      ]
+    },
+    igbo: {
+      title: "Igbo",
+      rows: [
+        ["ị", "Ị", "ọ", "Ọ", "ụ", "Ụ", "e", "E", "a", "A"],
+        ["á", "à", "é", "è", "í", "ì", "ó", "ò", "ú", "ù"],
+        ["ị́", "ị̀", "ọ́", "ọ̀", "ụ́", "ụ̀", "Á", "À", "Ó", "Ò"],
+        [{ label: "gb", ins: "gb" }, { label: "kp", ins: "kp" }, { label: "ch", ins: "ch" },
+         { label: "sh", ins: "sh" }, { label: "nw", ins: "nw" }, { label: "ny", ins: "ny" },
+         { label: "gw", ins: "gw" }, { label: "gh", ins: "gh" }],
+        ["ṅ", "Ṅ"]
+      ]
+    },
+    hausa: {
+      title: "Hausa",
+      rows: [
+        ["ɓ", "Ɓ", "ɗ", "Ɗ", "ƙ", "Ƙ"],
+        [{ label: "ʼy", ins: "ʼy" }, { label: "ʼY", ins: "ʼY" }, "ʼ",
+         { label: "ʼn", ins: "ʼn" }, { label: "ʼs", ins: "ʼs" }, { label: "ʼt", ins: "ʼt" }],
+        [{ label: "sh", ins: "sh" }, { label: "Sh", ins: "Sh" }, { label: "ts", ins: "ts" },
+         { label: "Ts", ins: "Ts" }, { label: "gw", ins: "gw" }, { label: "kw", ins: "kw" }],
+        ["á", "à", "é", "è", "í", "ì", "ó", "ò", "ú", "ù"],
+        ["ā", "ē", "ī", "ō", "ū"],
+      ]
+    },
+    efik: {
+      title: "Efik",
+      rows: [
+        ["ñ", "Ñ", "ọ", "Ọ", "ẹ", "Ẹ", "ị", "Ị", "ụ", "Ụ"],
+        ["á", "à", "é", "è", "í", "ì", "ó", "ò", "ú", "ù"],
+        ["ā", "ē", "ī", "ō", "ū", "â", "ê", "î", "ô", "û", "ě", "ǐ", "ŏ", "ǎ"],
+        ["Ó", "Ò", "Ō", "É", "È", "Á", "À", "Ú", "Ù"],
+        [{ label: "gh", ins: "gh" }, { label: "kp", ins: "kp" }, { label: "kw", ins: "kw" },
+         { label: "ny", ins: "ny" }, { label: "ñw", ins: "ñw" }]
+      ]
+    },
+    yoruba: {
+      title: "Yoruba",
+      rows: [
+        ["ẹ", "Ẹ", "ọ", "Ọ", "ṣ", "Ṣ", "ń", "ḿ", "m̀"],
+        ["á", "à", "é", "è", "í", "ì", "ó", "ò", "ú", "ù"],
+        ["ẹ́", "ẹ̀", "ẹ̄", "ọ́", "ọ̀", "ọ̄", "Á", "À", "É", "È", "Ó", "Ò"],
+        ["ā", "ē", "ī", "ō", "ū", "ẹ́", "ẹ̀", "ọ́", "ọ̀"],
+        ["Ē", "Ō", "Ẹ́", "Ẹ̀", "Ọ́", "Ọ̀", "Ṣ", "Ẹ", "Ọ"]
+      ]
+    },
+  };
+
+  /* ── Core logic ─────────────────────────────────────────────────── */
+  var out = document.getElementById("kb-output");
+  var board = document.getElementById("kb-board");
+  var setsBar = document.getElementById("kb-sets");
+  var counter = document.getElementById("kb-count");
+  var autoCopy = document.getElementById("kb-auto-copy");
+  var current = "math";
+
+  function insertAtCaret(text) {
+    var start = out.selectionStart, end = out.selectionEnd;
+    out.setRangeText(text, start, end, end === start ? "end" : "end");
+    out.selectionStart = out.selectionEnd = start + text.length;
+    out.focus();
+  }
+
+  function refresh() {
+    var n = out.value.length;
+    counter.textContent = n + " char" + (n === 1 ? "" : "s");
+    try { localStorage.setItem("sia_kb_set", current); localStorage.setItem("sia_kb_draft", out.value); } catch (e) {}
+  }
+
+  function copyText(text) {
+    try {
+      navigator.clipboard.writeText(text).catch(function () { legacyCopy(text); });
+    } catch (e) { legacyCopy(text); }
+  }
+
+  function legacyCopy(text) {
+    var t = document.createElement("textarea");
+    t.value = text;
+    t.style.position = "fixed";
+    t.style.opacity = "0";
+    document.body.appendChild(t);
+    t.select();
+    try { document.execCommand("copy"); } catch (e2) { /* ignore */ }
+    t.remove();
+  }
+
+  function flashCopied() {
+    var btn = document.getElementById("kb-copy");
+    btn.textContent = "Copied ✓";
+    btn.classList.add("flash");
+    setTimeout(function () {
+      btn.textContent = "Copy";
+      btn.classList.remove("flash");
+    }, 900);
+  }
+
+  function render() {
+    var set = SETS[current];
+    board.textContent = "";
+    set.rows.forEach(function (row) {
+      var rowEl = document.createElement("div");
+      rowEl.className = "kb-row";
+      row.forEach(function (key) {
+        var isObj = key && typeof key === "object";
+        var label = isObj ? key.label : key;
+        var ins = isObj ? key.ins : key;
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "kb-key";
+        btn.textContent = label;
+        if (String(label).length > 2) btn.classList.add("is-word");
+        btn.title = ins === "\n" ? "New line" : ins;
+        btn.addEventListener("click", function () {
+          if (ins === "\n") { insertAtCaret("\n"); refresh(); return; }
+          if (ins === "    ") { insertAtCaret("    "); refresh(); return; }
+          insertAtCaret(ins);
+          if (autoCopy.checked) copyText(ins);
+          refresh();
+        });
+        rowEl.appendChild(btn);
+      });
+      board.appendChild(rowEl);
+    });
+  }
+
+  function buildSetsBar() {
+    Object.keys(SETS).forEach(function (id) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "kb-set-btn";
+      btn.textContent = SETS[id].title;
+      btn.addEventListener("click", function () {
+        current = id;
+        Array.prototype.forEach.call(setsBar.children, function (b) { b.classList.remove("is-active"); });
+        btn.classList.add("is-active");
+        render();
+      });
+      setsBar.appendChild(btn);
+    });
+  }
+
+  buildSetsBar();
+  try {
+    var saved = localStorage.getItem("sia_kb_set");
+    if (saved && SETS[saved]) current = saved;
+    var draft = localStorage.getItem("sia_kb_draft");
+    if (draft) out.value = draft;
+  } catch (e) { /* storage may be blocked in popups */ }
+  Array.prototype.forEach.call(setsBar.children, function (b, i) {
+    b.classList.toggle("is-active", Object.keys(SETS)[i] === current);
+  });
+  render();
+  refresh();
+
+  /* Embed mode + inside-live bookmarklet. plugNMeet's own client is a
+     third-party page, so Scholaxia cannot add buttons inside it — instead
+     this bookmarklet injects the keyboard as a floating panel over any
+     page (the live class included). Falls back to a new tab if blocked. */
+  try {
+    if (/[?&]embed=1(?:&|$)/.test(location.search)) document.body.classList.add("embed");
+  } catch (e) {}
+  (function buildBookmarklet() {
+    var link = document.getElementById("kb-bookmarklet");
+    if (!link) return;
+    var code =
+      "var ID='sx-kb-live';" +
+      "var old=document.getElementById(ID);" +
+      "if(old){old.style.display=(old.style.display==='none'?'block':'none');return;}" +
+      "try{" +
+      "var d=document.createElement('div');d.id=ID;" +
+      "d.setAttribute('style','position:fixed;right:10px;bottom:10px;width:400px;height:560px;max-height:92vh;z-index:2147483647;background:#0d0a17;border:1px solid #6d28d9;border-radius:12px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.5);display:flex;flex-direction:column;font-family:system-ui,sans-serif;');" +
+      "var bar=document.createElement('div');" +
+      "bar.setAttribute('style','display:flex;align-items:center;gap:6px;padding:6px 8px;background:#1a1228;color:#f3e8ff;font-size:12px;font-weight:700;');" +
+      "var t=document.createElement('span');t.textContent='\u2318 Scholaxia keyboard';t.setAttribute('style','flex:1;');bar.appendChild(t);" +
+      "var x=document.createElement('button');x.textContent='\u2715';" +
+      "x.setAttribute('style','background:none;border:0;color:#c4b5fd;font-size:14px;cursor:pointer;padding:2px 6px;');" +
+      "x.onclick=function(){d.remove();};bar.appendChild(x);" +
+      "var f=document.createElement('iframe');" +
+      "f.src='https://scholaxia.com/keyboard.html?embed=1';" +
+      "f.setAttribute('style','flex:1;width:100%;min-height:0;border:0;background:#0d0a17;');" +
+      "f.setAttribute('title','Scholaxia class keyboard');" +
+      "d.appendChild(bar);d.appendChild(f);document.body.appendChild(d);" +
+      "}catch(e){window.open('https://scholaxia.com/keyboard.html','_blank');}";
+    link.href = "javascript:(function(){" + code + "})()";
+  })();
+
+  document.getElementById("kb-copy").addEventListener("click", function () {
+    copyText(out.value);
+    flashCopied();
+  });
+  document.getElementById("kb-back").addEventListener("click", function () {
+    var s = out.selectionStart, e = out.selectionEnd;
+    if (s === e) { s = Math.max(0, s - 1); }
+    out.setRangeText("", s, e, "end");
+    out.selectionStart = out.selectionEnd = s;
+    out.focus();
+    refresh();
+  });
+  document.getElementById("kb-clear").addEventListener("click", function () {
+    if (!out.value.length || confirm("Clear everything?")) {
+      out.value = "";
+      out.focus();
+      refresh();
+    }
+  });
+  out.addEventListener("input", refresh);
+  /* __APPEND_TAIL__ */
+})();
+</script>
+</body>
+</html>

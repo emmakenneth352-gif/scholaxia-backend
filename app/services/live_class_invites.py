@@ -21,7 +21,7 @@ from app.services.otp_service import send_transactional_email
 
 logger = logging.getLogger(__name__)
 
-_SITE_URL = "https://scholaxia1.onrender.com"
+_SITE_URL = "https://scholaxia.com"
 
 
 def _escape(s: str) -> str:

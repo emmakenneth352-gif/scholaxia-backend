@@ -137,6 +137,7 @@ app.whenReady().then(async () => {
 // classroom window there so the student lands back in the app.
 const PNM_HOST_RE = /(^|\.)plugnmeet\.(cloud|in)$/i;
 let pnmRoomWin = null;
+let keyboardWin = null;
 
 function openPnmRoom(joinUrl) {
   try {
@@ -190,11 +191,47 @@ function openPnmRoom(joinUrl) {
   }
 }
 
+// ── Class keyboard floating window ─────────────────────────────────────────
+// Subject/language symbol keyboard that can sit next to the plugNmeet room
+// window (or the classroom) so the teacher can type Math/Python/Chemistry and
+// Igbo/Hausa/Efik/Yoruba characters, then copy them into chat or whiteboard.
+function openClassroomKeyboard() {
+  if (keyboardWin && !keyboardWin.isDestroyed()) {
+    try { keyboardWin.show(); keyboardWin.focus(); } catch (err) { /* ignore */ }
+    return;
+  }
+  try {
+    keyboardWin = new BrowserWindow({
+      width: 440,
+      height: 672,
+      minWidth: 360,
+      minHeight: 460,
+      title: "Scholaxia Class Keyboard",
+      backgroundColor: "#0d0a17",
+      autoHideMenuBar: true,
+      resizable: true,
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    });
+    keyboardWin.loadFile(path.join(__dirname, "renderer", "keyboard.html"));
+    keyboardWin.on("closed", () => {
+      keyboardWin = null;
+    });
+  } catch (err) {
+    console.error("openClassroomKeyboard failed", err);
+  }
+}
+
 (function registerDesktopBridge() {
   try {
     const { ipcMain } = require("electron");
     ipcMain.on("scholaxia:open-pnm-room", (_ev, joinUrl) => {
       if (typeof joinUrl === "string" && joinUrl) openPnmRoom(joinUrl);
+    });
+    ipcMain.on("scholaxia:open-classroom-keyboard", () => {
+      openClassroomKeyboard();
     });
     ipcMain.on("scholaxia:open-external", (_ev, target) => {
       if (typeof target === "string" && /^https?:/i.test(target)) {

@@ -183,7 +183,7 @@ class Settings(BaseSettings):
     # that origin's localStorage) — a foreign origin always shows the login page
     # (that was the "end meeting → forced to login" bug). Override in .env if the
     # app is served from another domain.
-    PLUGNMEET_LOGOUT_URL: str = "https://scholaxia1.onrender.com/app/"
+    PLUGNMEET_LOGOUT_URL: str = "https://scholaxia.com/student.html"
 
     # Legacy Agora (unused — kept so old env vars do not break deploy)
     AGORA_APP_ID: str = ""

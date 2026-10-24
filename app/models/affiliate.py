@@ -37,7 +37,7 @@ class AffiliateProfile(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
-    def display_link(self, origin: str = "https://scholaxia1.onrender.com") -> str:
+    def display_link(self, origin: str = "https://scholaxia.com") -> str:
         return f"{origin.rstrip('/')}/app/?ref={self.code}"
 
 

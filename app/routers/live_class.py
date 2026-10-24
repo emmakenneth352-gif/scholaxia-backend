@@ -441,13 +441,14 @@ def _user_uid(user_id: str) -> int:
     return int(hashlib.md5(user_id.encode()).hexdigest()[:8], 16) % (2**31)
 
 
-def _request_logout_url(request: Request | None) -> str:
+def _request_logout_url(request: Request | None, is_admin: bool = False) -> str:
     """Where plugNmeet should send users after the room closes.
 
     Derived from the caller's origin so "end class" lands on a friendly
-    class-ended page of the SAME app they came from — never on a foreign
-    login screen. Falls back to the configured default when no origin is
-    available (desktop file:// contexts etc.).
+    dashboard of the SAME site they came from — teachers go back to the
+    teacher dashboard, students to the student dashboard — never on a
+    foreign login screen or a 404. Falls back to the configured default
+    when no origin is available (desktop file:// contexts etc.).
     """
     origin = ""
     try:
@@ -463,7 +464,12 @@ def _request_logout_url(request: Request | None) -> str:
     # Desktop renderer is served at the root (no /app prefix).
     if ":17890" in origin:
         return origin.rstrip("/") + "/class-ended.html"
-    return origin.rstrip("/") + "/app/class-ended.html"
+    # Web mirrors serve teacher.html / student.html at their root; the API
+    # host also serves them under /app/ (static/app deployment).
+    page = ("teacher.html" if is_admin else "student.html")
+    if "onrender.com" in origin.lower():
+        return origin.rstrip("/") + "/app/" + page
+    return origin.rstrip("/") + "/" + page
 
 
 async def _pnm_join_info(
@@ -1512,7 +1518,7 @@ async def join_class(
             sid,
             current_user.get("full_name") or current_user.get("email") or "Student",
             actual_role in ("teacher", "admin", "host"),
-            logout_url=_request_logout_url(request),
+            logout_url=_request_logout_url(request, actual_role in ("teacher", "admin", "host")),
         )
         return {
             "class_id": str(class_uuid),
@@ -1584,7 +1590,7 @@ async def get_livekit_token(
         uid,
         display,
         is_teacher,
-        logout_url=_request_logout_url(request),
+        logout_url=_request_logout_url(request, is_teacher),
     )
     mic_ok = is_teacher or _mic_allowed_for(live_class.room_id, uid, att)
     cam_ok = is_teacher or _camera_allowed_for(live_class.room_id, uid, att)
