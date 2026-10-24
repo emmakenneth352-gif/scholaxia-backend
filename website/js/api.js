@@ -608,7 +608,7 @@
     }
   }
 
-  function requireAuth(expectedRoles) {
+  function requireAuth(expectedRoles, nextPage) {
     var role = String(localStorage.getItem("sia_role") || "")
       .toLowerCase()
       .replace(/^userrole\./, "");
@@ -618,7 +618,9 @@
         clearSession();
       } catch (e) {}
       if (currentPageName() !== "portal.html") {
-        window.location.replace("portal.html?force=1&reason=auth");
+        var loginUrl = "portal.html?force=1&reason=auth";
+        if (nextPage) loginUrl += "&next=" + encodeURIComponent(String(nextPage));
+        window.location.replace(loginUrl);
       }
       return false;
     }

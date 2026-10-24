@@ -62,7 +62,7 @@
     <div id="need-login" class="card login-note hidden">
       <h2>Sign in first</h2>
       <p>You need a Scholaxia account to join the affiliate program.</p>
-      <p><a href="auth.html">Sign in / create an account</a></p>
+      <p><a href="portal.html?force=1&reason=auth&next=affiliate.html">Sign in / create an account</a></p>
     </div>
 
     <div id="affiliate-app" class="hidden">
@@ -134,7 +134,7 @@
       return typeof d === "string" ? d : (e && e.message) || "Something went wrong";
     }
 
-    if (!api.requireAuth()) return;
+    if (!api.requireAuth(null, "affiliate.html")) return;
 
     function fmt(n) {
       return "₦" + Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
