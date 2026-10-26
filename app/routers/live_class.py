@@ -149,6 +149,7 @@ async def join_preview(
 
 class JoinByCodeRequest(BaseModel):
     code: str
+    hybrid_web: bool = False
 
 
 @router.get("/access-codes/mine")
@@ -353,7 +354,13 @@ async def join_class_by_code(
         except Exception:
             pass
 
-    return await join_class(str(live_class.id), current_user, db, request)
+    return await join_class(
+        str(live_class.id),
+        current_user,
+        db,
+        request,
+        hybrid_web=bool(getattr(payload, "hybrid_web", False)),
+    )
 
 
 # â”€â”€ LiveKit token helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -479,11 +486,14 @@ async def _pnm_join_info(
     display_name: str,
     is_admin: bool,
     logout_url: str | None = None,
+    hybrid_web: bool = False,
 ) -> dict:
     """plugNmeet room/token for this class — empty dict when not configured.
 
     Room is created on demand (idempotent); token is short-lived and one-time,
     minted server-side so the API secret never leaves the backend.
+    hybrid_web=True requests client_type HYBRID_WEB (native WebView twin);
+    default False keeps the website/laptop WEB flow exactly as before.
     """
     from app.services import plugnmeet_client as pnm
 
@@ -493,13 +503,20 @@ async def _pnm_join_info(
     try:
         if not await pnm.ensure_room(rid, title or "Scholaxia Live Class", logout_url):
             return {}
-        info = await pnm.join_token(rid, str(user_id), display_name, is_admin)
+        info = await pnm.join_token(
+            rid,
+            str(user_id),
+            display_name,
+            is_admin,
+            client_type="HYBRID_WEB" if hybrid_web else "WEB",
+        )
         if not info or not info.get("join_url"):
             return {}
         return {
             "pnm_token": info["token"],
             "pnm_join_url": info["join_url"],
             "pnm_is_admin": bool(is_admin),
+            "pnm_client_type": "HYBRID_WEB" if hybrid_web else "WEB",
         }
     except Exception:
         return {}
@@ -1184,6 +1201,7 @@ async def join_class(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     request: Request = None,
+    hybrid_web: bool = Query(False),
 ):
     """Join a live class and return LiveKit credentials.
 
@@ -1519,6 +1537,7 @@ async def join_class(
             current_user.get("full_name") or current_user.get("email") or "Student",
             actual_role in ("teacher", "admin", "host"),
             logout_url=_request_logout_url(request, actual_role in ("teacher", "admin", "host")),
+            hybrid_web=bool(hybrid_web),
         )
         return {
             "class_id": str(class_uuid),
@@ -1553,6 +1572,7 @@ async def get_livekit_token(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     request: Request = None,
+    hybrid_web: bool = Query(False),
 ):
     """Get a fresh LiveKit token for a live class room."""
     try:
@@ -1591,6 +1611,7 @@ async def get_livekit_token(
         display,
         is_teacher,
         logout_url=_request_logout_url(request, is_teacher),
+        hybrid_web=bool(hybrid_web),
     )
     mic_ok = is_teacher or _mic_allowed_for(live_class.room_id, uid, att)
     cam_ok = is_teacher or _camera_allowed_for(live_class.room_id, uid, att)

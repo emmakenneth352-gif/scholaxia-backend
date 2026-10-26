@@ -176,10 +176,18 @@ def _join_token_payload(
     name: str,
     is_admin: bool,
     profile_pic: str = "",
+    client_type: str = "WEB",
 ) -> dict:
     user_metadata = {"preferred_lang": "en-US"}
     if profile_pic:
         user_metadata["profile_pic"] = profile_pic
+    # Hybrid mobile (WebView + native LiveKit publisher) must request
+    # client_type HYBRID_WEB so plugNmeet hands a publish-only token to the
+    # native twin over the bridge. Default stays WEB so laptop/website flow
+    # is byte-for-byte unchanged unless the caller opts in.
+    ct = str(client_type or "WEB").strip().upper() or "WEB"
+    if ct not in ("WEB", "HYBRID_WEB"):
+        ct = "WEB"
     return {
         "room_id": f"sx-{room_id}",
         "user_info": {
@@ -187,7 +195,7 @@ def _join_token_payload(
             "user_id": f"sx-{user_id}",
             "is_admin": bool(is_admin),
             "is_hidden": False,
-            "client_type": "WEB",
+            "client_type": ct,
             "user_metadata": user_metadata,
         },
     }
@@ -199,6 +207,7 @@ async def join_token(
     name: str,
     is_admin: bool,
     profile_pic: str = "",
+    client_type: str = "WEB",
 ) -> dict | None:
     """Mint a short-lived, one-time join token. Returns {'token','join_url'}."""
     rid = str(room_id or "").strip()
@@ -206,7 +215,7 @@ async def join_token(
         return None
     data = await acall(
         "/room/getJoinToken",
-        _join_token_payload(rid, user_id, name, is_admin, profile_pic),
+        _join_token_payload(rid, user_id, name, is_admin, profile_pic, client_type),
     )
     token = data.get("token") or ""
     if not token:
