@@ -353,10 +353,20 @@
             </div>
             <div class="profile-card">
               <div class="profile-av" id="profileAv">T</div>
+              <img id="profilePhoto" alt="Profile photo" hidden style="width:56px;height:56px;border-radius:50%;object-fit:cover" />
               <div>
                 <h3 id="profileName">Teacher</h3>
                 <p id="profileText">Loading…</p>
               </div>
+            </div>
+            <div class="panel">
+              <h3>Profile photo</h3>
+              <p class="muted">Upload a clear photo of yourself. It appears on the homepage tutor list and your public profile.</p>
+              <div class="form-grid">
+                <label>Choose photo (JPG/PNG/WebP, max 20MB) <input type="file" id="tpPhoto" accept="image/jpeg,image/png,image/webp" /></label>
+              </div>
+              <button type="button" class="btn btn-primary" id="tpPhotoBtn">Upload photo</button>
+              <span class="form-status" id="tpPhotoStatus"></span>
             </div>
             <div class="panel">
               <h3>Your signup details</h3>

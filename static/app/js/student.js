@@ -387,13 +387,12 @@
 
   document.querySelectorAll(".side-link, [data-goto]").forEach(function (el) {
     el.addEventListener("click", function (e) {
+      var page = el.dataset.page || el.dataset.goto;
+      if (!page) return; // real link (e.g. Refer & Earn) — let the browser navigate
       e.preventDefault();
       e.stopPropagation();
-      var page = el.dataset.page || el.dataset.goto;
-      if (page) {
-        showPage(page);
-        if (window.matchMedia("(max-width: 900px)").matches) closeMobileNav();
-      }
+      showPage(page);
+      if (window.matchMedia("(max-width: 900px)").matches) closeMobileNav();
     });
   });
 
@@ -753,8 +752,8 @@
 
   function youtubeEmbed(url) {
     var u = String(url || "").trim();
-    var m = u.match(/(?:youtu\.be\/|v=)([A-Za-z0-9_-]{6,})/);
-    if (m) return "https://www.youtube.com/embed/" + m[1];
+    var m = u.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?[^#]*?v=|embed\/|v\/|shorts\/|live\/))([A-Za-z0-9_-]{6,})/);
+    if (m) return "https://www.youtube-nocookie.com/embed/" + m[1] + "?rel=0";
     return u;
   }
 
@@ -829,7 +828,7 @@
               esc(src) +
               '" title="' +
               esc(it.title || "Lesson") +
-              '" allowfullscreen loading="lazy"></iframe></div>'
+              '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen loading="lazy"></iframe></div>'
             : "") +
           "</div>"
         );

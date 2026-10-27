@@ -1614,9 +1614,70 @@ async function endClass(id) {
             (me.subjects && me.subjects.length ? " · " + me.subjects.join(", ") : "");
         }
         localStorage.setItem("sia_teacher_pending_approval", approved ? "0" : "1");
+        if (me.profile_picture) showTeacherPhoto(me.profile_picture);
       }
     } catch (e) {
       /* keep session */
+    }
+  }
+
+  function showTeacherPhoto(url) {
+    var img = $("profilePhoto");
+    var av = $("profileAv");
+    if (!img) return;
+    if (url) {
+      img.src = url;
+      img.hidden = false;
+      if (av) av.style.display = "none";
+    } else {
+      img.removeAttribute("src");
+      img.hidden = true;
+      if (av) av.style.display = "";
+    }
+  }
+
+  async function uploadTeacherPhoto() {
+    var input = $("tpPhoto");
+    var status = $("tpPhotoStatus");
+    var btn = $("tpPhotoBtn");
+    function say(msg, ok) {
+      if (status) {
+        status.textContent = msg;
+        status.className = "form-status" + (ok ? " ok" : "");
+      }
+    }
+    if (!input || !input.files || !input.files[0]) {
+      say("Choose a photo first.");
+      return;
+    }
+    var file = input.files[0];
+    if (file.size > 20 * 1024 * 1024) {
+      say("Photo is too large. Maximum is 20MB.");
+      return;
+    }
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Uploading…";
+    }
+    say("");
+    try {
+      var up = await uploadFile(file);
+      var url = (up && (up.file_url || up.secure_url || up.url)) || "";
+      if (!url) throw new Error("Upload did not return a photo URL.");
+      var res = await api.api("/api/v1/profiles/me/picture", {
+        method: "PATCH",
+        body: JSON.stringify({ profile_picture: url }),
+      });
+      var finalUrl = (res && res.profile_picture) || url;
+      showTeacherPhoto(finalUrl);
+      say("Profile photo updated.", true);
+    } catch (e) {
+      say(e.message || "Could not upload photo.");
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Upload photo";
+      }
     }
   }
 
@@ -1859,6 +1920,7 @@ async function endClass(id) {
   if ($("gradingRefreshBtn")) $("gradingRefreshBtn").addEventListener("click", loadGrading);
   if ($("announceSendBtn")) $("announceSendBtn").addEventListener("click", sendAnnouncement);
   if ($("aiAskBtn")) $("aiAskBtn").addEventListener("click", askAI);
+  if ($("tpPhotoBtn")) $("tpPhotoBtn").addEventListener("click", uploadTeacherPhoto);
 
   if ($("closeGradeBtn")) $("closeGradeBtn").addEventListener("click", function () { $("gradeModal").hidden = true; });
   if ($("cancelGradeBtn")) $("cancelGradeBtn").addEventListener("click", function () { $("gradeModal").hidden = true; });
