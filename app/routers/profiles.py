@@ -6,7 +6,7 @@ GET /api/v1/profiles/teacher/{user_id}  — public teacher profile
 GET /api/v1/teachers/me                 — teacher's own full profile
 GET /api/v1/students/me                 — already exists in students.py
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
@@ -87,6 +87,68 @@ async def get_my_student_profile(
         profile_picture=user.profile_picture,
         joined=user.created_at.strftime("%B %Y"),
     )
+
+
+@router.post("/profiles/me/photo")
+async def upload_my_profile_photo(
+    request: Request,
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload the logged-in user's profile photo in one call.
+
+    Tries Cloudinary first; if that fails (e.g. credentials missing) the image
+    is resized and stored locally under /uploads/profile/ so the upload still
+    works. The user's profile_picture is updated and returned.
+    """
+    from pathlib import Path
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="No photo received. Pick an image and try again.")
+    if len(content) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Photo is too large. Maximum is 20MB.")
+    try:
+        from PIL import Image
+        from io import BytesIO
+
+        img = Image.open(BytesIO(content))
+        img.verify()
+        img = Image.open(BytesIO(content)).convert("RGB")
+        img.thumbnail((1024, 1024))
+        buf = BytesIO()
+        img.save(buf, format="JPEG", quality=82)
+        jpeg = buf.getvalue()
+    except Exception:
+        raise HTTPException(status_code=400, detail="That file is not a valid JPG, PNG or WebP image.")
+
+    url = ""
+    try:
+        from app.services.media_service import upload_file as cloudinary_upload
+
+        result = cloudinary_upload(jpeg, "images", filename="profile")
+        url = (result.get("secure_url") or result.get("url") or "").strip()
+    except Exception:
+        url = ""
+    if not url:
+        # Local fallback — always available even without Cloudinary credentials.
+        import uuid as _uuid
+
+        media_root = Path(__file__).resolve().parent.parent / "uploads" / "profile"
+        media_root.mkdir(parents=True, exist_ok=True)
+        name = f"{_uuid.uuid4().hex}.jpg"
+        (media_root / name).write_bytes(jpeg)
+        base = str(request.base_url).rstrip("/")
+        url = f"{base}/uploads/profile/{name}"
+
+    result = await db.execute(select(User).where(User.id == UUID(str(current_user["sub"]))))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.profile_picture = url
+    await db.flush()
+    return {"message": "Profile picture updated", "profile_picture": url}
 
 
 @router.patch("/profiles/me/picture")

@@ -369,6 +369,12 @@ async def app_assets(asset_path: str):
     return FileResponse(full, headers=no_cache)
 
 
+# Local profile-photo fallback (used only when Cloudinary upload fails).
+_UPLOADS_DIR = Path(__file__).resolve().parent / "uploads"
+_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(_UPLOADS_DIR)), name="uploads")
+
+
 # Admin website (same host as API): https://scholaxia1.onrender.com/admin/
 if ADMIN_STATIC_DIR.is_dir():
     app.mount(

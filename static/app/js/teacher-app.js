@@ -1641,8 +1641,9 @@ async function endClass(id) {
     var btn = $("tpPhotoBtn");
     var name = $("tpPhotoName");
     var prev = $("tpPhotoPreview");
+    var ph = $("tpPhotoPlaceholder");
     var file = input && input.files && input.files[0];
-    if (name) name.textContent = file ? file.name + " (" + Math.round(file.size / 1024) + " KB)" : "JPG, PNG or WebP · max 20MB";
+    if (name) name.textContent = file ? file.name + " (" + Math.round(file.size / 1024) + " KB) — tap Upload photo" : "Tap the camera to pick from your gallery · JPG, PNG or WebP · max 20MB";
     if (btn) {
       btn.disabled = !file;
       btn.style.opacity = file ? "1" : ".55";
@@ -1654,10 +1655,12 @@ async function endClass(id) {
           prev.dataset.blobUrl = URL.createObjectURL(file);
           prev.src = prev.dataset.blobUrl;
           prev.hidden = false;
+          if (ph) ph.style.display = "none";
         } catch (e) { prev.hidden = true; }
       } else {
         prev.hidden = true;
         prev.removeAttribute("src");
+        if (ph) ph.style.display = "";
       }
     }
   }
@@ -1687,14 +1690,23 @@ async function endClass(id) {
     }
     say("");
     try {
-      var up = await uploadFile(file);
-      var url = (up && (up.file_url || up.secure_url || up.url)) || "";
-      if (!url) throw new Error("Upload did not return a photo URL.");
-      var res = await api.api("/api/v1/profiles/me/picture", {
-        method: "PATCH",
-        body: JSON.stringify({ profile_picture: url }),
-      });
-      var finalUrl = (res && res.profile_picture) || url;
+      var fd = new FormData();
+      fd.append("file", file);
+      var finalUrl = "";
+      try {
+        var up = await api.apiUpload("/api/v1/profiles/me/photo", fd);
+        finalUrl = (up && up.profile_picture) || "";
+      } catch (e1) {
+        var up2 = await uploadFile(file);
+        var url2 = (up2 && (up2.file_url || up2.secure_url || up2.url)) || "";
+        if (!url2) throw new Error("Upload did not return a photo URL.");
+        var res = await api.api("/api/v1/profiles/me/picture", {
+          method: "PATCH",
+          body: JSON.stringify({ profile_picture: url2 }),
+        });
+        finalUrl = (res && res.profile_picture) || url2;
+      }
+      if (!finalUrl) throw new Error("Upload did not return a photo URL.");
       showTeacherPhoto(finalUrl);
       if (input) input.value = "";
       refreshPhotoPicker();
@@ -1949,7 +1961,9 @@ async function endClass(id) {
   if ($("announceSendBtn")) $("announceSendBtn").addEventListener("click", sendAnnouncement);
   if ($("aiAskBtn")) $("aiAskBtn").addEventListener("click", askAI);
   if ($("tpPhotoBtn")) $("tpPhotoBtn").addEventListener("click", uploadTeacherPhoto);
-  if ($("tpPhotoPick")) $("tpPhotoPick").addEventListener("click", function () { var i = $("tpPhoto"); if (i) i.click(); });
+  window.openTeacherPhotoGallery = function () { var i = $("tpPhoto"); if (i) i.click(); };
+  if ($("profileAvBtn")) $("profileAvBtn").addEventListener("click", window.openTeacherPhotoGallery);
+  if ($("tpPhotoTap")) $("tpPhotoTap").addEventListener("click", window.openTeacherPhotoGallery);
   if ($("tpPhoto")) $("tpPhoto").addEventListener("change", refreshPhotoPicker);
 
   if ($("closeGradeBtn")) $("closeGradeBtn").addEventListener("click", function () { $("gradeModal").hidden = true; });

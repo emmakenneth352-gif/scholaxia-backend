@@ -352,8 +352,11 @@
               <p class="muted">You signed up successfully. Admin can see your name, email, WhatsApp and subjects — teaching tools unlock after approval.</p>
             </div>
             <div class="profile-card">
-              <div class="profile-av" id="profileAv">T</div>
-              <img id="profilePhoto" alt="Profile photo" hidden style="width:56px;height:56px;border-radius:50%;object-fit:cover" />
+              <button type="button" class="profile-av-btn" id="profileAvBtn" title="Tap to change your photo" aria-label="Change profile photo">
+                <span class="profile-av" id="profileAv">T</span>
+                <img id="profilePhoto" alt="Profile photo" hidden />
+                <span class="profile-av-cam">📷</span>
+              </button>
               <div>
                 <h3 id="profileName">Teacher</h3>
                 <p id="profileText">Loading…</p>
@@ -362,13 +365,13 @@
             <div class="panel">
               <h3>Profile photo</h3>
               <p class="muted">Upload a clear photo of yourself. It appears on the homepage tutor list and your public profile.</p>
-              <div class="photo-picker" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:12px 0">
-                <img id="tpPhotoPreview" alt="" hidden style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:2px solid #7B61FF" />
-                <div>
-                  <input type="file" id="tpPhoto" accept="image/jpeg,image/png,image/webp" hidden />
-                  <button type="button" class="btn btn-secondary" id="tpPhotoPick">📷 Choose photo</button>
-                  <div class="muted" id="tpPhotoName" style="margin-top:6px;font-size:.82rem">JPG, PNG or WebP · max 20MB</div>
-                </div>
+              <div style="margin:12px 0">
+                <input type="file" id="tpPhoto" accept="image/jpeg,image/png,image/webp" hidden />
+                <button type="button" id="tpPhotoTap" class="tp-photo-tap" title="Tap to choose a photo from your gallery">
+                  <img id="tpPhotoPreview" alt="" hidden />
+                  <span id="tpPhotoPlaceholder">📷</span>
+                </button>
+                <div class="muted" id="tpPhotoName" style="margin-top:6px;font-size:.82rem">Tap the camera to pick from your gallery · JPG, PNG or WebP · max 20MB</div>
               </div>
               <button type="button" class="btn btn-primary" id="tpPhotoBtn" disabled style="opacity:.55">Upload photo</button>
               <span class="form-status" id="tpPhotoStatus"></span>
