@@ -359,10 +359,15 @@
             <div class="panel">
               <h3>Profile photo</h3>
               <p class="muted">Upload a clear photo of yourself. It appears on the homepage tutor list and your public profile.</p>
-              <div class="form-grid">
-                <label>Choose photo (JPG/PNG/WebP, max 20MB) <input type="file" id="tpPhoto" accept="image/jpeg,image/png,image/webp" /></label>
+              <div class="photo-picker" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:12px 0">
+                <img id="tpPhotoPreview" alt="" hidden style="width:72px;height:72px;border-radius:50%;object-fit:cover;border:2px solid #7B61FF" />
+                <div>
+                  <input type="file" id="tpPhoto" accept="image/jpeg,image/png,image/webp" hidden />
+                  <button type="button" class="btn btn-secondary" id="tpPhotoPick">📷 Choose photo</button>
+                  <div class="muted" id="tpPhotoName" style="margin-top:6px;font-size:.82rem">JPG, PNG or WebP · max 20MB</div>
+                </div>
               </div>
-              <button type="button" class="btn btn-primary" id="tpPhotoBtn">Upload photo</button>
+              <button type="button" class="btn btn-primary" id="tpPhotoBtn" disabled style="opacity:.55">Upload photo</button>
               <span class="form-status" id="tpPhotoStatus"></span>
             </div>
             <div class="panel">

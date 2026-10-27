@@ -1636,6 +1636,32 @@ async function endClass(id) {
     }
   }
 
+  function refreshPhotoPicker() {
+    var input = $("tpPhoto");
+    var btn = $("tpPhotoBtn");
+    var name = $("tpPhotoName");
+    var prev = $("tpPhotoPreview");
+    var file = input && input.files && input.files[0];
+    if (name) name.textContent = file ? file.name + " (" + Math.round(file.size / 1024) + " KB)" : "JPG, PNG or WebP · max 20MB";
+    if (btn) {
+      btn.disabled = !file;
+      btn.style.opacity = file ? "1" : ".55";
+    }
+    if (prev) {
+      if (file) {
+        try {
+          if (prev.dataset.blobUrl) URL.revokeObjectURL(prev.dataset.blobUrl);
+          prev.dataset.blobUrl = URL.createObjectURL(file);
+          prev.src = prev.dataset.blobUrl;
+          prev.hidden = false;
+        } catch (e) { prev.hidden = true; }
+      } else {
+        prev.hidden = true;
+        prev.removeAttribute("src");
+      }
+    }
+  }
+
   async function uploadTeacherPhoto() {
     var input = $("tpPhoto");
     var status = $("tpPhotoStatus");
@@ -1670,6 +1696,8 @@ async function endClass(id) {
       });
       var finalUrl = (res && res.profile_picture) || url;
       showTeacherPhoto(finalUrl);
+      if (input) input.value = "";
+      refreshPhotoPicker();
       say("Profile photo updated.", true);
     } catch (e) {
       say(e.message || "Could not upload photo.");
@@ -1921,6 +1949,8 @@ async function endClass(id) {
   if ($("announceSendBtn")) $("announceSendBtn").addEventListener("click", sendAnnouncement);
   if ($("aiAskBtn")) $("aiAskBtn").addEventListener("click", askAI);
   if ($("tpPhotoBtn")) $("tpPhotoBtn").addEventListener("click", uploadTeacherPhoto);
+  if ($("tpPhotoPick")) $("tpPhotoPick").addEventListener("click", function () { var i = $("tpPhoto"); if (i) i.click(); });
+  if ($("tpPhoto")) $("tpPhoto").addEventListener("change", refreshPhotoPicker);
 
   if ($("closeGradeBtn")) $("closeGradeBtn").addEventListener("click", function () { $("gradeModal").hidden = true; });
   if ($("cancelGradeBtn")) $("cancelGradeBtn").addEventListener("click", function () { $("gradeModal").hidden = true; });
