@@ -436,10 +436,10 @@
           <p data-i18n="dl_p">Install the Scholaxia app on your PC for live classes, CBT practice, and study tools — same account as the website.</p>
         </div>
         <div class="download-actions">
-          <a class="btn btn-red btn-cta" href="https://github.com/emmakenneth352-gif/scholaxia-websit/releases/download/desktop-v1.0.10/Scholaxia-Student-Setup-1.0.10.exe" download>
+          <a class="btn btn-red btn-cta" data-desktop-dl href="https://github.com/emmakenneth352-gif/scholaxia-websit/releases/download/desktop-v1.0.10/Scholaxia-Student-Setup-1.0.10.exe" download>
             Download for Windows (Installer)
           </a>
-          <p class="download-note">Windows 10/11 · v1.0.10 · ~160 MB · Includes offline CBT scoring and compact, scrollable tutorial code entry. Installs like a normal program — download, double-click <b>Scholaxia-Student-Setup.exe</b>, follow the steps, done. Desktop icon is created automatically.</p>
+          <p class="download-note">Windows 10/11 · <span data-desktop-ver>v1.0.10</span> · ~160 MB · Includes offline CBT scoring and compact, scrollable tutorial code entry. Installs like a normal program — download, double-click <b>Scholaxia-Student-Setup.exe</b>, follow the steps, done. Desktop icon is created automatically.</p>
           <!-- Google Play button -->
           <button class="btn btn-google-play" type="button" onclick="document.getElementById('playStoreModal').showModal()" aria-label="Get it on Google Play">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="currentColor">
@@ -468,8 +468,8 @@
         <div class="modal-icon" aria-hidden="true">🖥️</div>
         <h3>Scholaxia Desktop for Windows</h3>
         <p>Live classes, CBT practice, offline school exams, Sia AI tutor and more — running on your PC. Same account as the website.</p>
-        <a class="btn btn-red" href="https://github.com/emmakenneth352-gif/scholaxia-websit/releases/download/desktop-v1.0.10/Scholaxia-Student-Setup-1.0.10.exe" download>Download Installer (recommended)</a>
-        <p style="font-size:0.85rem;opacity:0.75;margin-top:0.5rem;">v1.0.10 · ~160 MB · Double-click the setup file and it installs Scholaxia Desktop with a desktop shortcut — no zip, no manual steps.<br/>Includes offline CBT scoring and exams that work fully offline.</p>
+        <a class="btn btn-red" data-desktop-dl href="https://github.com/emmakenneth352-gif/scholaxia-websit/releases/download/desktop-v1.0.10/Scholaxia-Student-Setup-1.0.10.exe" download>Download Installer (recommended)</a>
+        <p style="font-size:0.85rem;opacity:0.75;margin-top:0.5rem;"><span data-desktop-ver>v1.0.10</span> · ~160 MB · Double-click the setup file and it installs Scholaxia Desktop with a desktop shortcut — no zip, no manual steps.<br/>Includes offline CBT scoring and exams that work fully offline.</p>
         <button class="modal-close" type="button" onclick="document.getElementById('desktopModal').close()" aria-label="Close">✕</button>
       </div>
     </dialog>
@@ -566,6 +566,26 @@
           slides[i].classList.add("is-active");
         }
         setInterval(next, 6300);
+      })();
+    </script>
+    <script>
+      /* Desktop download always tracks the latest published release.
+         The buttons above ship with a working fallback link; on load we ask
+         the backend which desktop version is latest and swap in its URL +
+         version label — so users always get the newest update from the site. */
+      (function () {
+        var API = "https://scholaxia1.onrender.com/api/v1";
+        fetch(API + "/app/version")
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (d) {
+            if (!d || !d.desktop_url) return;
+            document.querySelectorAll("[data-desktop-dl]").forEach(function (a) { a.href = d.desktop_url; });
+            if (d.desktop_latest_version) {
+              var v = "v" + d.desktop_latest_version;
+              document.querySelectorAll("[data-desktop-ver]").forEach(function (el) { el.textContent = v; });
+            }
+          })
+          .catch(function () { /* offline — fallback links stay */ });
       })();
     </script>
   </body>
