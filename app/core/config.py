@@ -65,7 +65,7 @@ class Settings(BaseSettings):
     # scholaxia.com/downloads host is dead, so point the in-app updater at a
     # URL that actually serves the file. Override per-env if needed.
     APP_DESKTOP_URL: str = (
-        "https://raw.githubusercontent.com/emmakenneth352-gif/scholaxia-websit/main/website/downloads/Scholaxia-Student-Setup-1.0.10.exe"
+        "https://github.com/emmakenneth352-gif/scholaxia-websit/releases/download/desktop-v1.0.10/Scholaxia-Student-Setup-1.0.10.exe"
     )
     APP_DESKTOP_UPDATE_MESSAGE: str = (
         "A new version of the Scholaxia desktop app is available. Please download "
