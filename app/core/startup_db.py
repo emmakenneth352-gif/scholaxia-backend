@@ -75,6 +75,7 @@ _SCHEMA_STATEMENTS = (
     # school_exam_access_codes — Pass 7: exam_id NULL = credential issued at
     # registration (printed on the slip), attached to an exam when scheduled
     "ALTER TABLE school_exam_access_codes ALTER COLUMN exam_id DROP NOT NULL",
+    "ALTER TABLE school_exam_access_codes ADD COLUMN IF NOT EXISTS requested_subjects TEXT NULL",
     # student_profiles
     "ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS jamb_subjects VARCHAR[] NULL",
     "ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS ssce_subjects VARCHAR[] NULL",

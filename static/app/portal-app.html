@@ -543,7 +543,7 @@ tr:last-child td{border-bottom:none}
     ["students", "👥", "Students per class"], ["teachers", "👨‍🏫", "Teachers"],
     ["classes", "🎓", "Classes"], ["subjects", "📚", "Subjects"],
     ["exresults", "🏆", "Exam Results"],
-    ["exbank", "🏦", "Upload CBT Exams"], ["exretake", "🔄", "Grant Retake"],
+    ["exbank", "🏦", "Upload CBT Exams"], ["exqbanks", "🗂️", "Question Banks"], ["exretake", "🔄", "Grant Retake"],
     ["exup", "📤", "Upload Results"], ["extpl", "🖨️", "Result Template"],
     ["results", "📊", "Results"], ["attendance", "🗓️", "Attendance"], ["fees", "💳", "Fees & Finance"],
     ["reports", "📈", "Reports"], ["settings", "⚙️", "Settings"],
@@ -849,6 +849,7 @@ tr:last-child td{border-bottom:none}
   var EX_PAGE = "exsched";
   var EX_PAGES = [
     ["exbank", "Upload CBT Exams", "Upload questions and build CBT exams per class — JS1 to SS3", "<button class=\"btn\" onclick=\"uploadQuestionsModal()\">⬆ Upload Questions</button>"],
+    ["exqbanks", "Question Banks", "Banks by class & subject — open one to edit or clear its questions", ""],
     ["exreg", "Register Student", "Register students for exams — reg number + access code", ""],
     ["exstudents", "Confirm Registration", "Registered students per class — approve, restrict, edit or delete", ""],
     ["exsched", "Exam Schedule", "Schedule the class exams — subjects, questions, duration, date", ""],
@@ -866,6 +867,7 @@ tr:last-child td{border-bottom:none}
   EX_PAGES.forEach(function (p) { R[p[0]] = function () { exShell(p); }; });
   function renderExPage() {
     if (EX_PAGE === "exbank") return bankList();
+    if (EX_PAGE === "exqbanks") return bankList();
     if (EX_PAGE === "exreg") return exRegList();
     if (EX_PAGE === "exstudents") return confirmList();
     if (EX_PAGE === "exsched") return scheduleList();
@@ -1271,7 +1273,7 @@ tr:last-child td{border-bottom:none}
         ((classes.length || subjects.length) ? '<div class="panel"><h3>Question Banks by Class &amp; Subject</h3><p class="mhint" style="margin-bottom:10px">Pick a class and a subject to find its bank — open it to edit or clear questions.</p>' + chipRow + subjRow + '</div>' : '') +
         '<div class="panel">' + tbl(["Bank", "Subject", "Class", "Questions", "Status", ""], show.map(function (b) {
           return '<tr><td><strong>' + esc(b.name) + '</strong></td><td><span class="pill blue">' + esc(b.subject) + '</span></td><td><span class="pill violet">' + esc(b.class_name) + '</span></td><td>' + b.question_count + '</td><td><span class="pill ' + (b.status === "active" ? "ok" : "gray") + '">' + esc(b.status) + '</span></td>' +
-            '<td style="white-space:nowrap"><button class="btn sm ghost" onclick="openBank(\'' + b.id + '\')">📂 Questions</button> <button class="btn sm ghost" onclick="addBankQ(\'' + b.id + '\',\'' + esc(b.name).replace(/'/g, "") + '\')">➕ Add</button> <button class="btn sm red" onclick="delBank(\'' + b.id + '\',\'' + esc(b.name).replace(/'/g, "") + '\')">Delete</button></td></tr>';
+            '<td style="white-space:nowrap"><button class="btn sm ghost" onclick="openBank(\'' + b.id + '\')">📂 Questions</button> <button class="btn sm ghost" onclick="addBankQ(\'' + b.id + '\',\'' + esc(b.name).replace(/'/g, "") + '\')">➕ Add</button> <button class="btn sm ghost" onclick="clearBankQs(\'' + b.id + '\',\'' + esc(b.name).replace(/'/g, "") + '\')">🧹 Clear</button> <button class="btn sm red" onclick="delBankPw(\'' + b.id + '\',\'' + esc(b.name).replace(/'/g, "") + '\')">Delete</button></td></tr>';
         })) + '</div>';
     }).catch(function (e) { $("exBody").innerHTML = '<div class="panel"><div class="empty">' + esc(errText(e)) + '</div></div>'; });
   }
@@ -1675,6 +1677,11 @@ tr:last-child td{border-bottom:none}
         .catch(function (e) { busy(btn, false, "Delete"); mErr(errText(e)); });
     }, "Delete", true);
   };
+  window.delBankPw = function (id, name) {
+    askStaffPassword("Delete bank " + name, "Delete bank", function () {
+      cbtApi("/banks/" + id, { method: "DELETE" }).then(function () { toast("Bank deleted"); renderExTab(); }).catch(toastErr);
+    });
+  };
   window.openBank = function (id) {
     cbtApi("/banks/" + id + "/questions").then(function (d) {
       window.__bankQs = d.questions || [];
@@ -2069,7 +2076,7 @@ tr:last-child td{border-bottom:none}
   };
   window.regSlip = function (id) {
     var s = regById(id); if (!s) return;
-    printRegSlip({ full_name: s.full_name, class_name: s.class_name, reg_number: s.reg_number, access_code: s.access_code, subjects: s.subjects || [] });
+    printRegSlip({ full_name: s.full_name, class_name: s.class_name, reg_number: s.reg_number, access_code: s.access_code, subjects: s.subjects || [], requested_subjects: s.requested_subjects || [] });
   };
   /* Print ALL students in the current view as one A4 sheet (landscape table).
      Prints checked students if any are ticked, otherwise everything shown. */
@@ -2440,7 +2447,8 @@ tr:last-child td{border-bottom:none}
   window.printRowSlip = function (gi) {
     var s = (window.__exAll || [])[gi];
     if (!s) return toastErr("Student not found.");
-    printRegSlip({ full_name: s.full_name, class_name: s.class_name, subject: s.subject, subjects: [s.subject], reg_number: s.reg_number, access_code: s.access_code });
+    var _rq = s.requested_subjects && s.requested_subjects.length ? s.requested_subjects : [s.subject];
+    printRegSlip({ full_name: s.full_name, class_name: s.class_name, subject: s.subject, subjects: [s.subject], requested_subjects: _rq, reg_number: s.reg_number, access_code: s.access_code });
   };
   window.examStudentsRender = function () {
     var cls = $("esCls") ? $("esCls").value : "ALL";
@@ -2665,13 +2673,16 @@ tr:last-child td{border-bottom:none}
       var ms = (d && d.matches) || [];
       if (!ms.length) { box.innerHTML = '<div class="empty">No student found with reg number <code>' + esc(reg.toUpperCase()) + '</code>.</div>'; return; }
       var nm = ms[0].student_name;
-      box.innerHTML = '<div class="mnote" style="margin:12px 0"><strong>' + esc(nm) + '</strong> — ' + esc(ms[0].class_name) + ' · ' + ms.length + ' exam(s) found</div>' +
-        tbl(["Subject", "Status", "Score", "Grade", ""], ms.map(function (m) {
+      var sched = ms.filter(function (m) { return !!m.exam_id; });
+      box.innerHTML = '<div class="mnote" style="margin:12px 0"><strong>' + esc(nm) + '</strong> — ' + esc(ms[0].class_name || "") + ' · ' + sched.length + ' scheduled exam(s)' +
+        (ms[0].requested_subjects && ms[0].requested_subjects.length ? ' · registered: ' + esc(ms[0].requested_subjects.join(", ")) : '') + '</div>' +
+        (ms.length ? tbl(["Subject", "Status", "Score", "Grade", ""], ms.map(function (m) {
+          if (!m.exam_id) return '<tr><td><span class="pill gray">— not scheduled yet —</span></td><td><span class="pill gray">Pending</span></td><td>—</td><td>—</td><td></td></tr>';
           return '<tr><td><span class="pill blue">' + esc(m.subject) + '</span></td><td>' + (m.submitted ? '<span class="pill ok">Submitted</span>' : '<span class="pill gray">Not submitted</span>') + '</td>' +
             '<td>' + (m.score != null ? '<strong>' + m.score + ' / ' + m.total_mark + '</strong> (' + m.percentage + '%)' : '—') + '</td>' +
             '<td>' + (m.grade ? '<span class="pill ' + (m.percentage >= 50 ? "ok" : "bad") + '">' + esc(m.grade) + '</span>' : '—') + '</td>' +
             '<td><button class="btn sm green" onclick="retakeGrant(\'' + m.exam_id + '\',\'' + m.student_id + '\',\'' + esc(m.student_name).replace(/'/g, "") + '\',\'' + esc(m.subject).replace(/'/g, "") + '\')">↻ Grant Retake</button></td></tr>';
-        }));
+        })) : '');
     }).catch(function (e) { box.innerHTML = '<div class="empty">' + esc(errText(e)) + '</div>'; });
   };
   window.retakeGrant = function (examId, studentId, name, subject) {

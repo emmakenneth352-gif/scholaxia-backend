@@ -1386,6 +1386,13 @@ async def register_exam_student(
     # is not scheduled yet; scheduling attaches the same credential to the
     # exam instead of minting a new one, so the printed credentials work.
     cred = await _mint_pending_credential(db, sid, user.id)
+    try:
+        _sel0 = [s.strip() for s in (payload.subjects or []) if s and s.strip()]
+        if not _sel0 and payload.subject and payload.subject.strip():
+            _sel0 = [payload.subject.strip()]
+        cred.requested_subjects = json.dumps(["ALL"] if any(s.upper() == "ALL" for s in _sel0) else sorted(set(_sel0)))
+    except Exception:
+        pass
 
     # Pass 8 — multi-select subjects: any number, or ALL. Falls back to the
     # legacy single `subject` field when `subjects` is not sent.
@@ -1484,43 +1491,52 @@ async def retake_lookup(
     db: AsyncSession = Depends(get_db),
 ):
     """Reference 'Grant Exam Retake': type a registration number → fetch the
-    student's exams + scores → grant the retake on any of them."""
+    student's exams + scores → grant the retake on any of them.
+    Pending credentials (no scheduled exam yet) are included so the lookup
+    always finds the student."""
     sid = _staff_school_id(current_user, school_id)
     reg = (reg_number or "").strip().upper()
     rows = (
         await db.execute(
             select(SchoolExamAccessCode, SchoolExam, User)
-            .join(SchoolExam, SchoolExam.id == SchoolExamAccessCode.exam_id)
             .join(User, User.id == SchoolExamAccessCode.student_id)
+            .outerjoin(SchoolExam, SchoolExam.id == SchoolExamAccessCode.exam_id)
             .where(
-                SchoolExam.school_id == sid,
+                SchoolExamAccessCode.school_id == sid,
                 func.upper(func.trim(SchoolExamAccessCode.reg_number)) == reg,
             )
-            .order_by(SchoolExam.created_at.desc())
+            .order_by(SchoolExamAccessCode.created_at.desc())
         )
     ).all()
     out = []
     for code, exam, user in rows:
-        res = (
-            await db.execute(
-                select(SchoolExamResult).where(
-                    SchoolExamResult.exam_id == exam.id,
-                    SchoolExamResult.student_id == user.id,
+        res = None
+        if exam is not None:
+            res = (
+                await db.execute(
+                    select(SchoolExamResult).where(
+                        SchoolExamResult.exam_id == exam.id,
+                        SchoolExamResult.student_id == user.id,
+                    )
                 )
-            )
-        ).scalar_one_or_none()
+            ).scalar_one_or_none()
+        try:
+            requested = json.loads(code.requested_subjects) if code.requested_subjects else []
+        except Exception:
+            requested = []
         out.append(
             {
                 "student_id": str(user.id),
-                "exam_id": str(exam.id),
+                "exam_id": str(exam.id) if exam is not None else None,
                 "student_name": user.full_name,
-                "class_name": (exam.class_name or "").upper(),
-                "subject": exam.subject,
+                "class_name": ((exam.class_name if exam is not None else "") or "").upper(),
+                "subject": exam.subject if exam is not None else None,
                 "submitted": bool(code.is_used),
                 "score": (res.final_score if res else None),
                 "total_mark": (res.total_mark if res else None),
                 "percentage": (res.percentage if res else None),
                 "grade": (res.grade if res else None),
+                "requested_subjects": requested,
             }
         )
     return {"matches": out}
@@ -2368,6 +2384,10 @@ async def registrations_list(
         st = "restricted" if restricted else ("approved" if (subjects or cls not in published_by_class) else "pending")
         if status and status != "all" and st != status:
             continue
+        try:
+            _requested = json.loads(cred.requested_subjects) if cred and cred.requested_subjects else []
+        except Exception:
+            _requested = []
         out.append(
             {
                 "student_id": str(u.id),
@@ -2376,6 +2396,7 @@ async def registrations_list(
                 "email": u.email if u.email and "@students.scholaxia.local" not in u.email else None,
                 "school_student_id": getattr(p, "school_student_id", None) if p else None,
                 "subjects": subjects,
+                "requested_subjects": _requested,
                 "subjects_text": ", ".join(subjects) if subjects else None,
                 "reg_number": cred.reg_number if cred else None,
                 "access_code": cred.access_code if cred else None,
@@ -2431,6 +2452,23 @@ async def registration_edit(
     return {"updated": True, "full_name": u.full_name}
 
 
+def _requested_subject_filter(cred) -> list[str] | None:
+    """Subjects picked at REGISTRATION that approve may attach.
+    Returns None = attach to every exam of the class ("ALL" selected, or
+    legacy rows that predate requested_subjects). Otherwise the lowercase
+    subject names the school picked — approve must NOT add anything else."""
+    try:
+        req = json.loads(cred.requested_subjects) if cred and cred.requested_subjects else []
+    except Exception:
+        req = []
+    if not req:
+        return None
+    if any(str(s).strip().upper() == "ALL" for s in req):
+        return None
+    want = [str(s).strip().lower() for s in req if str(s).strip()]
+    return want or None
+
+
 async def _own_student(db: AsyncSession, sid: UUID, student_id: str) -> User:
     u = (
         await db.execute(
@@ -2456,14 +2494,14 @@ async def registration_approve(
     cred = await _mint_pending_credential(db, sid, u.id)
     p = (await db.execute(select(StudentProfile).where(StudentProfile.user_id == u.id))).scalar_one_or_none()
     cls = (p.education_level or "").upper() if p else ""
-    exams = (
-        await db.execute(
-            select(SchoolExam).where(
-                SchoolExam.school_id == sid,
-                func.upper(SchoolExam.class_name) == cls,
-            )
-        )
-    ).scalars().all()
+    want = _requested_subject_filter(cred)
+    _eq = select(SchoolExam).where(
+        SchoolExam.school_id == sid,
+        func.upper(SchoolExam.class_name) == cls,
+    )
+    if want is not None:
+        _eq = _eq.where(func.lower(SchoolExam.subject).in_(want))
+    exams = (await db.execute(_eq)).scalars().all()
     attached = 0
     for e in exams:
         exists = (
@@ -2514,15 +2552,15 @@ async def registrations_approve_all(
         if str(uid) in assigned:
             continue
         cred = await _mint_pending_credential(db, sid, uid)
-        exams = (
-            await db.execute(
-                select(SchoolExam).where(
-                    SchoolExam.school_id == sid,
-                    func.upper(SchoolExam.class_name) == cls,
-                    SchoolExam.is_published == True,  # noqa: E712
-                )
-            )
-        ).scalars().all()
+        want = _requested_subject_filter(cred)
+        _aq = select(SchoolExam).where(
+            SchoolExam.school_id == sid,
+            func.upper(SchoolExam.class_name) == cls,
+            SchoolExam.is_published == True,  # noqa: E712
+        )
+        if want is not None:
+            _aq = _aq.where(func.lower(SchoolExam.subject).in_(want))
+        exams = (await db.execute(_aq)).scalars().all()
         for e in exams:
             exists = (
                 await db.execute(

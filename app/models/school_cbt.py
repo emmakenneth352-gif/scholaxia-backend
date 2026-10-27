@@ -246,6 +246,9 @@ class SchoolExamAccessCode(Base):
     )
     reg_number: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
     access_code: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    # Subjects picked at REGISTRATION (JSON list, e.g. ["English Language"] or
+    # ["ALL"]) — shown on the slip even before exams are scheduled.
+    requested_subjects: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_used: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     used_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
