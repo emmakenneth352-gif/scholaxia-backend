@@ -252,7 +252,7 @@ input{font-family:inherit;font-size:15px}
         </div>
         <div class="pill-ok"><span class="dot"></span> Exam Loaded</div>
       </div>
-      <div class="flagrow"><button class="flagbtn" id="flagBtn" onclick="toggleFlag()">⚑ Flag Question</button></div>
+      <div class="flagrow"><button class="flagbtn" id="flagBtn" onclick="toggleFlag()">⚑ Flag Question</button><button class="flagbtn" id="calcBtn" onclick="window.SxCalcToggle&&window.SxCalcToggle()" title="Open calculator">🧮 Calculator</button></div>
       <div class="qnum" id="qNum">Question 1</div>
       <div class="qtext" id="qText">—</div>
       <img id="qImg" alt="Question image" style="display:none;max-width:100%;max-height:260px;margin:10px 0;border-radius:8px;border:1px solid #d7dcea;background:#fff" />
@@ -286,7 +286,7 @@ input{font-family:inherit;font-size:15px}
   </div>
 </div>
 
-<script src="/app/js/sx-calc.js?v=20261027b"></script>
+<script src="/app/js/sx-calc.js?v=20261027c"></script>
 <script>
 (function () {
   var API = "https://scholaxia1.onrender.com/api/v1";

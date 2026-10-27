@@ -140,7 +140,13 @@
       head.addEventListener("pointerup", function () { drag = false; });
     })();
   }
-  window.SxCalc = { mount: mount };
+  function toggle() {
+    mount();
+    var pop = document.getElementById("sxCalcPop");
+    if (pop) pop.hidden = !pop.hidden;
+  }
+  window.SxCalc = { mount: mount, toggle: toggle };
+  window.SxCalcToggle = function () { toggle(); };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mount);
   else mount();
 })();
