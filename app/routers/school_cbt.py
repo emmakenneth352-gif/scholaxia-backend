@@ -76,6 +76,27 @@ def _uuid_or_none(value) -> Optional[UUID]:
         return None
 
 
+class VerifyPasswordIn(BaseModel):
+    password: str = Field(min_length=1, max_length=256)
+
+
+@router.post("/verify-password")
+async def verify_staff_password(
+    payload: VerifyPasswordIn,
+    current_user: dict = Depends(require_school_staff),
+    db: AsyncSession = Depends(get_db),
+):
+    """Confirm the staff member's LOGIN password (used before deletes/clears)."""
+    from app.core.security import verify_password
+
+    user = (await db.execute(select(User).where(User.id == _uuid_or_404(str(current_user.get("sub")), "Not signed in")))).scalar_one_or_none()
+    if not user or not getattr(user, "hashed_password", None):
+        raise HTTPException(status_code=400, detail="This account has no login password set")
+    if not verify_password(payload.password or "", user.hashed_password):
+        raise HTTPException(status_code=403, detail="Wrong password")
+    return {"ok": True}
+
+
 def _uuid_or_404(value: str, detail: str = "Not found") -> UUID:
     """Coerce a path id to UUID — raw str in a UUID comparison breaks the bind."""
     try:

@@ -1150,15 +1150,36 @@ tr:last-child td{border-bottom:none}
         return '<option value="' + s.id + '">' + esc(s.full_name + (s.class_name ? " — " + s.class_name : "")) + '</option>';
       }).join("");
     }).catch(function () {});
-    cbtApi("/banks").then(function (d) {
+    window.__allBanks = [];
+    window.__renderBankPicks = function () {
       var box = $("bankPickList"); if (!box) return;
-      var banks = d.banks || [];
+      var banks = window.__allBanks || [];
       if (!banks.length) { box.innerHTML = '<div class="empty">No question banks yet — create one under the Exam Bank tab first.</div>'; return; }
-      window.__bankPicks = {};
-      box.innerHTML = banks.map(function (b) {
-        return '<div class="radio-row" style="margin-bottom:8px"><label><input type="checkbox" onchange="__bankPicks[\'' + b.id + '\']=this.checked?' + b.question_count + ':0" /> <strong>' + esc(b.name) + '</strong> — ' + esc(b.subject) + ' · ' + esc(b.class_name) + ' · ' + b.question_count + ' questions</label></div>';
-      }).join("");
+      var subj = (($("exSubject") || {}).value || "").trim().toLowerCase();
+      var cls = (($("exClass") || {}).value || "").trim().toUpperCase();
+      window.__bankPicks = window.__bankPicks || {};
+      var match = banks.filter(function (b) {
+        return (!subj || (b.subject || "").toLowerCase() === subj) && (!cls || (b.class_name || "").toUpperCase() === cls);
+      });
+      var rest = banks.filter(function (b) { return match.indexOf(b) < 0; });
+      match.forEach(function (b) { if (window.__bankPicks[b.id] == null) window.__bankPicks[b.id] = b.question_count; });
+      function row(b, ticked, dim) {
+        return '<div class="radio-row" style="margin-bottom:8px' + (dim ? ";opacity:.55" : "") + '"><label><input type="checkbox"' + (ticked ? " checked" : "") + ' onchange="__bankPicks[\'' + b.id + '\']=this.checked?' + b.question_count + ':0" /> <strong>' + esc(b.name) + '</strong> — ' + esc(b.subject) + ' · ' + esc(b.class_name) + ' · ' + b.question_count + ' questions</label></div>';
+      }
+      box.innerHTML = '<p class="mhint" style="margin-bottom:8px">Banks matching this exam\'s subject + class are ticked. Ticking another subject\'s bank mixes its questions into this exam.</p>' +
+        match.map(function (b) { return row(b, !!window.__bankPicks[b.id], false); }).join("") +
+        (rest.length ? '<p class="mhint" style="margin:8px 0 4px">Other banks (different subject/class):</p>' + rest.map(function (b) { return row(b, !!window.__bankPicks[b.id], true); }).join("") : "");
+    };
+    cbtApi("/banks").then(function (d) {
+      window.__allBanks = d.banks || [];
+      window.__renderBankPicks();
     }).catch(function () { var box = $("bankPickList"); if (box) box.innerHTML = '<div class="empty">Could not load question banks.</div>'; });
+    setTimeout(function () {
+      ["exSubject", "exClass"].forEach(function (id) {
+        var el = $(id);
+        if (el) el.addEventListener("input", window.__renderBankPicks);
+      });
+    }, 0);
     var bar = document.createElement("div"); bar.className = "mb-foot";
     bar.innerHTML = '<button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn" id="exSave">Create Examination</button>';
     document.querySelector("#mb .mb-modal").appendChild(bar);
@@ -1175,6 +1196,12 @@ tr:last-child td{border-bottom:none}
       });
       var bankIds = Object.keys(window.__bankPicks || {}).filter(function (k) { return window.__bankPicks[k] > 0; });
       var mode = $("exMode").value;
+      var badBanks = (window.__allBanks || []).filter(function (b) {
+        return bankIds.indexOf(b.id) > -1 && (b.subject || "").toLowerCase() !== subject.toLowerCase();
+      });
+      if (badBanks.length) {
+        return mErr("Untick " + badBanks.map(function (b) { return b.subject + " (" + b.class_name + ")"; }).join(", ") + " — those banks belong to other subjects and their questions would enter this " + subject + " exam. Tick only " + subject + " banks.");
+      }
       var students = Array.prototype.slice.call($("exStudents").selectedOptions || []).map(function (o) { return o.value; });
       var classList = $("exClasses").value.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
       if (!qs.length && !bankIds.length) return mErr("Add questions — type them or pick at least one Exam Bank.");
@@ -1216,21 +1243,32 @@ tr:last-child td{border-bottom:none}
     cbtApi("/banks").then(function (d) {
       var banks = d.banks || [];
       window.__banks = banks;
-      var classes = [];
-      banks.forEach(function (b) { if (b.class_name && classes.indexOf(b.class_name) < 0) classes.push(b.class_name); });
-      classes.sort();
-      var show = window.__bankCls ? banks.filter(function (b) { return b.class_name === window.__bankCls; }) : banks;
+      var classes = [], subjects = [];
+      banks.forEach(function (b) {
+        if (b.class_name && classes.indexOf(b.class_name) < 0) classes.push(b.class_name);
+        if (b.subject && subjects.indexOf(b.subject) < 0) subjects.push(b.subject);
+      });
+      classes.sort(); subjects.sort();
+      var show = banks.filter(function (b) {
+        return (!window.__bankCls || b.class_name === window.__bankCls) &&
+          (!window.__bankSubj || b.subject === window.__bankSubj);
+      });
       var chipRow = '<div class="radio-row" style="margin-bottom:14px">' +
         '<label class="' + (!window.__bankCls ? "on" : "") + '" onclick="bankClsFilter(\'\')" style="cursor:pointer' + (!window.__bankCls ? ";border-color:var(--blue);color:var(--blue)" : "") + '">All classes</label>' +
         classes.map(function (c) {
           return '<label onclick="bankClsFilter(\'' + esc(c) + '\')" style="cursor:pointer' + (window.__bankCls === c ? ";border-color:var(--blue);color:var(--blue);background:var(--sky)" : "") + '">' + esc(c) + '</label>';
+        }).join("") + '</div>';
+      var subjRow = '<div class="radio-row" style="margin-bottom:10px">' +
+        '<label class="' + (!window.__bankSubj ? "on" : "") + '" onclick="bankSubjFilter(\'\')" style="cursor:pointer' + (!window.__bankSubj ? ";border-color:var(--blue);color:var(--blue)" : "") + '">All subjects</label>' +
+        subjects.map(function (s) {
+          return '<label onclick="bankSubjFilter(\'' + esc(s).replace(/'/g, "") + '\')" style="cursor:pointer' + (window.__bankSubj === s ? ";border-color:var(--blue);color:var(--blue);background:var(--sky)" : "") + '">' + esc(s) + '</label>';
         }).join("") + '</div>';
       $("exBody").innerHTML =
         '<div class="stat-mini"><span class="chip">Banks: ' + banks.length + '</span><span class="chip g">Questions: ' + banks.reduce(function (a, b) { return a + (b.question_count || 0); }, 0) + '</span>' +
         '<button class="btn sm" onclick="uploadQuestionsModal()">⬆ Upload Questions</button>' +
         '<button class="btn sm ghost" onclick="addBank()">+ New Question Bank</button>' +
         '<button class="btn sm ghost" onclick="subjectCatalogueModal()">⚙ Subject catalogue</button></div>' +
-        (classes.length ? '<div class="panel"><h3>Question Bank by Class</h3><p class="mhint" style="margin-bottom:10px">Questions are uploaded per class. Pick a class to see its banks.</p>' + chipRow + '</div>' : '') +
+        ((classes.length || subjects.length) ? '<div class="panel"><h3>Question Banks by Class &amp; Subject</h3><p class="mhint" style="margin-bottom:10px">Pick a class and a subject to find its bank — open it to edit or clear questions.</p>' + chipRow + subjRow + '</div>' : '') +
         '<div class="panel">' + tbl(["Bank", "Subject", "Class", "Questions", "Status", ""], show.map(function (b) {
           return '<tr><td><strong>' + esc(b.name) + '</strong></td><td><span class="pill blue">' + esc(b.subject) + '</span></td><td><span class="pill violet">' + esc(b.class_name) + '</span></td><td>' + b.question_count + '</td><td><span class="pill ' + (b.status === "active" ? "ok" : "gray") + '">' + esc(b.status) + '</span></td>' +
             '<td style="white-space:nowrap"><button class="btn sm ghost" onclick="openBank(\'' + b.id + '\')">📂 Questions</button> <button class="btn sm ghost" onclick="addBankQ(\'' + b.id + '\',\'' + esc(b.name).replace(/'/g, "") + '\')">➕ Add</button> <button class="btn sm red" onclick="delBank(\'' + b.id + '\',\'' + esc(b.name).replace(/'/g, "") + '\')">Delete</button></td></tr>';
@@ -1238,6 +1276,7 @@ tr:last-child td{border-bottom:none}
     }).catch(function (e) { $("exBody").innerHTML = '<div class="panel"><div class="empty">' + esc(errText(e)) + '</div></div>'; });
   }
   window.bankClsFilter = function (c) { window.__bankCls = c || null; bankList(); };
+  window.bankSubjFilter = function (s) { window.__bankSubj = s || null; bankList(); };
   /* — Subject catalogue (admin config): enable/disable each subject per class,
      rename or deactivate, and (main admin) share a school subject globally. — */
   window.subjectCatalogueModal = function () {
@@ -1418,6 +1457,7 @@ tr:last-child td{border-bottom:none}
           (UQ.file ? '<br><span class="pill ok" style="margin-top:8px;display:inline-block">📄 ' + esc(UQ.file.name) + ' (' + Math.round(UQ.file.size / 1024) + ' KB)</span>' : '') + '</div>' +
           '<input type="file" id="uqFile" hidden accept=".csv,.xlsx,.xls,.json,.pdf,.docx,.doc,.txt" />';
         body += '<p class="mhint" id="uqGuide">CSV columns: <code>question_text,option_a,option_b,option_c,option_d,correct_option,topic,marks</code></p>';
+        body += '<div style="margin-top:10px"><button class="btn ghost" id="uqManual">✍️ Write questions manually instead</button></div>';
       }
       if (UQ.step === 5) {
         body += reviewHtml();
@@ -1557,6 +1597,20 @@ tr:last-child td{border-bottom:none}
         if (!UQ.file) return uqErr("Choose a question file first.");
         UQ.step = 5; UQ.pv = null; render();
       });
+      var um = $("uqManual");
+      if (um) um.addEventListener("click", function () {
+        busy(um, true);
+        cbtApi("/banks").then(function (d) {
+          var found = (d.banks || []).filter(function (b) {
+            return (b.subject || "").toLowerCase() === UQ.subj.name.toLowerCase() &&
+              (b.class_name || "").toUpperCase() === UQ.cls.toUpperCase();
+          })[0];
+          if (found) { closeModal(); addBankQ(found.id, ""); return; }
+          cbtApi("/banks", { method: "POST", body: { name: UQ.subj.name + " " + UQ.cls + " Bank", subject: UQ.subj.name, class_name: UQ.cls } }).then(function (nb) {
+            closeModal(); toast("Bank ready — type your questions"); addBankQ(nb.id, "");
+          }).catch(function (e) { busy(um, false, "✍️ Write questions manually instead"); uqErr(errText(e)); });
+        }).catch(function (e) { busy(um, false, "✍️ Write questions manually instead"); uqErr(errText(e)); });
+      });
       var cf = $("uqConfirm");
       if (cf) cf.addEventListener("click", function () {
         if (!UQ.pv) return;
@@ -1636,18 +1690,42 @@ tr:last-child td{border-bottom:none}
         '<button class="btn" onclick="closeModal();addBankQ(\'' + id + '\',\'\')">➕ Add questions</button>', true);
     }).catch(toastErr);
   };
+  /* Password gate — deletes/clears require the staff member's LOGIN password.
+     Edit only asks "are you sure". */
+  window.askStaffPassword = function (title, actionLabel, fn) {
+    openModal("🔐 " + title,
+      '<p class="mhint" style="margin-bottom:10px">Enter your <strong>login password</strong> to confirm this action.</p>' +
+      '<div class="mrow"><label class="f-label">Login password *</label><input class="f-in" id="pwGate" type="password" autocomplete="current-password" /></div><div class="merr"></div>',
+      '<button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn red" id="pwGo">' + esc(actionLabel) + '</button>', true);
+    setTimeout(function () { var p = $("pwGate"); if (p) p.focus(); }, 60);
+    $("pwGo").addEventListener("click", function () {
+      var pw = $("pwGate").value;
+      if (!pw) return mErr("Enter your login password.");
+      busy($("pwGo"), true);
+      cbtApi("/verify-password", { method: "POST", body: { password: pw } }).then(function () { closeModal(); fn(); })
+        .catch(function (e) { busy($("pwGo"), false, actionLabel); mErr(errText(e)); });
+    });
+  };
   window.delBankQ = function (bankId, qid) {
-    cbtApi("/banks/" + bankId + "/questions/" + qid, { method: "DELETE" }).then(function () { toast("Question cleared"); closeModal(); openBank(bankId); renderExTab(); }).catch(toastErr);
+    askStaffPassword("Clear this question", "Clear question", function () {
+      cbtApi("/banks/" + bankId + "/questions/" + qid, { method: "DELETE" }).then(function () { toast("Question cleared"); closeModal(); openBank(bankId); renderExTab(); }).catch(toastErr);
+    });
   };
   window.clearBankQs = function (bankId, name) {
-    confirmModal("Clear all questions", 'Remove <strong>ALL</strong> questions in <strong>' + esc(name) + '</strong>? The bank itself stays — only its questions are cleared.', function (btn) {
-      busy(btn, true);
+    askStaffPassword("Clear all questions in " + name, "Clear all", function () {
       cbtApi("/banks/" + bankId + "/questions", { method: "DELETE" }).then(function (d) {
-        closeModal(); toast("Cleared " + (d.cleared || 0) + " question(s) — bank kept"); openBank(bankId); renderExTab();
-      }).catch(function (e) { busy(btn, false, "Clear all"); mErr(errText(e)); });
-    }, "Clear all", true);
+        toast("Cleared " + (d.cleared || 0) + " question(s) — bank kept"); openBank(bankId); renderExTab();
+      }).catch(toastErr);
+    });
   };
   window.editBankQ = function (bankId, qid) {
+    confirmModal("Edit this question?", "Are you sure you want to edit this question?", function (btn) {
+      busy(btn, true);
+      closeModal();
+      window.__editBankQForm(bankId, qid);
+    }, "Yes, edit it");
+  };
+  window.__editBankQForm = function (bankId, qid) {
     var q = (window.__bankQs || []).filter(function (x) { return x.id === qid; })[0];
     if (!q) return toastErr("Question not found — reopen the bank.");
     var opts = ["A", "B", "C", "D"].map(function (o) {
@@ -1714,7 +1792,9 @@ tr:last-child td{border-bottom:none}
   window.printRegSlip = function (d) {
     if (!d || !d.reg_number) { toastErr("Nothing to print yet."); return; }
     var school = (S && S.school && S.school.name) || (S && S.user && S.user.school_name) || "Scholaxia";
-    var subjects = (d.subjects && d.subjects.length ? d.subjects : (d.subject ? [d.subject] : []));
+    var subjects = (d.requested_subjects && d.requested_subjects.length ? d.requested_subjects
+      : (d.subjects && d.subjects.length ? d.subjects : (d.subject ? [d.subject] : [])));
+    if (subjects.length === 1 && String(subjects[0]).toUpperCase() === "ALL") subjects = ["All subjects"];
     var subjHtml = subjects.map(function (s) {
       return '<span style="background:#f0fdf4;color:#15803d;padding:6px 14px;border-radius:8px;font-size:14px;font-weight:600;border:1px solid #bbf7d0;display:inline-block;margin:0 6px 6px 0;">' + esc(s) + '</span>';
     }).join("") || '<span style="color:#64748b;">(assigned at scheduling)</span>';
