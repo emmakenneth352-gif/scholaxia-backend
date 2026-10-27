@@ -241,10 +241,122 @@ function openClassroomKeyboard() {
     ipcMain.on("scholaxia:get-version", (ev) => {
       try { ev.returnValue = app.getVersion(); } catch (err) { ev.returnValue = ""; }
     });
+    ipcMain.handle("scholaxia:download-update", (ev, downloadUrl, versionHint) =>
+      startUpdateDownload(downloadUrl, ev.sender, versionHint)
+    );
+    ipcMain.on("scholaxia:run-installer", (_ev, filePath) => {
+      runInstallerFile(filePath);
+    });
   } catch (e) {
     console.error("Could not register desktop bridge", e);
   }
 })();
+
+// ── In-app update download + install ─────────────────────────────────────────
+// Downloads the new Setup exe inside the app (with progress) and launches it,
+// so updates no longer depend on the browser's download list.
+const UPDATE_TMP_PREFIX = "Scholaxia-Student-Setup-";
+
+function updateTmpPath(versionHint) {
+  const safe =
+    String(versionHint || "latest").replace(/[^0-9a-zA-Z._-]/g, "").slice(0, 32) || "latest";
+  return path.join(app.getPath("temp"), `${UPDATE_TMP_PREFIX}${safe}.exe`);
+}
+
+function sendUpdateProgress(sender, received, total) {
+  try {
+    if (!sender || sender.isDestroyed()) return;
+    const percent = total > 0 ? Math.min(100, Math.round((received / total) * 100)) : -1;
+    sender.send("scholaxia:update-progress", { received, total, percent });
+  } catch (err) { /* window gone — download continues */ }
+}
+
+function startUpdateDownload(downloadUrl, sender, versionHint) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (result) => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+    try {
+      const u = new URL(String(downloadUrl || ""));
+      if (u.protocol !== "https:" || !/\.exe(\?|#|$)/i.test(u.pathname)) {
+        done({ ok: false, error: "That update link looks invalid. Please try again." });
+        return;
+      }
+      const { net: electronNet } = require("electron");
+      const fs = require("fs");
+      const dest = updateTmpPath(versionHint);
+      // Fixed temp name: repeat downloads overwrite instead of piling up copies.
+      try { if (fs.existsSync(dest)) fs.unlinkSync(dest); } catch (err) { /* overwrite */ }
+      const req = electronNet.request({ method: "GET", url: u.toString(), redirect: "follow" });
+      req.on("error", () => done({ ok: false, error: "Download failed. Check your connection and try again." }));
+      req.on("response", (res) => {
+        if (res.statusCode !== 200) {
+          try { req.abort(); } catch (err) { /* ignore */ }
+          done({ ok: false, error: "Update server answered " + res.statusCode + ". Try again in a few minutes." });
+          return;
+        }
+        const total = Number(res.headers["content-length"] || 0) || 0;
+        let received = 0;
+        let lastSent = 0;
+        const out = fs.createWriteStream(dest);
+        const fail = (msg) => {
+          try { req.abort(); } catch (err) { /* ignore */ }
+          try { out.destroy(); } catch (err) { /* ignore */ }
+          try { if (fs.existsSync(dest)) fs.unlinkSync(dest); } catch (err) { /* ignore */ }
+          done({ ok: false, error: msg });
+        };
+        out.on("error", () => fail("Could not save the update file. Free some space and try again."));
+        res.on("data", (chunk) => {
+          received += chunk.length;
+          const now = Date.now();
+          if (now - lastSent > 300) {
+            lastSent = now;
+            sendUpdateProgress(sender, received, total);
+          }
+        });
+        res.on("error", () => fail("Download interrupted. Try again."));
+        // Wait for the FILE to finish flushing (not just the last network
+        // chunk) before reporting success — otherwise the launched Setup
+        // can be truncated/corrupt.
+        out.on("finish", () => {
+          sendUpdateProgress(sender, received, total);
+          if (total > 0 && received !== total) {
+            fail("Download incomplete (" + received + " of " + total + " bytes). Try again.");
+            return;
+          }
+          if (received < 1024 * 1024) {
+            fail("Downloaded file looks too small to be the installer. Try again.");
+            return;
+          }
+          done({ ok: true, path: dest, size: received });
+        });
+        res.pipe(out);
+      });
+      req.end();
+    } catch (err) {
+      done({ ok: false, error: "Could not start the download. Try again." });
+    }
+  });
+}
+
+function runInstallerFile(filePath) {
+  try {
+    const p = String(filePath || "");
+    const expectedDir = app.getPath("temp");
+    const base = path.basename(p);
+    // Only ever launch update files this app downloaded itself.
+    if (!p || path.dirname(p) !== expectedDir || !base.startsWith(UPDATE_TMP_PREFIX) || !base.toLowerCase().endsWith(".exe")) {
+      return;
+    }
+    const { shell: electronShell } = require("electron");
+    electronShell.openPath(p);
+  } catch (err) {
+    console.error("runInstallerFile failed", err);
+  }
+}
 
 function watchForNewInstall() {
   // Nudge already-installing users: once the new Setup runs, the old
