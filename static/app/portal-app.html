@@ -1464,6 +1464,7 @@ tr:last-child td{border-bottom:none}
       '<button class="btn sm ghost" onclick="regBulkRestrict(false)">🔓 Unrestrict' + (n ? " (" + n + ")" : "") + '</button>' +
       '<button class="btn sm red" onclick="regBulkDelete()">🗑 Delete' + (n ? " (" + n + ")" : "") + '</button>' +
       '<button class="btn sm ghost" onclick="regExport(this)">⬇ Export CSV</button>' +
+      '<button class="btn sm ghost" onclick="regPrintAll()">🖨 Print All' + (n ? " (" + n + ")" : "") + '</button>' +
       '<button class="btn sm ghost" onclick="regSelectAll()">☑ Select all</button>';
     function sec(title, st) {
       var rows = (window.__regAll || []).filter(function (s) { return (s.status || "pending").toLowerCase() === st; }).map(regRow);
@@ -1581,6 +1582,36 @@ tr:last-child td{border-bottom:none}
   window.regSlip = function (id) {
     var s = regById(id); if (!s) return;
     printRegSlip({ full_name: s.full_name, class_name: s.class_name, reg_number: s.reg_number, access_code: s.access_code, subjects: s.subjects || [] });
+  };
+  /* Print ALL students in the current view as one A4 sheet (landscape table).
+     Prints checked students if any are ticked, otherwise everything shown. */
+  window.regPrintAll = function () {
+    var sel = regSelIds();
+    var st = window.__regF.status || "all";
+    var pool = (window.__regAll || []).filter(function (s) { return st === "all" || (s.status || "pending") === st; });
+    var list = sel.length ? pool.filter(function (s) { return window.__regSel[s.student_id]; }) : pool;
+    if (!list.length) return toastErr("Nothing to print in this view.");
+    var school = (typeof S !== "undefined" && S && ((S.school && S.school.name) || (S.user && S.user.school_name))) || "Scholaxia";
+    var css = '@page{size:A4 landscape;margin:10mm}' +
+      'body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0}' +
+      'h1{font-size:18px;margin:0 0 2px}p.sub{color:#555;font-size:12px;margin:0 0 12px}' +
+      'table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #999;padding:5px 7px;text-align:left;vertical-align:top}' +
+      'th{background:#eef2ff}tr:nth-child(even) td{background:#f8fafc}' +
+      'code{font-family:Consolas,monospace;font-size:11px;font-weight:700}' +
+      '@media print{tr{page-break-inside:avoid}}';
+    var rows = list.map(function (s, i) {
+      return '<tr><td>' + (i + 1) + '</td><td><code>' + esc(s.reg_number || "\u2014") + '</code></td>' +
+        '<td><strong>' + esc(s.full_name || "") + '</strong>' + (s.email ? '<br><span style="color:#555;font-size:10px">' + esc(s.email) + '</span>' : "") + '</td>' +
+        '<td>' + esc(s.class_name || "\u2014") + '</td>' +
+        '<td>' + esc((s.subjects || []).join(", ") || "\u2014") + '</td>' +
+        '<td><code>' + esc(s.access_code || "\u2014") + '</code></td>' +
+        '<td>' + esc(s.status || "pending") + '</td></tr>';
+    }).join("");
+    var scope = (sel.length ? sel.length + " selected student" + (sel.length === 1 ? "" : "s") : (window.__regF.cls ? "Class " + window.__regF.cls : "All students")) +
+      (st !== "all" ? " \u00b7 " + st : "");
+    printPreviewModal("Students List — " + school,
+      '<h1>' + esc(school) + ' — Students List</h1><p class="sub">' + esc(scope) + ' · ' + list.length + ' student' + (list.length === 1 ? "" : "s") + ' · Printed ' + new Date().toLocaleDateString() + '</p>' +
+      '<table><thead><tr><th>#</th><th>Reg Number</th><th>Student</th><th>Class</th><th>Subjects</th><th>Access Code</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table>', css);
   };
 
   /* ═══ RESULT TEMPLATE — report card designer (logo, colors, category
