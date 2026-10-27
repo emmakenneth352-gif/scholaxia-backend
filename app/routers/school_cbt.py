@@ -2378,16 +2378,19 @@ async def registrations_list(
         if needle and needle not in (u.full_name or "").lower() and needle not in ((cred.reg_number if cred else "") or "").lower():
             continue
         restricted = bool(cred.is_restricted if cred else False)
-        # "Pending" only makes sense when the class has published exams the
-        # student is not attached to yet — with nothing scheduled there is
-        # nothing to approve, so a registered student counts as approved.
-        st = "restricted" if restricted else ("approved" if (subjects or cls not in published_by_class) else "pending")
-        if status and status != "all" and st != status:
-            continue
         try:
             _requested = json.loads(cred.requested_subjects) if cred and cred.requested_subjects else []
         except Exception:
             _requested = []
+        # "Pending" only makes sense when the class has published exams the
+        # student is not attached to yet — with nothing scheduled there is
+        # nothing to approve, so a registered student counts as approved.
+        # Requested subjects (picked at registration) also count as approved:
+        # the school explicitly chose them, even before scheduling attaches
+        # the matching exams.
+        st = "restricted" if restricted else ("approved" if (subjects or _requested or cls not in published_by_class) else "pending")
+        if status and status != "all" and st != status:
+            continue
         out.append(
             {
                 "student_id": str(u.id),

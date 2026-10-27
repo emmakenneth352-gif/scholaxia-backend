@@ -1242,6 +1242,7 @@ tr:last-child td{border-bottom:none}
   };
   function isoOrNull(v) { try { return v ? new Date(v).toISOString() : null; } catch (e) { return null; } }
   function bankList() {
+    var isQbanks = (typeof EX_PAGE !== "undefined" && EX_PAGE === "exqbanks");
     cbtApi("/banks").then(function (d) {
       var banks = d.banks || [];
       window.__banks = banks;
@@ -1266,6 +1267,7 @@ tr:last-child td{border-bottom:none}
           return '<label onclick="bankSubjFilter(\'' + esc(s).replace(/'/g, "") + '\')" style="cursor:pointer' + (window.__bankSubj === s ? ";border-color:var(--blue);color:var(--blue);background:var(--sky)" : "") + '">' + esc(s) + '</label>';
         }).join("") + '</div>';
       $("exBody").innerHTML =
+        (isQbanks ? '<div class="panel" style="border-left:4px solid var(--blue)"><h3>🗂️ Question Banks</h3><p class="mhint">Select class + subject below to find a bank — open 📂 Questions to Edit or Clear questions, ➕ Add to add more, 🧹 Clear to remove all questions, Delete (password) to remove the bank.</p></div>' : '') +
         '<div class="stat-mini"><span class="chip">Banks: ' + banks.length + '</span><span class="chip g">Questions: ' + banks.reduce(function (a, b) { return a + (b.question_count || 0); }, 0) + '</span>' +
         '<button class="btn sm" onclick="uploadQuestionsModal()">⬆ Upload Questions</button>' +
         '<button class="btn sm ghost" onclick="addBank()">+ New Question Bank</button>' +
