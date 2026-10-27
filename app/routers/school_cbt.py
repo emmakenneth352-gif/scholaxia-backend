@@ -76,6 +76,14 @@ def _uuid_or_none(value) -> Optional[UUID]:
         return None
 
 
+def _uuid_or_404(value: str, detail: str = "Not found") -> UUID:
+    """Coerce a path id to UUID — raw str in a UUID comparison breaks the bind."""
+    try:
+        return UUID(str(value))
+    except (ValueError, TypeError, AttributeError):
+        raise HTTPException(status_code=404, detail=detail)
+
+
 def _staff_school_id(current_user: dict, school_id: Optional[str] = None) -> UUID:
     """Staff caller's tenant. Main admin must pass school_id explicitly."""
     sid = current_user.get("school_id") if current_user.get("role") == "school_admin" else school_id
@@ -525,7 +533,7 @@ async def delete_bank(
     db: AsyncSession = Depends(get_db),
 ):
     sid = _staff_school_id(current_user, school_id)
-    bank = (await db.execute(select(SchoolExQuestionBank).where(SchoolExQuestionBank.id == bank_id))).scalar_one_or_none()
+    bank = (await db.execute(select(SchoolExQuestionBank).where(SchoolExQuestionBank.id == _uuid_or_404(bank_id, "Question bank not found")))).scalar_one_or_none()
     if not bank or bank.school_id != sid:
         raise HTTPException(status_code=404, detail="Question bank not found")
     await db.execute(delete(SchoolExQuestion).where(SchoolExQuestion.bank_id == bank.id))
@@ -541,7 +549,7 @@ async def list_bank_questions(
     current_user: dict = Depends(require_school_staff),
     db: AsyncSession = Depends(get_db),
 ):
-    bank = (await db.execute(select(SchoolExQuestionBank).where(SchoolExQuestionBank.id == bank_id))).scalar_one_or_none()
+    bank = (await db.execute(select(SchoolExQuestionBank).where(SchoolExQuestionBank.id == _uuid_or_404(bank_id, "Question bank not found")))).scalar_one_or_none()
     if not bank or bank.school_id != _staff_school_id(current_user):
         raise HTTPException(status_code=404, detail="Question bank not found")
     q = select(SchoolExQuestion).where(SchoolExQuestion.bank_id == bank.id).order_by(SchoolExQuestion.created_at.desc() if hasattr(SchoolExQuestion, "created_at") else SchoolExQuestion.question_text)
@@ -567,6 +575,7 @@ async def list_bank_questions(
                 "explanation": r.explanation,
                 "year": r.year,
                 "tags": list(r.tags or []),
+                "image_url": r.image_url,
                 "status": r.status,
             }
             for r in rows
@@ -581,7 +590,7 @@ async def add_bank_questions(
     current_user: dict = Depends(require_school_staff),
     db: AsyncSession = Depends(get_db),
 ):
-    bank = (await db.execute(select(SchoolExQuestionBank).where(SchoolExQuestionBank.id == bank_id))).scalar_one_or_none()
+    bank = (await db.execute(select(SchoolExQuestionBank).where(SchoolExQuestionBank.id == _uuid_or_404(bank_id, "Question bank not found")))).scalar_one_or_none()
     if not bank or bank.school_id != _staff_school_id(current_user):
         raise HTTPException(status_code=404, detail="Question bank not found")
     if not payload:
@@ -617,6 +626,84 @@ async def add_bank_questions(
     return {"added": len(made), "ids": [str(r.id) for r in made]}
 
 
+class BankQuestionPatchIn(BaseModel):
+    """Edit one bank question — every field optional."""
+    question_text: Optional[str] = None
+    option_a: Optional[str] = None
+    option_b: Optional[str] = None
+    option_c: Optional[str] = None
+    option_d: Optional[str] = None
+    correct_option: Optional[str] = None
+    question_type: Optional[str] = None
+    topic: Optional[str] = None
+    sub_topic: Optional[str] = None
+    marks: Optional[int] = None
+    difficulty: Optional[str] = None
+    explanation: Optional[str] = None
+    image_url: Optional[str] = None
+    status: Optional[str] = None
+
+
+@router.patch("/banks/{bank_id}/questions/{question_id}")
+async def edit_bank_question(
+    bank_id: str,
+    question_id: str,
+    payload: BankQuestionPatchIn,
+    current_user: dict = Depends(require_school_staff),
+    db: AsyncSession = Depends(get_db),
+):
+    bank = (await db.execute(select(SchoolExQuestionBank).where(SchoolExQuestionBank.id == _uuid_or_404(bank_id, "Question bank not found")))).scalar_one_or_none()
+    if not bank or bank.school_id != _staff_school_id(current_user):
+        raise HTTPException(status_code=404, detail="Question bank not found")
+    row = (await db.execute(select(SchoolExQuestion).where(SchoolExQuestion.id == _uuid_or_404(question_id, "Question not found")))).scalar_one_or_none()
+    if not row or row.bank_id != bank.id:
+        raise HTTPException(status_code=404, detail="Question not found")
+    data = payload.model_dump(exclude_unset=True)
+    if "question_text" in data:
+        if not (data["question_text"] or "").strip():
+            raise HTTPException(status_code=400, detail="Question text cannot be empty")
+        row.question_text = data["question_text"].strip()
+    for f in ("option_a", "option_b", "option_c", "option_d", "sub_topic", "explanation"):
+        if f in data:
+            setattr(row, f, (data[f] or "").strip() or ("" if f.startswith("option_") else None))
+    if "correct_option" in data:
+        copt = (data["correct_option"] or "A").upper().replace(" ", "")
+        if any(ch not in "ABCD" for ch in copt):
+            raise HTTPException(status_code=400, detail="correct_option must be letters A–D")
+        row.correct_option = copt
+    if "question_type" in data and data["question_type"] in ("mcq", "true_false", "multi_select", "theory"):
+        row.question_type = data["question_type"]
+    if "topic" in data:
+        row.topic = (data["topic"] or "").strip() or None
+    if "marks" in data:
+        row.marks = max(1, min(int(data["marks"] or 1), 100))
+    if "difficulty" in data and data["difficulty"] in ("easy", "medium", "hard"):
+        row.difficulty = data["difficulty"]
+    if "image_url" in data:
+        row.image_url = (data["image_url"] or "").strip() or None
+    if "status" in data and data["status"] in ("draft", "active", "archived"):
+        row.status = data["status"]
+    await db.flush()
+    return {"ok": True, "id": str(row.id)}
+
+
+@router.delete("/banks/{bank_id}/questions")
+async def clear_bank_questions(
+    bank_id: str,
+    current_user: dict = Depends(require_school_staff),
+    db: AsyncSession = Depends(get_db),
+):
+    """Remove ALL questions in the bank — the bank itself is kept."""
+    bank = (await db.execute(select(SchoolExQuestionBank).where(SchoolExQuestionBank.id == _uuid_or_404(bank_id, "Question bank not found")))).scalar_one_or_none()
+    if not bank or bank.school_id != _staff_school_id(current_user):
+        raise HTTPException(status_code=404, detail="Question bank not found")
+    rows = (await db.execute(select(SchoolExQuestion).where(SchoolExQuestion.bank_id == bank.id))).scalars().all()
+    for r in rows:
+        await db.delete(r)
+    await db.flush()
+    return {"ok": True, "cleared": len(rows)}
+
+
 @router.delete("/banks/{bank_id}/questions/{question_id}")
 async def delete_bank_question(
     bank_id: str,
@@ -624,10 +711,10 @@ async def delete_bank_question(
     current_user: dict = Depends(require_school_staff),
     db: AsyncSession = Depends(get_db),
 ):
-    bank = (await db.execute(select(SchoolExQuestionBank).where(SchoolExQuestionBank.id == bank_id))).scalar_one_or_none()
+    bank = (await db.execute(select(SchoolExQuestionBank).where(SchoolExQuestionBank.id == _uuid_or_404(bank_id, "Question bank not found")))).scalar_one_or_none()
     if not bank or bank.school_id != _staff_school_id(current_user):
         raise HTTPException(status_code=404, detail="Question bank not found")
-    row = (await db.execute(select(SchoolExQuestion).where(SchoolExQuestion.id == question_id))).scalar_one_or_none()
+    row = (await db.execute(select(SchoolExQuestion).where(SchoolExQuestion.id == _uuid_or_404(question_id, "Question not found")))).scalar_one_or_none()
     if not row or row.bank_id != bank.id:
         raise HTTPException(status_code=404, detail="Question not found")
     await db.delete(row)

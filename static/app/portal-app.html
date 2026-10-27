@@ -1059,7 +1059,11 @@ tr:last-child td{border-bottom:none}
     return '<div class="qrow" data-qid="' + __qn + '">' +
       '<div class="qtop"><b>Question ' + __qn + '</b><button class="mb-x" style="width:26px;height:26px" onclick="this.closest(\'.qrow\').remove()" title="Remove">✕</button></div>' +
       '<textarea class="f-in qtext" placeholder="Type the question…"></textarea>' +
-      '<input class="f-in qimg" placeholder="Image / diagram URL for this question (optional)…" style="margin-top:6px" />' +
+      '<div style="margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+      '<input type="hidden" class="qimg" value="" />' +
+      '<button type="button" class="btn sm ghost" onclick="bankQImgPick(this)">🖼 Add diagram</button>' +
+      '<img class="qimg-prev" hidden style="height:44px;border-radius:6px;border:1px solid var(--line)" />' +
+      '<span class="qimg-st" style="font-size:.8rem;color:#64748b"></span></div>' +
       '<div class="opts">' +
       '<div class="opt"><b>A</b><input class="f-in oa" placeholder="Option A" /></div>' +
       '<div class="opt"><b>B</b><input class="f-in ob" placeholder="Option B" /></div>' +
@@ -1069,6 +1073,27 @@ tr:last-child td{border-bottom:none}
       '<select class="f-in qco" style="width:120px"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option></select></div></div>';
   }
   window.addQRow = function () { $("qList").insertAdjacentHTML("beforeend", qRowHTML()); };
+  /* Gallery diagram picker for bank questions — uploads, stores the URL in
+     the row's hidden .qimg field and shows a thumbnail. No pasted URLs. */
+  window.bankQImgPick = function (btn) {
+    var row = btn.closest(".qrow, .eqform");
+    var inp = document.createElement("input");
+    inp.type = "file"; inp.accept = "image/jpeg,image/png,image/webp";
+    inp.onchange = function () {
+      var f = inp.files && inp.files[0]; if (!f) return;
+      if (f.size > 20 * 1024 * 1024) { toastErr("Image is too large. Maximum is 20MB."); return; }
+      var st = row.querySelector(".qimg-st"); if (st) st.textContent = "Uploading diagram…";
+      var fd = new FormData(); fd.append("file", f);
+      cbtApi("/community/upload", { method: "POST", form: fd }).then(function (d) {
+        var url = d.file_url || d.secure_url || d.url || "";
+        if (!url) throw new Error("Upload did not return an image URL.");
+        row.querySelector(".qimg").value = url;
+        var im = row.querySelector(".qimg-prev"); if (im) { im.src = url; im.hidden = false; }
+        if (st) st.textContent = "Diagram attached ✓ (tap Add diagram to replace)";
+      }).catch(function (e) { if (st) st.textContent = ""; toastErr(errText(e)); });
+    };
+    inp.click();
+  };
   function examFormHTML() {
     return '<div class="mnote"><strong>1 · Basic Information</strong></div>' +
       '<div class="form-grid"><div><label class="f-label">Examination Name *</label><input class="f-in" id="exTitle" placeholder="e.g. First Term Mathematics Examination" /></div>' +
@@ -1598,17 +1623,66 @@ tr:last-child td{border-bottom:none}
   };
   window.openBank = function (id) {
     cbtApi("/banks/" + id + "/questions").then(function (d) {
+      window.__bankQs = d.questions || [];
       var rows = (d.questions || []).map(function (q, i) {
-        return '<tr><td>' + (i + 1) + '</td><td>' + (q.image_url ? '🖼 ' : "") + esc(q.question_text.slice(0, 90)) + (q.question_text.length > 90 ? "…" : "") + '</td><td>' + esc(q.topic || "—") + '</td><td>' + esc(q.difficulty) + '</td><td><strong>' + esc(q.correct_option) + '</strong></td>' +
-          '<td><button class="btn sm red" onclick="delBankQ(\'' + id + '\',\'' + q.id + '\')">✕</button></td></tr>';
+        return '<tr><td>' + (i + 1) + '</td><td>' + (q.image_url ? '🖼 ' : "") + esc((q.question_text || "").slice(0, 90)) + (q.question_text.length > 90 ? "…" : "") + '</td><td>' + esc(q.topic || "—") + '</td><td>' + esc(q.difficulty) + '</td><td><strong>' + esc(q.correct_option) + '</strong></td>' +
+          '<td style="white-space:nowrap"><button class="btn sm ghost" onclick="editBankQ(\'' + id + '\',\'' + q.id + '\')">✏️ Edit</button> ' +
+          '<button class="btn sm red" onclick="delBankQ(\'' + id + '\',\'' + q.id + '\')">Clear</button></td></tr>';
       });
       openModal("🏦 " + esc(d.bank.name) + " — " + (d.questions || []).length + " questions",
         '<div style="max-height:420px;overflow:auto">' + tbl(["#", "Question", "Topic", "Difficulty", "Answer", ""], rows) + '</div>',
-        '<button class="btn ghost" onclick="closeModal()">Close</button><button class="btn" onclick="closeModal();addBankQ(\'' + id + '\',\'\')">➕ Add questions</button>', true);
+        '<button class="btn ghost" onclick="closeModal()">Close</button>' +
+        '<button class="btn ghost" onclick="clearBankQs(\'' + id + '\',\'' + esc(d.bank.name).replace(/'/g, "") + '\')">🧹 Clear all</button>' +
+        '<button class="btn" onclick="closeModal();addBankQ(\'' + id + '\',\'\')">➕ Add questions</button>', true);
     }).catch(toastErr);
   };
   window.delBankQ = function (bankId, qid) {
-    cbtApi("/banks/" + bankId + "/questions/" + qid, { method: "DELETE" }).then(function () { toast("Question removed"); closeModal(); openBank(bankId); renderExTab(); }).catch(toastErr);
+    cbtApi("/banks/" + bankId + "/questions/" + qid, { method: "DELETE" }).then(function () { toast("Question cleared"); closeModal(); openBank(bankId); renderExTab(); }).catch(toastErr);
+  };
+  window.clearBankQs = function (bankId, name) {
+    confirmModal("Clear all questions", 'Remove <strong>ALL</strong> questions in <strong>' + esc(name) + '</strong>? The bank itself stays — only its questions are cleared.', function (btn) {
+      busy(btn, true);
+      cbtApi("/banks/" + bankId + "/questions", { method: "DELETE" }).then(function (d) {
+        closeModal(); toast("Cleared " + (d.cleared || 0) + " question(s) — bank kept"); openBank(bankId); renderExTab();
+      }).catch(function (e) { busy(btn, false, "Clear all"); mErr(errText(e)); });
+    }, "Clear all", true);
+  };
+  window.editBankQ = function (bankId, qid) {
+    var q = (window.__bankQs || []).filter(function (x) { return x.id === qid; })[0];
+    if (!q) return toastErr("Question not found — reopen the bank.");
+    var opts = ["A", "B", "C", "D"].map(function (o) {
+      return '<div class="opt"><b>' + o + '</b><input class="f-in eq-o' + o + '" value="' + esc(q["option_" + o.toLowerCase()] || "") + '" /></div>';
+    }).join("");
+    openModal("✏️ Edit question",
+      '<div class="eqform"><textarea class="f-in eq-text" rows="3">' + esc(q.question_text || "") + '</textarea>' +
+      '<div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+      '<input type="hidden" class="qimg" value="' + esc(q.image_url || "") + '" />' +
+      '<button type="button" class="btn sm ghost" onclick="bankQImgPick(this)">🖼 ' + (q.image_url ? "Replace diagram" : "Add diagram") + '</button>' +
+      '<img class="qimg-prev" src="' + esc(q.image_url || "") + '"' + (q.image_url ? "" : " hidden") + ' style="height:44px;border-radius:6px;border:1px solid var(--line)" />' +
+      '<span class="qimg-st" style="font-size:.8rem;color:#64748b"></span></div>' +
+      '<div class="opts" style="margin-top:8px">' + opts + '</div>' +
+      '<div class="form-grid" style="margin-top:8px"><div><label class="f-label">Correct answer</label><select class="f-in eq-co">' +
+      ["A", "B", "C", "D"].map(function (o) { return '<option value="' + o + '"' + (q.correct_option === o ? " selected" : "") + '>' + o + '</option>'; }).join("") + '</select></div>' +
+      '<div><label class="f-label">Marks</label><input class="f-in eq-marks" type="number" min="1" value="' + (q.marks || 1) + '" /></div></div>' +
+      '<div class="mrow"><label class="f-label">Topic</label><input class="f-in eq-topic" value="' + esc(q.topic || "") + '" placeholder="e.g. Algebra" /></div>' +
+      '<div class="merr"></div></div>',
+      '<button class="btn ghost" onclick="closeModal();openBank(\'' + bankId + '\')">Cancel</button><button class="btn" id="eqSave">💾 Save changes</button>', true);
+    $("eqSave").addEventListener("click", function () {
+      var box = document.querySelector("#mb .eqform");
+      var qt = box.querySelector(".eq-text").value.trim();
+      if (!qt) return mErr("Question text cannot be empty.");
+      var body = { question_text: qt,
+        option_a: box.querySelector(".eq-oA").value.trim(), option_b: box.querySelector(".eq-oB").value.trim(),
+        option_c: box.querySelector(".eq-oC").value.trim(), option_d: box.querySelector(".eq-oD").value.trim(),
+        correct_option: box.querySelector(".eq-co").value,
+        topic: box.querySelector(".eq-topic").value.trim() || null,
+        marks: parseInt(box.querySelector(".eq-marks").value, 10) || 1,
+        image_url: box.querySelector(".qimg").value.trim() || null };
+      busy($("eqSave"), true);
+      cbtApi("/banks/" + bankId + "/questions/" + qid, { method: "PATCH", body: body }).then(function () {
+        closeModal(); toast("Question updated"); openBank(bankId); renderExTab();
+      }).catch(function (e) { busy($("eqSave"), false, "💾 Save changes"); mErr(errText(e)); });
+    });
   };
   window.addBankQ = function (bankId) {
     __qn = 0;
