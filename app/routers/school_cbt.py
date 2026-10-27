@@ -68,6 +68,14 @@ def _code_secret(code: str) -> str:
 # HELPERS — tenant scoping + authorization
 # ═════════════════════════════════════════════════════════════════════════
 
+def _uuid_or_none(value) -> Optional[UUID]:
+    """Coerce a JWT/user id to UUID for UUID columns (raw str breaks the bind)."""
+    try:
+        return UUID(str(value)) if value else None
+    except (ValueError, TypeError, AttributeError):
+        return None
+
+
 def _staff_school_id(current_user: dict, school_id: Optional[str] = None) -> UUID:
     """Staff caller's tenant. Main admin must pass school_id explicitly."""
     sid = current_user.get("school_id") if current_user.get("role") == "school_admin" else school_id
@@ -343,7 +351,7 @@ async def create_bank(
         subject=payload.subject.strip(),
         class_name=payload.class_name.strip().upper(),
         description=(payload.description or "").strip() or None,
-        created_by=current_user["sub"],
+        created_by=_uuid_or_none(current_user.get("sub")),
     )
     db.add(bank)
     await db.flush()
@@ -471,7 +479,7 @@ async def import_bank_questions(
             name=(name or "").strip() or f"{subj} {cls} Bank",
             subject=subj,
             class_name=cls,
-            created_by=current_user["sub"],
+            created_by=_uuid_or_none(current_user.get("sub")),
         )
         db.add(bank)
         await db.flush()
@@ -747,7 +755,7 @@ async def create_exam(
         max_attempts=max(1, min(int(payload.max_attempts or 1), 10)),
         status="draft" if not payload.publish else "published",
         is_published=bool(payload.publish),
-        created_by=current_user["sub"],
+        created_by=_uuid_or_none(current_user.get("sub")),
     )
     db.add(exam)
     await db.flush()
@@ -2783,12 +2791,19 @@ async def exam_results(
             .order_by(SchoolExamResult.final_score.desc())
         )
     ).all()
+    code_rows = (
+        await db.execute(
+            select(SchoolExamAccessCode).where(SchoolExamAccessCode.exam_id == exam.id)
+        )
+    ).scalars().all()
+    reg_by_student = {str(c.student_id): (c.reg_number or "") for c in code_rows}
     out = []
     for res, user in rows:
         out.append(
             {
                 "student_id": str(user.id),
                 "student_name": user.full_name,
+                "reg_number": reg_by_student.get(str(user.id), ""),
                 "total_questions": res.total_questions,
                 "questions_answered": res.questions_answered,
                 "correct_answers": res.correct_count,

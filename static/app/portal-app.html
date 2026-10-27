@@ -1203,7 +1203,8 @@ tr:last-child td{border-bottom:none}
       $("exBody").innerHTML =
         '<div class="stat-mini"><span class="chip">Banks: ' + banks.length + '</span><span class="chip g">Questions: ' + banks.reduce(function (a, b) { return a + (b.question_count || 0); }, 0) + '</span>' +
         '<button class="btn sm" onclick="uploadQuestionsModal()">⬆ Upload Questions</button>' +
-        '<button class="btn sm ghost" onclick="addBank()">+ New Question Bank</button></div>' +
+        '<button class="btn sm ghost" onclick="addBank()">+ New Question Bank</button>' +
+        '<button class="btn sm ghost" onclick="subjectCatalogueModal()">⚙ Subject catalogue</button></div>' +
         (classes.length ? '<div class="panel"><h3>Question Bank by Class</h3><p class="mhint" style="margin-bottom:10px">Questions are uploaded per class. Pick a class to see its banks.</p>' + chipRow + '</div>' : '') +
         '<div class="panel">' + tbl(["Bank", "Subject", "Class", "Questions", "Status", ""], show.map(function (b) {
           return '<tr><td><strong>' + esc(b.name) + '</strong></td><td><span class="pill blue">' + esc(b.subject) + '</span></td><td><span class="pill violet">' + esc(b.class_name) + '</span></td><td>' + b.question_count + '</td><td><span class="pill ' + (b.status === "active" ? "ok" : "gray") + '">' + esc(b.status) + '</span></td>' +
@@ -1212,30 +1213,363 @@ tr:last-child td{border-bottom:none}
     }).catch(function (e) { $("exBody").innerHTML = '<div class="panel"><div class="empty">' + esc(errText(e)) + '</div></div>'; });
   }
   window.bankClsFilter = function (c) { window.__bankCls = c || null; bankList(); };
+  /* — Subject catalogue (admin config): enable/disable each subject per class,
+     rename or deactivate, and (main admin) share a school subject globally. — */
+  window.subjectCatalogueModal = function () {
+    var SC = { levels: [], level: "", q: "", subs: [], open: null };
+    var isMain = S.user && S.user.role === "admin";
+    function paint() {
+      var list = SC.subs.filter(function (s) {
+        if (SC.level && (s.levels || []).indexOf(SC.level) < 0) return false;
+        if (SC.q && s.name.toLowerCase().indexOf(SC.q) < 0) return false;
+        return true;
+      });
+      var box = $("scList"); if (!box) return;
+      box.innerHTML = list.length ? list.map(function (s) {
+        var cls = [];
+        Object.keys(s.classes_by_level || {}).forEach(function (lv) { (s.classes_by_level[lv] || []).forEach(function (c) { cls.push(c); }); });
+        var h = '<div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px">' +
+          '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><strong>' + esc(s.name) + '</strong>' +
+          '<span class="pill ' + (s.scope === "global" ? "blue" : "violet") + '">' + (s.scope === "global" ? "🌍 global" : "🏫 this school") + '</span>' +
+          (s.is_custom ? '<span class="pill gray">custom</span>' : '') +
+          '<span class="mhint">' + esc(cls.join(", ")) + '</span>' +
+          '<span style="flex:1"></span>' +
+          '<button class="btn sm ghost" data-sc-manage="' + s.id + '">⚙ Manage</button></div>' +
+          '<div id="scm-' + s.id + '"' + (SC.open === s.id ? "" : ' hidden') + ' style="margin-top:10px"></div></div>';
+        return h;
+      }).join("") : '<div class="empty">No subjects match.</div>';
+      Array.prototype.forEach.call(box.querySelectorAll("[data-sc-manage]"), function (b) {
+        b.addEventListener("click", function () {
+          var id = b.getAttribute("data-sc-manage");
+          SC.open = SC.open === id ? null : id;
+          paint(); if (SC.open) paintManage(SC.subs.filter(function (x) { return x.id === SC.open; })[0]);
+        });
+      });
+    }
+    function paintManage(s) {
+      var box = $("scm-" + s.id); if (!box || !s) return;
+      var lvls = SC.levels.filter(function (l) { return (s.levels || []).indexOf(l.id) >= 0; });
+      box.innerHTML = lvls.map(function (l) {
+        var on = s.classes_by_level[l.id] || [];
+        return '<div style="margin-bottom:8px"><strong>' + esc(l.label) + '</strong><br>' + l.classes.map(function (c) {
+          return '<label class="pill ' + (on.indexOf(c) >= 0 ? "ok" : "gray") + '" style="margin:0 6px 6px 0;cursor:pointer"><input type="checkbox" data-sc-lvl="' + l.id + '" data-sc-cls="' + esc(c) + '"' + (on.indexOf(c) >= 0 ? " checked" : "") + ' /> ' + esc(c) + '</label>';
+        }).join("") + '</div>';
+      }).join("") +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">' +
+        '<input class="f-in" id="scRename" value="' + esc(s.name) + '" style="max-width:220px" />' +
+        '<button class="btn sm" data-sc-save="' + s.id + '">💾 Save classes + name</button>' +
+        (isMain && s.scope !== "global" ? '<button class="btn sm ghost" data-sc-share="' + s.id + '">🌍 Share globally</button>' : '') +
+        '<button class="btn sm ' + (s.is_active === false ? "ghost" : "red") + '" data-sc-toggle="' + s.id + '" data-on="' + (s.is_active === false ? "1" : "0") + '">' + (s.is_active === false ? "Reactivate" : "Deactivate") + '</button></div>' +
+        '<div class="merr" id="scErr" style="display:none"></div>';
+      var sv = box.querySelector("[data-sc-save]");
+      if (sv) sv.addEventListener("click", function () {
+        var items = [];
+        Array.prototype.forEach.call(box.querySelectorAll("input[type=checkbox]"), function (cb) {
+          items.push({ level: cb.getAttribute("data-sc-lvl"), class_name: cb.getAttribute("data-sc-cls"), is_enabled: cb.checked });
+        });
+        var nm = box.querySelector("#scRename").value.trim();
+        busy(sv, true);
+        cbtApi("/subjects/offerings", { method: "PUT", body: { subject_id: s.id, items: items } }).then(function () {
+          var done = function () { busy(sv, false, "💾 Save classes + name"); reload(); };
+          if (nm && nm !== s.name) cbtApi("/subjects/" + s.id, { method: "PATCH", body: { name: nm } }).then(done).catch(function (e) { busy(sv, false, "💾 Save classes + name"); scErr(errText(e)); });
+          else done();
+        }).catch(function (e) { busy(sv, false, "💾 Save classes + name"); scErr(errText(e)); });
+      });
+      var sh = box.querySelector("[data-sc-share]");
+      if (sh) sh.addEventListener("click", function () {
+        busy(sh, true);
+        cbtApi("/subjects/" + s.id + "/share", { method: "POST", body: {} }).then(function (d) {
+          toast(d.shared ? "Shared globally" : (d.reason || "Already global")); reload();
+        }).catch(function (e) { busy(sh, false, "🌍 Share globally"); scErr(errText(e)); });
+      });
+      var tg = box.querySelector("[data-sc-toggle]");
+      if (tg) tg.addEventListener("click", function () {
+        busy(tg, true);
+        cbtApi("/subjects/" + s.id, { method: "PATCH", body: { is_active: tg.getAttribute("data-on") === "1" } }).then(function () { reload(); }).catch(function (e) { busy(tg, false); scErr(errText(e)); });
+      });
+    }
+    function scErr(m) { var e = $("scErr"); if (e) { e.textContent = m; e.style.display = "block"; } }
+    function reload() {
+      cbtApi("/subjects").then(function (d) { SC.subs = d.subjects || []; SC.open = null; paint(); }).catch(function (e) { scErr(errText(e)); });
+    }
+    openModal("⚙ Subject catalogue",
+      '<p class="mhint" style="margin-bottom:10px">Choose which subjects appear for each class. Untick a class to hide the subject there. Custom subjects stay private to your school unless the main admin shares them globally.</p>' +
+      '<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap"><select class="f-in" id="scLevel" style="max-width:220px"><option value="">All levels</option></select>' +
+      '<input class="f-in" id="scQ" placeholder="🔍 Search subjects…" style="flex:1;min-width:160px" /></div>' +
+      '<div id="scList" style="max-height:46vh;overflow:auto"><div class="empty">Loading…</div></div>' +
+      '<div class="merr" id="scErr" style="display:none"></div>',
+      '<button class="btn ghost" onclick="closeModal()">Close</button>', true);
+    cbtApi("/subjects/meta").then(function (d) {
+      SC.levels = d.levels || [];
+      var sel = $("scLevel");
+      if (sel) sel.innerHTML = '<option value="">All levels</option>' + SC.levels.map(function (l) { return '<option value="' + l.id + '">' + esc(l.label) + '</option>'; }).join("");
+      reload();
+    }).catch(function (e) { scErr(errText(e)); });
+    document.getElementById("mb").addEventListener("input", function (e) {
+      if (e.target && e.target.id === "scQ") { SC.q = e.target.value.toLowerCase(); paint(); }
+    });
+    document.getElementById("mb").addEventListener("change", function (e) {
+      if (e.target && e.target.id === "scLevel") { SC.level = e.target.value; paint(); }
+    });
+  };
+  /* — Upload Questions: stepped School level → Class → Subject → File → Review.
+     Level / class / subject come from the live catalogue; the file is parsed by
+     /bank-uploads/preview and each row can be corrected before confirm saves. — */
   window.uploadQuestionsModal = function () {
-    var clsOpts = (window.__banks || []).map(function (b) { return b.class_name; }).filter(function (v, i, a) { return a.indexOf(v) === i; });
-    openModal("Upload Questions",
-      '<p class="mhint" style="margin-bottom:12px">Upload a <strong>.csv</strong>, <strong>.json</strong> or <strong>.pdf</strong> question file into the question bank for one class + subject — like the reference dashboard. Questions land in a bank per class (JS1…SS3) and are reused when creating exams.</p>' +
-      '<div class="form-grid"><div><label class="f-label">Class *</label><input class="f-in" id="uqClass" list="uqClsList" placeholder="e.g. SS2" /><datalist id="uqClsList">' +
-        clsOpts.map(function (c) { return '<option value="' + esc(c) + '">'; }).join("") + '</datalist></div>' +
-      '<div><label class="f-label">Subject *</label><input class="f-in" id="uqSubject" placeholder="e.g. Mathematics" /></div></div>' +
-      '<div class="mrow"><label class="f-label">Question file (.csv / .json / .pdf) *</label><input class="f-in" id="uqFile" type="file" accept=".csv,.json,.pdf" /></div>' +
-      '<p class="mhint">CSV header: <code>question_text,option_a,option_b,option_c,option_d,correct_option,topic,marks</code></p>' +
-      '<div class="merr"></div>',
-      '<button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn" id="uqGo">⬆ Upload</button>');
-    $("uqGo").addEventListener("click", function () {
-      var cls = $("uqClass").value.trim(), subj = $("uqSubject").value.trim(), f = $("uqFile").files[0];
-      if (!cls) return mErr("Enter the class (e.g. SS2).");
-      if (!subj) return mErr("Enter the subject.");
-      if (!f) return mErr("Choose a question file.");
+    if (!document.getElementById("uqCss")) {
+      var _st = document.createElement("style"); _st.id = "uqCss";
+      _st.textContent =
+        '.uq-steps{display:flex;gap:4px;margin:0 0 14px;flex-wrap:wrap}' +
+        '.uq-step{display:flex;align-items:center;gap:7px;font-size:13px;color:#8a8fa3;font-weight:600}' +
+        '.uq-step .uq-n{width:24px;height:24px;border-radius:50%;border:2px solid #c9cede;display:inline-flex;align-items:center;justify-content:center;font-size:12px;flex:none}' +
+        '.uq-step.on{color:var(--blue)}.uq-step.on .uq-n{background:var(--blue);border-color:var(--blue);color:#fff}' +
+        '.uq-step.done{color:var(--ok)}.uq-step.done .uq-n{background:var(--ok);border-color:var(--ok);color:#fff}' +
+        '.uq-step + .uq-step:before{content:"";width:18px;height:2px;background:#e2e5ee;display:inline-block;margin-right:4px}' +
+        '.uq-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}' +
+        '@media(max-width:640px){.uq-cards{grid-template-columns:1fr}}' +
+        '.uq-card{border:2px solid #e2e5ee;border-radius:12px;padding:12px;cursor:pointer;background:#fff}' +
+        '.uq-card:hover{border-color:var(--blue)}.uq-card.on{border-color:var(--blue);background:var(--sky)}' +
+        '.uq-card b{display:block;font-size:14px}.uq-card span{font-size:12px;color:#6b7280}' +
+        '.uq-grid{display:flex;flex-wrap:wrap;gap:8px}' +
+        '.uq-cls{border:2px solid #e2e5ee;background:#fff;border-radius:10px;padding:9px 14px;font-weight:700;cursor:pointer}' +
+        '.uq-cls.on{background:var(--blue);border-color:var(--blue);color:#fff}' +
+        '.uq-sub{border:2px solid #e2e5ee;background:#fff;border-radius:10px;padding:8px 12px;font-weight:600;cursor:pointer;font-size:13px}' +
+        '.uq-sub.on{background:var(--blue);border-color:var(--blue);color:#fff}' +
+        '.uq-drop{border:2px dashed #aeb6d8;border-radius:12px;background:#f4f6ff;padding:24px 14px;text-align:center;cursor:pointer;color:#4b5563}' +
+        '.uq-drop.over{border-color:var(--blue);background:#eaf0ff}' +
+        '.uq-sec{font-weight:800;margin:14px 0 6px;display:flex;align-items:center;gap:8px}' +
+        '.uq-sec .n{background:var(--blue);color:#fff;border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;flex:none}' +
+        '.uq-table{width:100%;border-collapse:collapse;font-size:12.5px}' +
+        '.uq-table th,.uq-table td{border:1px solid #e2e5ee;padding:6px 7px;text-align:left;vertical-align:top}' +
+        '.uq-table th{background:#f1f4fb}' +
+        '.uq-table input,.uq-table select{width:100%;box-sizing:border-box;border:1px solid #d5dae7;border-radius:6px;padding:4px 6px;font-size:12.5px}' +
+        '.uq-flag{color:#b45309;font-weight:700;font-size:12px}' +
+        '.uq-nav{display:flex;justify-content:space-between;gap:10px;margin-top:16px;flex-wrap:wrap}';
+      document.head.appendChild(_st);
+    }
+    var UQ = { step: 1, levels: [], level: null, cls: null, subs: [], f: "", subj: null, file: null, pv: null, customOpen: false, done: null };
+    function uqErr(m) { var e = $("uqErr"); if (e) { e.textContent = m || ""; e.style.display = m ? "block" : "none"; } }
+    function shortRange(cls) {
+      if (!cls || !cls.length) return "";
+      if (cls.length < 2) return cls[0];
+      var a = cls[0].split(" "), b = cls[cls.length - 1].split(" ");
+      if (a[0] === b[0]) return cls[0] + " - " + b.slice(1).join(" ");
+      return cls[0] + " - " + cls[cls.length - 1];
+    }
+    function stepper() {
+      var steps = ["School level", "Class", "Subject", "File", "Review"];
+      return '<div class="uq-steps">' + steps.map(function (s, i) {
+        var n = i + 1, c = n === UQ.step ? "on" : (n < UQ.step ? "done" : "");
+        return '<div class="uq-step ' + c + '"><span class="uq-n">' + (n < UQ.step ? "✓" : n) + '</span>' + s + '</div>';
+      }).join("") + '</div>';
+    }
+    function lvlObj() { return UQ.levels.filter(function (l) { return l.id === UQ.level; })[0]; }
+    function render() {
+      var body = stepper() + '<div class="mhint" style="margin-bottom:10px">Choose where these questions belong, then upload your file.</div>';
+      if (UQ.step === 1) {
+        body += '<div class="uq-sec"><span class="n">1</span>School level</div>';
+        body += UQ.levels.length ? '<div class="uq-cards">' + UQ.levels.map(function (l) {
+          return '<div class="uq-card' + (UQ.level === l.id ? " on" : "") + '" data-lvl="' + l.id + '"><b>' + esc(l.label) + '</b><span>' + esc(shortRange(l.classes || [])) + '</span></div>';
+        }).join("") + '</div>' : '<div class="empty">Loading school levels…</div>';
+      }
+      if (UQ.step === 2) {
+        var lo = lvlObj();
+        body += '<div class="uq-sec"><span class="n">2</span>Class — ' + esc(lo ? lo.label : "") + '</div>';
+        body += '<div class="uq-grid">' + (lo ? lo.classes.map(function (c) {
+          return '<button class="uq-cls' + (UQ.cls === c ? " on" : "") + '" data-cls="' + esc(c) + '">' + esc(c) + '</button>';
+        }).join("") : "") + '</div>';
+      }
+      if (UQ.step === 3) {
+        body += '<div class="uq-sec"><span class="n">3</span>Subject — ' + esc(UQ.cls || "") + '</div>';
+        body += '<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap"><input class="f-in" id="uqSearch" placeholder="🔍 Search subjects…" value="' + esc(UQ.f) + '" style="flex:1;min-width:180px" />' +
+          '<button class="btn sm ghost" id="uqCustomBtn">+ Add custom subject</button></div>';
+        body += '<div id="uqCustomBox"' + (UQ.customOpen ? "" : ' hidden') + ' style="margin-bottom:10px"><div style="display:flex;gap:8px;flex-wrap:wrap"><input class="f-in" id="uqCustomName" placeholder="Enter subject name" style="flex:1;min-width:180px" /><button class="btn sm" id="uqCustomAdd">Add</button></div></div>';
+        body += '<div class="uq-grid" id="uqSubs"><div class="empty">Loading subjects…</div></div>';
+      }
+      if (UQ.step === 4) {
+        body += '<div class="uq-sec"><span class="n">4</span>Question file — ' + esc(UQ.subj ? UQ.subj.name : "") + ' · ' + esc(UQ.cls || "") + '</div>';
+        body += '<div class="uq-drop" id="uqDrop">☁️ <strong>Drag your question file here</strong> or <span style="color:var(--blue);font-weight:700">Browse files</span><br>' +
+          '<span style="font-size:12px">Accepted formats: CSV, Excel, JSON, PDF, Word, TXT</span>' +
+          (UQ.file ? '<br><span class="pill ok" style="margin-top:8px;display:inline-block">📄 ' + esc(UQ.file.name) + ' (' + Math.round(UQ.file.size / 1024) + ' KB)</span>' : '') + '</div>' +
+          '<input type="file" id="uqFile" hidden accept=".csv,.xlsx,.xls,.json,.pdf,.docx,.doc,.txt" />';
+        body += '<p class="mhint" id="uqGuide">CSV columns: <code>question_text,option_a,option_b,option_c,option_d,correct_option,topic,marks</code></p>';
+      }
+      if (UQ.step === 5) {
+        body += reviewHtml();
+      }
+      body += '<div class="uq-nav"><button class="btn ghost" id="uqBack">' + (UQ.step === 1 ? "Cancel" : "← Back") + '</button>' +
+        (UQ.step < 4 ? '<button class="btn" id="uqNext">Continue →</button>' :
+          UQ.step === 4 ? '<button class="btn" id="uqPrev2">⬆ Preview questions</button>' :
+          '<button class="btn" id="uqConfirm">⬆ Upload questions</button>') + '</div>';
+      body += '<div class="merr" id="uqErr" style="display:none"></div>';
+      openModal("☁️ Upload Questions", body, null, true);
+      wire();
+      if (UQ.step === 3) paintSubs();
+      if (UQ.step === 5 && !UQ.pv && UQ.file && !UQ.done) runPreview();
+    }
+    function paintSubs() {
+      var box = $("uqSubs"); if (!box) return;
+      var f = (UQ.f || "").toLowerCase();
+      var list = UQ.subs.filter(function (s) { return s.is_active !== false && (!f || s.name.toLowerCase().indexOf(f) >= 0); });
+      box.innerHTML = list.length ? list.map(function (s) {
+        return '<button class="uq-sub' + (UQ.subj && UQ.subj.id === s.id ? " on" : "") + '" data-sub="' + s.id + '" title="' + esc(s.name) + (s.scope === "school" ? " (your school)" : "") + '">' + esc(s.name) + (s.is_custom ? " ✎" : "") + '</button>';
+      }).join("") : '<div class="empty">No subjects match. Add it as a custom subject.</div>';
+      Array.prototype.forEach.call(box.querySelectorAll("[data-sub]"), function (b) {
+        b.addEventListener("click", function () {
+          UQ.subj = UQ.subs.filter(function (s) { return s.id === b.getAttribute("data-sub"); })[0] || null;
+          UQ.pv = null; UQ.file = null;
+          UQ.step = 4; render();
+        });
+      });
+    }
+    function reviewHtml() {
+      if (UQ.done) {
+        return '<div class="panel" style="text-align:center;padding:26px"><div style="font-size:40px">✅</div>' +
+          '<h3>' + UQ.done.inserted + ' questions saved</h3>' +
+          '<p class="mhint">' + esc(UQ.done.bank_name || "") + ' · skipped ' + (UQ.done.skipped_duplicate || 0) + ' duplicate(s)</p>' +
+          '<div class="uq-nav" style="justify-content:center"><button class="btn ghost" onclick="closeModal()">Close</button>' +
+          '<button class="btn" onclick="uploadQuestionsModal()">⬆ Upload another file</button></div></div>';
+      }
+      var pv = UQ.pv;
+      if (!pv) return '<div class="empty">Parsing your file…</div>';
+      var qs = pv.questions || [];
+      var head = '<div class="uq-sec"><span class="n">5</span>Review — ' + esc(pv.subject ? pv.subject.name : "") + ' · ' + esc(pv.class_name || "") + '</div>';
+      head += '<div class="stat-mini" style="margin-bottom:10px"><span class="chip">📄 ' + pv.total_questions + ' found</span>' +
+        '<span class="chip g">✓ ' + pv.valid_count + ' valid</span>' +
+        (pv.needs_review_count ? '<span class="chip y">⚠ ' + pv.needs_review_count + ' need review</span>' : '') +
+        (pv.duplicate_in_bank ? '<span class="chip y">⧉ ' + pv.duplicate_in_bank + ' already in bank</span>' : '') + '</div>';
+      if (pv.warnings && pv.warnings.length) head += '<p class="mhint">⚠ ' + pv.warnings.map(esc).join("; ") + '</p>';
+      if (pv.format_guidance) head += '<p class="mhint">' + esc(pv.format_guidance) + '</p>';
+      if (!qs.length) return head + '<div class="empty">No questions could be read from this file. Fix the format and try again.</div>';
+      var rows = qs.map(function (q, i) {
+        var flags = (q.issues || []).concat(q.in_bank_duplicate ? ["already in bank"] : [], q.in_file_duplicate ? ["duplicate in file"] : []);
+        return '<tr><td>' + (i + 1) + '</td><td>' + esc((q.question_text || "").slice(0, 110)) + '<br>' +
+          '<span style="color:#6b7280;font-size:11px">A. ' + esc(q.option_a || "—") + ' · B. ' + esc(q.option_b || "—") + ' · C. ' + esc(q.option_c || "—") + ' · D. ' + esc(q.option_d || "—") + '</span>' +
+          (flags.length ? '<br><span class="uq-flag">⚠ ' + esc(flags.join("; ")) + '</span>' : '') + '</td>' +
+          '<td><select data-r="' + i + '" data-ed="correct_option">' + ["A", "B", "C", "D", "E"].map(function (o) {
+            return '<option value="' + o + '"' + ((q.correct_option || "") === o ? " selected" : "") + '>' + o + '</option>';
+          }).join("") + '</select></td>' +
+          '<td><input data-r="' + i + '" data-ed="topic" value="' + esc(q.topic || "") + '" placeholder="Topic" /></td>' +
+          '<td><input data-r="' + i + '" data-ed="marks" type="number" min="0" step="0.5" value="' + (q.marks != null ? q.marks : 1) + '" style="max-width:64px" /></td>' +
+          '<td style="text-align:center"><input data-r="' + i + '" data-ed="skip" type="checkbox" title="Skip this row" /></td></tr>';
+      }).join("");
+      return head + '<div style="max-height:380px;overflow:auto"><table class="uq-table"><thead><tr><th>#</th><th>Question</th><th>Ans</th><th>Topic</th><th>Marks</th><th>Skip</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+        '<p class="mhint">Duplicates already in the bank are skipped automatically. Tick Skip to leave a row out.</p>';
+    }
+    function runPreview() {
+      uqErr("");
+      var box = document.querySelector("#mb .mb-body");
+      if (box) box.innerHTML = stepper() + '<div class="empty">Parsing your file…</div>';
       var fd = new FormData();
-      fd.append("file", f); fd.append("class_name", cls); fd.append("subject", subj);
-      busy($("uqGo"), true);
-      cbtApi("/banks/import", { method: "POST", form: fd }).then(function (d) {
-        closeModal(); toast("✓ " + d.added + " questions uploaded to " + d.bank_name);
-        window.__bankCls = d.class_name;
-        renderExTab();
-      }).catch(function (e) { busy($("uqGo"), false, "⬆ Upload"); mErr(errText(e)); });
+      fd.append("file", UQ.file);
+      fd.append("level", UQ.level); fd.append("class_name", UQ.cls); fd.append("subject_id", UQ.subj.id);
+      cbtApi("/bank-uploads/preview", { method: "POST", form: fd }).then(function (pv) {
+        UQ.pv = pv; render();
+      }).catch(function (e) { UQ.pv = null; UQ.step = 4; render(); uqErr(errText(e)); });
+    }
+    function wire() {
+      var back = $("uqBack");
+      if (back) back.addEventListener("click", function () {
+        if (UQ.step === 1) return closeModal();
+        if (UQ.step === 5 && UQ.done) return closeModal();
+        if (UQ.step === 3) { UQ.cls = null; }
+        if (UQ.step === 4) { UQ.subj = null; }
+        UQ.step = Math.max(1, UQ.step - 1); UQ.pv = null; render();
+      });
+      Array.prototype.forEach.call(document.querySelectorAll("#mb [data-lvl]"), function (el) {
+        el.addEventListener("click", function () {
+          UQ.level = el.getAttribute("data-lvl"); UQ.cls = null; UQ.subj = null; UQ.pv = null; UQ.file = null;
+          UQ.step = 2; render();
+        });
+      });
+      Array.prototype.forEach.call(document.querySelectorAll("#mb [data-cls]"), function (el) {
+        el.addEventListener("click", function () {
+          UQ.cls = el.getAttribute("data-cls"); UQ.subj = null; UQ.pv = null; UQ.file = null;
+          UQ.step = 3;
+          cbtApi("/subjects?level=" + encodeURIComponent(UQ.level) + "&class_name=" + encodeURIComponent(UQ.cls)).then(function (d) {
+            UQ.subs = (d.subjects || []).filter(function (s) { return s.is_active !== false; }); render();
+          }).catch(function (e) { UQ.subs = []; render(); uqErr(errText(e)); });
+        });
+      });
+      var nx = $("uqNext");
+      if (nx) nx.addEventListener("click", function () {
+        if (UQ.step === 1 && !UQ.level) return uqErr("Pick a school level first.");
+        if (UQ.step === 2 && !UQ.cls) return uqErr("Pick a class first.");
+        if (UQ.step === 3 && !UQ.subj) return uqErr("Pick a subject first — or add it as a custom subject.");
+        UQ.step++; render();
+      });
+      var s = $("uqSearch");
+      if (s) s.addEventListener("input", function () { UQ.f = s.value; paintSubs(); });
+      var cb = $("uqCustomBtn");
+      if (cb) cb.addEventListener("click", function () { UQ.customOpen = !UQ.customOpen; var x = $("uqCustomBox"); if (x) x.hidden = !UQ.customOpen; });
+      var ca = $("uqCustomAdd");
+      if (ca) ca.addEventListener("click", function () {
+        var nm = ($("uqCustomName").value || "").trim();
+        if (!nm) return uqErr("Type the subject name first.");
+        busy(ca, true);
+        cbtApi("/subjects", { method: "POST", body: { name: nm, level: UQ.level, class_names: [UQ.cls] } }).then(function (d) {
+          busy(ca, false, "Add");
+          var sub = d.subject;
+          if (!UQ.subs.some(function (x) { return x.id === sub.id; })) UQ.subs.push(sub);
+          UQ.subj = sub; UQ.f = ""; UQ.pv = null; UQ.file = null;
+          toast(d.reused ? "Subject already existed — selected" : "Custom subject added");
+          UQ.step = 4; render();
+        }).catch(function (e) { busy(ca, false, "Add"); uqErr(errText(e)); });
+      });
+      var drop = $("uqDrop"), fi = $("uqFile");
+      if (drop && fi) {
+        drop.addEventListener("click", function () { fi.click(); });
+        drop.addEventListener("dragover", function (e) { e.preventDefault(); drop.classList.add("over"); });
+        drop.addEventListener("dragleave", function () { drop.classList.remove("over"); });
+        drop.addEventListener("drop", function (e) {
+          e.preventDefault(); drop.classList.remove("over");
+          if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) { UQ.file = e.dataTransfer.files[0]; UQ.pv = null; render(); }
+        });
+        fi.addEventListener("change", function () { if (fi.files[0]) { UQ.file = fi.files[0]; UQ.pv = null; render(); } });
+      }
+      var pv2 = $("uqPrev2");
+      if (pv2) pv2.addEventListener("click", function () {
+        if (!UQ.file) return uqErr("Choose a question file first.");
+        UQ.step = 5; UQ.pv = null; render();
+      });
+      var cf = $("uqConfirm");
+      if (cf) cf.addEventListener("click", function () {
+        if (!UQ.pv) return;
+        var eds = {};
+        Array.prototype.forEach.call(document.querySelectorAll('#mb [data-ed]'), function (el) {
+          var r = el.getAttribute("data-r");
+          eds[r] = eds[r] || {};
+          var k = el.getAttribute("data-ed");
+          eds[r][k] = el.type === "checkbox" ? el.checked : el.value;
+        });
+        var qs = [];
+        (UQ.pv.questions || []).forEach(function (q, i) {
+          var ed = eds[String(i)] || {};
+          if (ed.skip) return;
+          qs.push({
+            question_text: q.question_text, option_a: q.option_a, option_b: q.option_b,
+            option_c: q.option_c, option_d: q.option_d, option_e: q.option_e || null,
+            correct_option: ed.correct_option || q.correct_option,
+            topic: (ed.topic != null ? ed.topic : q.topic) || null,
+            marks: ed.marks != null && ed.marks !== "" ? parseFloat(ed.marks) : (q.marks != null ? q.marks : 1),
+            question_type: q.question_type || "multiple_choice", explanation: q.explanation || null
+          });
+        });
+        if (!qs.length) return uqErr("Nothing to upload — untick Skip on at least one row.");
+        busy(cf, true);
+        cbtApi("/bank-uploads/confirm", {
+          method: "POST",
+          body: { subject_id: UQ.subj.id, level: UQ.level, class_name: UQ.cls, questions: qs, import_mode: "skip_duplicates" }
+        }).then(function (d) {
+          UQ.done = d; render();
+          try { renderExTab(); } catch (e) {}
+        }).catch(function (e) { busy(cf, false, "⬆ Upload questions"); uqErr(errText(e)); });
+      });
+    }
+    cbtApi("/subjects/meta").then(function (d) {
+      UQ.levels = d.levels || []; render();
+    }).catch(function (e) {
+      openModal("☁️ Upload Questions", '<div class="empty">' + esc(errText(e)) + '</div>', '<button class="btn ghost" onclick="closeModal()">Close</button>', true);
     });
   };
   window.addBank = function () {
@@ -2048,7 +2382,7 @@ tr:last-child td{border-bottom:none}
     var box = $("cfOut");
     box.innerHTML = '<div class="empty">Searching…</div>';
     cbtApi("/retake-lookup/" + encodeURIComponent(reg)).then(function (d) {
-      var ms = d.matches || [];
+      var ms = (d && d.matches) || [];
       if (!ms.length) { box.innerHTML = '<div class="empty">No registration found for <code>' + esc(reg.toUpperCase()) + '</code>.</div>'; return; }
       box.innerHTML = '<div class="mnote" style="margin:12px 0">✅ Registration Record — <strong>' + esc(ms[0].student_name) + '</strong> (' + esc(ms[0].class_name) + ')</div>' +
         tbl(["Subject", "Reg Number", "Access Code", "Status", "Score"], ms.map(function (m) {
@@ -2174,7 +2508,7 @@ tr:last-child td{border-bottom:none}
     var box = $("rtOut");
     box.innerHTML = '<div class="empty">Searching…</div>';
     cbtApi("/retake-lookup/" + encodeURIComponent(reg)).then(function (d) {
-      var ms = d.matches || [];
+      var ms = (d && d.matches) || [];
       if (!ms.length) { box.innerHTML = '<div class="empty">No student found with reg number <code>' + esc(reg.toUpperCase()) + '</code>.</div>'; return; }
       var nm = ms[0].student_name;
       box.innerHTML = '<div class="mnote" style="margin:12px 0"><strong>' + esc(nm) + '</strong> — ' + esc(ms[0].class_name) + ' · ' + ms.length + ' exam(s) found</div>' +
@@ -2202,27 +2536,80 @@ tr:last-child td{border-bottom:none}
     cbtApi("/exams").then(function (d) {
       var exams = d.exams || [];
       if (!exams.length) { $("exBody").innerHTML = '<div class="panel"><div class="empty">No examinations yet.</div></div>'; return; }
-      $("exBody").innerHTML = '<div class="panel"><div class="form-grid"><div><select class="f-in" id="rvExam" onchange="examResultsView(this.value, \'\')">' +
-        exams.map(function (x) { return '<option value="' + x.id + '">' + esc(x.title) + " — " + esc(x.class_name) + '</option>'; }).join("") + '</select></div><div>' +
-        '<button class="btn ghost" id="rvPublish" onclick="publishResults()">📢 Publish results to students</button></div></div>' +
+      window.__rvExams = exams;
+      var classes = [], subjects = [];
+      exams.forEach(function (x) {
+        if (x.class_name && classes.indexOf(x.class_name) < 0) classes.push(x.class_name);
+        if (x.subject && subjects.indexOf(x.subject) < 0) subjects.push(x.subject);
+      });
+      classes.sort(); subjects.sort();
+      $("exBody").innerHTML = '<div class="panel"><div class="form-grid">' +
+        '<div><label class="f-label">📚 Subject</label><select class="f-in" id="rvSubj" onchange="rvFilterChanged()"><option value="">All subjects</option>' +
+        subjects.map(function (s) { return '<option value="' + esc(s) + '">' + esc(s) + '</option>'; }).join("") + '</select></div>' +
+        '<div><label class="f-label">🏫 Class</label><select class="f-in" id="rvCls" onchange="rvFilterChanged()"><option value="">All classes</option>' +
+        classes.map(function (c) { return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }).join("") + '</select></div></div>' +
+        '<div class="form-grid"><div><label class="f-label">📝 Examination</label><select class="f-in" id="rvExam" onchange="examResultsView(this.value)"></select></div>' +
+        '<div><label class="f-label">&nbsp;</label><div class="radio-row" style="margin:0">' +
+        '<button class="btn ghost" id="rvPublish" onclick="publishResults()">📢 Publish results to students</button>' +
+        '<button class="btn ghost" onclick="examResultsPrint()">🖨️ Print all results (A4)</button></div></div></div>' +
         '<div id="rvTbl"><div class="empty">Loading…</div></div></div>';
-      examResultsView(exams[0].id, "");
+      rvFilterChanged(true);
     }).catch(function (e) { $("exBody").innerHTML = '<div class="panel"><div class="empty">' + esc(errText(e)) + '</div></div>'; });
   }
+  /* Subject + class filter narrow the exam list; first match auto-loads. */
+  window.rvFilterChanged = function (first) {
+    var exams = window.__rvExams || [];
+    var s = $("rvSubj"), c = $("rvCls");
+    var fs = s ? s.value : "", fc = c ? c.value : "";
+    var list = exams.filter(function (x) {
+      return (!fs || x.subject === fs) && (!fc || x.class_name === fc);
+    });
+    var sel = $("rvExam");
+    if (!sel) return;
+    sel.innerHTML = list.length ? list.map(function (x) { return '<option value="' + x.id + '">' + esc(x.title) + " — " + esc(x.class_name) + " · " + esc(x.subject || "") + '</option>'; }).join("")
+      : '<option value="">No exams for this subject + class</option>';
+    if (list.length) examResultsView((first && window.__rvExam && list.some(function (x) { return x.id === window.__rvExam; })) ? window.__rvExam : list[0].id);
+    else { window.__rvExam = null; window.__rvData = null; var b = $("rvTbl"); if (b) b.innerHTML = '<div class="empty">No exams for this subject + class.</div>'; }
+  };
   window.examResultsView = function (examId) {
     if (!examId) return;
     window.__rvExam = examId;
     cbtApi("/exams/" + examId + "/results").then(function (d) {
+      window.__rvData = d;
       var rows = (d.results || []).map(function (r, i) {
-        return '<tr><td>' + (i + 1) + '</td><td><strong>' + esc(r.student_name) + '</strong></td><td>' + r.total_questions + '</td><td><strong style="color:var(--ok)">' + r.correct_answers + '</strong></td><td><strong>' + r.final_score + ' / ' + r.total_mark + '</strong></td><td>' + r.percentage + '%</td><td><span class="pill ' + (r.percentage >= 50 ? "ok" : "bad") + '">' + esc(r.grade || "—") + '</span></td><td>' + dOnly(r.submitted_at) + '</td>' +
+        return '<tr><td>' + (i + 1) + '</td><td><strong>' + esc(r.student_name) + '</strong></td><td><code>' + esc(r.reg_number || "—") + '</code></td><td>' + r.total_questions + '</td><td><strong style="color:var(--ok)">' + r.correct_answers + '</strong></td><td><strong>' + r.final_score + ' / ' + r.total_mark + '</strong></td><td>' + r.percentage + '%</td><td><span class="pill ' + (r.percentage >= 50 ? "ok" : "bad") + '">' + esc(r.grade || "—") + '</span></td><td>' + dOnly(r.submitted_at) + '</td>' +
           '<td><button class="btn sm ghost" onclick="grantRetake(\'' + esc(r.student_id) + '\',\'' + esc(r.student_name).replace(/'/g, "") + '\')">↻ Grant Retake</button></td></tr>';
       });
       var box = $("rvTbl");
-      if (box) box.innerHTML = rows.length ? tbl(["S/N", "Student Name", "Total Questions", "Correct Answers", "Total Score", "Percentage", "Grade", "Date", "Actions"], rows)
+      if (box) box.innerHTML = rows.length ? tbl(["S/N", "Student Name", "Reg Number", "Total Questions", "Correct Answers", "Total Score", "Percentage", "Grade", "Date", "Actions"], rows)
         : '<div class="empty">No submissions for this exam yet.</div>';
       var pub = $("rvPublish");
       if (pub && d.exam) pub.innerHTML = d.exam.results_published ? "🙈 Unpublish results" : "📢 Publish results to students";
     }).catch(function (e) { var box = $("rvTbl"); if (box) box.innerHTML = '<div class="empty">' + esc(errText(e)) + '</div>'; });
+  };
+  /* Print ALL students' results for the current exam on A4 landscape —
+     same table minus the Actions column, so teachers can copy scores
+     into the standard result sheet. */
+  window.examResultsPrint = function () {
+    var d = window.__rvData;
+    if (!d || !(d.results || []).length) return toastErr("Open an exam with submissions first, then print.");
+    var ex = d.exam || {};
+    var rows = (d.results || []).map(function (r, i) {
+      return '<tr><td>' + (i + 1) + '</td><td>' + esc(r.student_name) + '</td><td>' + esc(r.reg_number || "—") + '</td>' +
+        '<td>' + esc(ex.class_name || "") + '</td><td>' + esc(ex.subject || "") + '</td><td>' + r.total_questions + '</td><td>' + r.correct_answers + '</td><td><strong>' + r.final_score + ' / ' + r.total_mark + '</strong></td>' +
+        '<td>' + r.percentage + '%</td><td>' + esc(r.grade || "—") + '</td><td>' + dOnly(r.submitted_at) + '</td></tr>';
+    }).join("");
+    var css = '@page{size:A4 landscape;margin:10mm}' +
+      'body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0}' +
+      'h2{font-size:18px;margin:0 0 2px}p.sub{color:#555;font-size:12px;margin:0 0 12px}' +
+      'table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #333;padding:5px 7px;text-align:left}' +
+      'th{background:#eee}tr:nth-child(even) td{background:#f7f7f7}' +
+      '@media print{tr{page-break-inside:avoid}}';
+    printPreviewModal("Result sheet — " + (ex.title || "Exam"),
+      '<h2>' + esc(ex.title || "Exam results") + '</h2>' +
+      '<p class="sub">' + esc((typeof S !== "undefined" && S.school && S.school.name) || "Scholaxia") + ' · Class: ' + esc(ex.class_name || "—") + ' · Subject: ' + esc(ex.subject || "—") + ' · ' + (d.results || []).length + ' student(s)</p>' +
+      '<table><thead><tr><th>S/N</th><th>Student</th><th>Reg Number</th><th>Class</th><th>Subject</th><th>Questions</th><th>Correct</th><th>Score</th><th>%</th><th>Grade</th><th>Date</th></tr></thead><tbody>' +
+      rows + '</tbody></table>', css);
   };
   window.publishResults = function () {
     var examId = window.__rvExam; if (!examId) return;

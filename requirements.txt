@@ -45,6 +45,9 @@ aiofiles==23.2.1
 # PDF text extraction (admin CBT PDF import)
 pypdf==4.2.0
 
+# Excel question uploads (teacher question-bank import; pure Python)
+openpyxl==3.1.5
+
 # School report cards (PDF + QR)
 reportlab==4.2.5
 qrcode==7.4.2

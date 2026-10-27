@@ -647,6 +647,31 @@ async def ensure_school_cbt_schema() -> None:
         )
         """,
         "CREATE INDEX IF NOT EXISTS ix_school_ex_question_banks_school ON school_ex_question_banks (school_id)",
+        "ALTER TABLE school_ex_question_banks ADD COLUMN IF NOT EXISTS school_level VARCHAR(20) NULL",
+        """
+        CREATE TABLE IF NOT EXISTS school_subjects (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            name VARCHAR(120) NOT NULL,
+            normalized VARCHAR(140) NOT NULL,
+            school_id UUID NULL REFERENCES school_campuses(id),
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            is_custom BOOLEAN NOT NULL DEFAULT FALSE,
+            created_by UUID NULL REFERENCES users(id),
+            created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_school_subjects_school_norm ON school_subjects (school_id, normalized)",
+        """
+        CREATE TABLE IF NOT EXISTS school_subject_offerings (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            subject_id UUID NOT NULL REFERENCES school_subjects(id),
+            school_id UUID NULL REFERENCES school_campuses(id),
+            level VARCHAR(20) NOT NULL,
+            class_name VARCHAR(40) NOT NULL,
+            is_enabled BOOLEAN NOT NULL DEFAULT TRUE
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_subject_offering_lookup ON school_subject_offerings (school_id, level, class_name)",
         """
         CREATE TABLE IF NOT EXISTS school_ex_questions (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -988,6 +1013,15 @@ async def initialize_database() -> bool:
     try:
         async with AsyncSessionLocal() as db:
             await seed_database(db)
+            try:
+                from app.core.subject_catalog_seed import seed_subject_catalogue
+
+                counts = await seed_subject_catalogue(db)
+                await db.commit()
+                logger.info("Subject catalogue seeded: %s", counts)
+            except Exception as exc:
+                await db.rollback()
+                logger.warning("Subject catalogue seed skipped: %s", exc)
     except Exception as exc:
         logger.error("Database seed failed (login can still work): %s", exc)
     logger.info("Database ready (host=%s)", settings.database_host)

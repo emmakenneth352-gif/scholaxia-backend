@@ -31,6 +31,7 @@ from app.models.school_campus import SchoolCampus
 from app.models.cbt_coupon import CbtCoupon, CbtCouponRedemption
 from app.models.study_coupon import StudyCoupon, StudyCouponRedemption
 from app.models.school_office import SchoolExamCandidate
+from app.models.school_subjects import SchoolSubject, SchoolSubjectOffering
 from app.models.school_cbt import (
     SchoolExQuestionBank,
     SchoolExQuestion,

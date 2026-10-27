@@ -60,6 +60,7 @@ class SchoolExQuestionBank(Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     subject: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
     class_name: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    school_level: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
     description: Mapped[str] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(12), default="active", nullable=False)  # draft/active/archived
     created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
