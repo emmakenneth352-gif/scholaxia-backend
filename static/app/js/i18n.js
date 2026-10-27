@@ -541,6 +541,11 @@
   }
 
   function ensureCompactLanguagePicker() {
+    /* Floating EN/FR/PT/AR pill removed by owner request — pages with their
+       own #langWrap picker keep it; nothing floating is injected anymore. */
+    var old = document.getElementById('sxPageLang');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    return;
     if (document.getElementById('langWrap') || document.getElementById('sxPageLang')) return;
     /* Live classroom: the fixed EN/FR/PT/AR pill sits exactly on top of the
        bottom toolbar (End class / camera / mic) on phones — never inject it. */
