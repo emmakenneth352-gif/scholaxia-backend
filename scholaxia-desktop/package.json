@@ -1,6 +1,6 @@
 {
   "name": "scholaxia-desktop",
-  "version": "1.0.9",
+  "version": "1.0.11",
   "description": "Scholaxia Portal — Windows Desktop App",
   "main": "main.js",
   "scripts": {
@@ -65,14 +65,9 @@
       "preload.js",
       "renderer/**/*",
       "!renderer/admin.html",
-      "!renderer/teacher.html",
       "!renderer/js/admin.js",
       "!renderer/js/admin-api.js",
-      "!renderer/js/teacher.js",
-      "!renderer/js/teacher-api.js",
-      "!renderer/js/teacher-notifications.js",
       "!renderer/css/admin.css",
-      "!renderer/css/teacher.css",
       "assets/**/*",
       "node_modules/**/*"
     ],

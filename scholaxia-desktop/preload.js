@@ -39,6 +39,26 @@ contextBridge.exposeInMainWorld("scholaxiaDesktop", {
       console.error("openExternal failed", e);
     }
   },
+  downloadUpdate: function (url, versionHint) {
+    try {
+      return ipcRenderer.invoke("scholaxia:download-update", String(url || ""), String(versionHint || ""));
+    } catch (e) {
+      return Promise.resolve({ ok: false, error: "Updater unavailable." });
+    }
+  },
+  runInstaller: function (filePath) {
+    try {
+      ipcRenderer.send("scholaxia:run-installer", String(filePath || ""));
+    } catch (e) {
+      console.error("runInstaller failed", e);
+    }
+  },
+  onUpdateProgress: function (cb) {
+    try {
+      if (typeof cb === "function")
+        ipcRenderer.on("scholaxia:update-progress", function (_ev, info) { try { cb(info); } catch (e) { /* ignore */ } });
+    } catch (e) { /* ignore */ }
+  },
   onPnmRoomClosed: function (cb) {
     try {
       if (typeof cb === "function")

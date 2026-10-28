@@ -673,8 +673,10 @@ var kindVideosCache = [];
 function kindVideoEmbed(url) {
   if (typeof youtubeEmbedUrl === "function") return youtubeEmbedUrl(url);
   var u = String(url || "").trim();
-  var m = u.match(/youtu\.be\/([A-Za-z0-9_-]{6,})/) || u.match(/[?&]v=([A-Za-z0-9_-]{6,})/);
-  if (m) return "https://www.youtube.com/embed/" + m[1];
+  var m = u.match(/youtu\.be\/([A-Za-z0-9_-]{6,})/) || u.match(/[?&]v=([A-Za-z0-9_-]{6,})/) ||
+    u.match(/youtube\.com\/embed\/([A-Za-z0-9_-]{6,})/) || u.match(/youtube\.com\/shorts\/([A-Za-z0-9_-]{6,})/) ||
+    u.match(/youtube\.com\/live\/([A-Za-z0-9_-]{6,})/) || u.match(/youtube\.com\/v\/([A-Za-z0-9_-]{6,})/);
+  if (m) return "https://www.youtube-nocookie.com/embed/" + m[1] + "?rel=0";
   return /^https?:\/\//i.test(u) ? u : "";
 }
 
@@ -696,7 +698,7 @@ function renderKindVideos(items) {
         (src
           ? '<div class="kind-video-frame"><iframe src="' + kindEsc(src) +
             '" title="' + kindEsc(it.title || "Video") +
-            '" allowfullscreen loading="lazy"></iframe></div>'
+            '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen loading="lazy"></iframe></div>'
           : '<a class="kind-video-frame kind-video-link" href="' + kindEsc(it.video_url || "#") +
             '" target="_blank" rel="noopener">&#9654; Watch video</a>') +
         "<strong>" + kindEsc(it.title || "Video lesson") + "</strong>" +

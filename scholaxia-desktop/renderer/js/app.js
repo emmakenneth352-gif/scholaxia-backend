@@ -1125,7 +1125,7 @@ function renderDesktopVideoRows() {
       '<p class="study-mat-meta">' + escHtml(r.subject || "Tutorial") + "</p>" +
       (embed
         ? '<iframe src="' + mpAttrSafe(embed) + '" title="' + escHtml(r.title || "Video") +
-          '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen style="width:100%;min-height:240px;border:0;border-radius:12px"></iframe>'
+          '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen style="width:100%;min-height:240px;border:0;border-radius:12px"></iframe>'
         : '<p class="study-mat-meta">Open: <a href="' + mpAttrSafe(url) + '" target="_blank" rel="noopener">' + escHtml(url) + "</a></p>") +
       "</div></article>"
     );
@@ -1248,8 +1248,10 @@ function youtubeEmbedUrl(url) {
     u.match(/youtu\.be\/([A-Za-z0-9_-]{6,})/) ||
     u.match(/[?&]v=([A-Za-z0-9_-]{6,})/) ||
     u.match(/youtube\.com\/embed\/([A-Za-z0-9_-]{6,})/) ||
-    u.match(/youtube\.com\/shorts\/([A-Za-z0-9_-]{6,})/);
-  if (m) return "https://www.youtube.com/embed/" + m[1];
+    u.match(/youtube\.com\/shorts\/([A-Za-z0-9_-]{6,})/) ||
+    u.match(/youtube\.com\/live\/([A-Za-z0-9_-]{6,})/) ||
+    u.match(/youtube\.com\/v\/([A-Za-z0-9_-]{6,})/);
+  if (m) return "https://www.youtube-nocookie.com/embed/" + m[1] + "?rel=0";
   if (/^https?:\/\//i.test(u)) return u;
   return "";
 }

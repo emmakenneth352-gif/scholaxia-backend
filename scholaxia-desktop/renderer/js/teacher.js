@@ -61,8 +61,10 @@ function updateTeacherSidebarToggle(btn, collapsed) {
 
 function initTeacherUI() {
   var user = getTeacherUser();
-  document.getElementById("teacher-name-label").textContent = user.name;
-  document.getElementById("teacher-email-label").textContent = user.email;
+  var topName = document.getElementById("teacher-topbar-name") || document.getElementById("teacher-name-label");
+  if (topName) topName.textContent = user.name;
+  var topEmail = document.getElementById("teacher-topbar-email") || document.getElementById("teacher-email-label");
+  if (topEmail && topEmail.tagName !== "LABEL") topEmail.textContent = user.email;
   var avatar = document.getElementById("teacher-user-avatar");
   if (avatar) {
     var initial = (user.name || user.email || "T").trim().charAt(0).toUpperCase();

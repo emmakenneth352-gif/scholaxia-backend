@@ -7,7 +7,7 @@ let appBaseUrl = "";
 // Desktop keeps its own design/UI (local renderer). Site features are ported
 // into this UI — we do NOT load the website inside the window.
 const REMOTE_APP_ORIGIN = "https://scholaxia1.onrender.com";
-const LOCAL_START_URL = "app.html";
+const LOCAL_START_URL = "index.html";
 
 function isLocalServerUrl(u) {
   return /^https?:\/\/127\.0\.0\.1:17890/i.test(u) || /^https?:\/\/localhost:17890/i.test(u);
@@ -86,7 +86,7 @@ function createWindow() {
     fullscreenable: true,
   });
 
-  const startUrl = appBaseUrl ? `${appBaseUrl}/app.html` : LOCAL_START_URL;
+  const startUrl = appBaseUrl ? `${appBaseUrl}/index.html` : LOCAL_START_URL;
   if (appBaseUrl) mainWindow.loadURL(startUrl);
   else mainWindow.loadFile(LOCAL_START_URL);
   if (size.width >= screen.getPrimaryDisplay().workAreaSize.width * 0.95) {
