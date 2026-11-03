@@ -210,6 +210,9 @@ function openClassroomKeyboard() {
       backgroundColor: "#0d0a17",
       autoHideMenuBar: true,
       resizable: true,
+      // Floats above the plugNmeet room window so the teacher can tap symbols
+      // (Maths, Physics, Chemistry, Igbo, Hausa, Yoruba) while teaching.
+      alwaysOnTop: true,
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,

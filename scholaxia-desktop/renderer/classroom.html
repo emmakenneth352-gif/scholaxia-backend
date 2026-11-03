@@ -323,6 +323,12 @@
 
   <script>
     function openClassKeyboard() {
+      // In-class panel first: Maths, Physics, Chemistry, Igbo, Hausa & Yoruba
+      // keys that sit inside the live class. The Electron floating window is
+      // still one tap away inside the panel (↗) for plugNmeet classes.
+      if (window.SXClassKeyboard) {
+        try { window.SXClassKeyboard.toggle(); return; } catch (e) { /* fall through */ }
+      }
       // Electron: dedicated floating window (see main.js), like the plugNmeet room.
       if (window.scholaxiaDesktop && typeof window.scholaxiaDesktop.openClassroomKeyboard === "function") {
         try { window.scholaxiaDesktop.openClassroomKeyboard(); return; } catch (e) { /* fall through */ }
@@ -346,5 +352,6 @@
 <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.9.3/dist/livekit-client.umd.js"></script>
     <script src="js/classroom-livekit.js?v=20260901n"></script>
     <script src="js/classroom.js?v=20261022c"></script>
+    <script src="js/class-keyboard.js?v=20261103a"></script>
 </body>
 </html>
