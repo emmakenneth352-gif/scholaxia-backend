@@ -47,7 +47,20 @@ class _InternalExamsScreenState extends State<InternalExamsScreen> {
       final downloaded = <String>{};
       for (final e in exams) {
         final id = e['id']?.toString() ?? '';
-        if (id.isNotEmpty && prefs.containsKey('$_cachePrefix$id')) {
+        if (id.isEmpty) continue;
+        // A granted retake invalidates the cached paper exactly once, so the
+        // next download brings a freshly randomized order. The marker stops a
+        // newly downloaded pack from being wiped on the next refresh.
+        final marker = 'internal_retake_cleared_$id';
+        if (e['retake_granted'] == true) {
+          if (!prefs.containsKey(marker)) {
+            await prefs.remove('$_cachePrefix$id');
+            await prefs.setBool(marker, true);
+          }
+        } else {
+          await prefs.remove(marker);
+        }
+        if (prefs.containsKey('$_cachePrefix$id')) {
           downloaded.add(id);
         }
       }

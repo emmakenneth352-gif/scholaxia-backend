@@ -24,7 +24,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
-from sqlalchemy import select, delete, func
+from sqlalchemy import select, delete, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -209,6 +209,24 @@ def _exam_questions_available(exam: SchoolExam, questions: list[SchoolExamQuesti
     if exam.questions_to_display and exam.questions_to_display > 0:
         qs = qs[: exam.questions_to_display]
     return qs
+
+
+def _paper_order(exam: SchoolExam, questions: list[SchoolExamQuestion]) -> list[str]:
+    """§9/§10 — build ONE student's paper order.
+
+    When randomization is on the whole bank is shuffled BEFORE the
+    ``questions_to_display`` cap is applied, so two students get a different
+    subset and a different order (not the same first N questions). The order
+    is stored on the attempt/download row so marking always agrees with what
+    the student actually saw.
+    """
+    ids = [str(q.id) for q in questions]
+    if exam.randomize_questions:
+        secrets.SystemRandom().shuffle(ids)
+    limit = int(exam.questions_to_display or 0)
+    if limit > 0:
+        ids = ids[:limit]
+    return ids
 
 
 async def _attempt_of(db: AsyncSession, attempt_id: str, student_id: str, exam_id: str) -> SchoolExamAttempt:
@@ -765,8 +783,8 @@ class ExamCreateIn(BaseModel):
     duration_minutes: int = 60         # §7
     questions_to_display: int = 0      # §8/§9
     questions_to_answer: int = 0
-    randomize_questions: bool = False  # §10
-    randomize_options: bool = False
+    randomize_questions: bool = True   # §10 — per-student paper by default
+    randomize_options: bool = True
     allow_review: bool = True
     allow_previous: bool = True
     allow_flagging: bool = True
@@ -2999,18 +3017,49 @@ async def grant_retake(
                 )
             )
         ).scalars().all()
-        if not attempts:
-            continue
-        for att in attempts:
-            await _sync_log(
-                db, exam, suid, "retake_granted",
-                attempt_id=att.id,
-                detail={"granted_by": str(current_user.get("sub") or "")},
+        att_ids = [att.id for att in attempts]
+
+        # Delete children BEFORE the attempt rows. SchoolExamResult and
+        # SchoolExamSyncLog both hold FKs to school_exam_attempts, so the old
+        # order (log → delete attempt → delete result) raised a FK violation
+        # and silently left the retake un-granted.
+        await db.execute(
+            delete(SchoolExamResult).where(
+                SchoolExamResult.exam_id == exam.id, SchoolExamResult.student_id == suid
             )
-            await db.execute(delete(SchoolExamAnswer).where(SchoolExamAnswer.attempt_id == att.id))
-            await db.delete(att)
-        await db.execute(delete(SchoolExamResult).where(SchoolExamResult.exam_id == exam.id, SchoolExamResult.student_id == suid))
-        retakes = list(exam.retake_student_ids or [])
+        )
+        if att_ids:
+            await db.execute(delete(SchoolExamAnswer).where(SchoolExamAnswer.attempt_id.in_(att_ids)))
+            # Keep the audit trail but detach it from the attempts we remove.
+            await db.execute(
+                update(SchoolExamSyncLog)
+                .where(SchoolExamSyncLog.attempt_id.in_(att_ids))
+                .values(attempt_id=None)
+            )
+            for att in attempts:
+                await db.delete(att)
+        # A fresh download is required after a retake so the student receives
+        # a NEW randomized paper instead of the old cached one.
+        await db.execute(
+            delete(SchoolExamDownload).where(
+                SchoolExamDownload.exam_id == exam.id, SchoolExamDownload.student_id == suid
+            )
+        )
+        # Re-open the same slip: is_used also drives the "submitted" badge in
+        # the retake lookup, so leaving it set made a granted retake look done.
+        await db.execute(
+            SchoolExamAccessCode.__table__.update()
+            .where(
+                SchoolExamAccessCode.exam_id == exam.id,
+                SchoolExamAccessCode.student_id == suid,
+            )
+            .values(is_used=False, used_at=None, failed_attempts=0, locked_until=None, expires_at=None)
+        )
+        await _sync_log(
+            db, exam, suid, "retake_granted",
+            detail={"granted_by": str(current_user.get("sub") or "")},
+        )
+        retakes = [str(x) for x in (exam.retake_student_ids or [])]
         if str(suid) not in retakes:
             retakes.append(str(suid))
         exam.retake_student_ids = retakes
@@ -3205,6 +3254,17 @@ async def student_my_exams(
                 )
             ).scalars().all()
         }
+        in_progress = {
+            a.exam_id
+            for a in (
+                await db.execute(
+                    select(SchoolExamAttempt).where(
+                        SchoolExamAttempt.student_id == user.id,
+                        SchoolExamAttempt.status == "in_progress",
+                    )
+                )
+            ).scalars().all()
+        }
         downloads = {
             d.exam_id for d in (
                 await db.execute(select(SchoolExamDownload).where(SchoolExamDownload.student_id == user.id))
@@ -3225,6 +3285,11 @@ async def student_my_exams(
             if qc == 0:
                 continue
             att = attempts.get(e.id)
+            retake_granted = str(user.id) in {str(x) for x in (e.retake_student_ids or [])}
+            # A granted retake (or a running attempt) stays open even after the
+            # exam's scheduled window closes — otherwise "Grant Retake" could
+            # never actually be used once the exam day is over.
+            window_open = _exam_window_open(e, now) or retake_granted or (e.id in in_progress)
             res = (
                 await db.execute(
                     select(SchoolExamResult).where(
@@ -3245,14 +3310,15 @@ async def student_my_exams(
                     "duration_minutes": e.duration_minutes,
                     "total_mark": e.total_mark,
                     "exam_mode": e.exam_mode,
-                    "status": "Completed" if att else ("Open" if _exam_window_open(e, now) else "Closed"),
-                    "window_open": _exam_window_open(e, now),
+                    "status": "Completed" if att else ("Open" if window_open else "Closed"),
+                    "window_open": window_open,
                     "scheduled_start": e.scheduled_start.isoformat() if e.scheduled_start else None,
                     "scheduled_end": e.scheduled_end.isoformat() if e.scheduled_end else None,
                     "exam_date": e.exam_date.isoformat() if e.exam_date else None,
                     "downloaded": str(e.id) in downloads or e.exam_mode == "ONLINE",
                     "needs_download": e.exam_mode in ("OFFLINE", "HYBRID") and str(e.id) not in downloads,
                     "attempt_status": "submitted" if att else "not_started",
+                    "retake_granted": retake_granted,
                     "results_published": bool(e.results_published),
                     "result": (
                         {
@@ -3288,14 +3354,12 @@ async def download_exam(
             select(SchoolExamQuestion).where(SchoolExamQuestion.exam_id == exam.id).order_by(SchoolExamQuestion.position)
         )
     ).scalars().all()
-    shown = _exam_questions_available(exam, list(qs))
-    # §10 — the student's randomization is decided HERE, at download time, and
-    # stored server-side; start_attempt reuses the exact same mapping so the
-    # offline copy and the marking key always agree.
-    dl_order = [str(q.id) for q in shown]
-    if exam.randomize_questions:
-        secrets.SystemRandom().shuffle(dl_order)
-    dl_options = _make_option_order(shown, exam.randomize_options)
+    by_id = {str(q.id): q for q in qs}
+    # §10 — the student's paper is decided HERE, at download time, and stored
+    # server-side; start_attempt reuses the exact same mapping so the offline
+    # copy and the marking key always agree.
+    dl_order = _paper_order(exam, list(qs))
+    dl_options = _make_option_order([by_id[i] for i in dl_order], exam.randomize_options)
     # Correct answers NEVER leave the server (§30).
     package = {
         "exam": {
@@ -3307,25 +3371,12 @@ async def download_exam(
             "exam_mode": exam.exam_mode,
             "duration_minutes": exam.duration_minutes,
             "total_mark": exam.total_mark,
-            "questions_to_answer": exam.questions_to_answer or len(shown),
+            "questions_to_answer": exam.questions_to_answer or len(dl_order),
             "allow_review": bool(exam.allow_review),
             "allow_previous": bool(exam.allow_previous),
             "allow_flagging": bool(exam.allow_flagging),
         },
-        "questions": [
-            {
-                "id": str(q.id),
-                "question_text": q.question_text,
-                "topic": q.topic,
-                "image_url": q.image_url,
-                "question_type": q.question_type,
-                "options": [
-                    {"label": lbl, "text": txt}
-                    for lbl, txt in (("A", q.option_a), ("B", q.option_b), ("C", q.option_c), ("D", q.option_d))
-                ],
-            }
-            for q in shown
-        ],
+        "questions": [],
     }
     exists = (
         await db.execute(
@@ -3339,7 +3390,6 @@ async def download_exam(
         dl_order = exists.question_order or dl_order
         dl_options = exists.option_order or dl_options
     # Emit the package in the student's stored order with positional labels.
-    by_id = {str(q.id): q for q in shown}
     ordered = [by_id[i] for i in dl_order if i in by_id]
     package["questions"] = [
         {
@@ -3455,21 +3505,7 @@ async def start_attempt(
     exam = await _get_school_exam(db, exam_id, user.school_id)
     if not exam.is_published:
         raise HTTPException(status_code=403, detail="This examination is not available")
-    if not _exam_window_open(exam, naive_utc_now()):
-        raise HTTPException(status_code=403, detail="This examination window is closed")
     await _student_for_exam(db, exam, user.id)
-
-    # OFFLINE exams must be downloaded first (§16).
-    if exam.exam_mode == "OFFLINE":
-        dl = (
-            await db.execute(
-                select(SchoolExamDownload).where(
-                    SchoolExamDownload.exam_id == exam.id, SchoolExamDownload.student_id == user.id
-                )
-            )
-        ).scalar_one_or_none()
-        if not dl:
-            raise HTTPException(status_code=400, detail="Download the examination first")
 
     existing = (
         await db.execute(
@@ -3480,9 +3516,28 @@ async def start_attempt(
             )
         )
     ).scalar_one_or_none()
+    retake_ids = {str(x) for x in (exam.retake_student_ids or [])}
+    is_retake = str(user.id) in retake_ids
     if existing:
+        # Resuming a live attempt is always allowed; the attempt's own
+        # deadline is the authority (not the exam's scheduling window).
         attempt = existing
     else:
+        if not _exam_window_open(exam, naive_utc_now()) and not is_retake:
+            raise HTTPException(status_code=403, detail="This examination window is closed")
+
+        # OFFLINE exams must be downloaded first (§16).
+        if exam.exam_mode == "OFFLINE":
+            dl = (
+                await db.execute(
+                    select(SchoolExamDownload).where(
+                        SchoolExamDownload.exam_id == exam.id, SchoolExamDownload.student_id == user.id
+                    )
+                )
+            ).scalar_one_or_none()
+            if not dl:
+                raise HTTPException(status_code=400, detail="Download the examination first")
+
         past = (
             await db.execute(
                 select(func.count(SchoolExamAttempt.id)).where(
@@ -3490,9 +3545,13 @@ async def start_attempt(
                 )
             )
         ).scalar_one()
-        allowed = int(exam.max_attempts or 1) + (1 if str(user.id) in {str(x) for x in (exam.retake_student_ids or [])} else 0)
+        allowed = int(exam.max_attempts or 1) + (1 if is_retake else 0)
         if int(past or 0) >= allowed:
             raise HTTPException(status_code=403, detail="You have already taken this examination")
+        # A granted retake buys exactly ONE more sit — consume it as soon as
+        # the new attempt starts so the flag cannot be reused for free attempts.
+        if is_retake:
+            exam.retake_student_ids = [x for x in retake_ids if x != str(user.id)]
         started = naive_utc_now()
         attempt = SchoolExamAttempt(
             school_id=exam.school_id,
@@ -3513,10 +3572,10 @@ async def start_attempt(
             select(SchoolExamQuestion).where(SchoolExamQuestion.exam_id == exam.id).order_by(SchoolExamQuestion.position)
         )
     ).scalars().all()
-    shown = _exam_questions_available(exam, list(qs))
+    by_id = {str(q.id): q for q in qs}
     # §18 — a student who already DOWNLOADED the package answers against that
-    # fixed copy, so the attempt reuses the downloaded (natural) order; only
-    # never-downloaded (online) attempts get fresh randomization.
+    # fixed copy, so the attempt reuses the downloaded order; only
+    # never-downloaded (online) attempts get a freshly randomized paper.
     dl_rec = (
         await db.execute(
             select(SchoolExamDownload).where(
@@ -3531,14 +3590,13 @@ async def start_attempt(
             attempt.question_order = list(dl_rec.question_order)
             attempt.option_order = dict(dl_rec.option_order or {})
         else:
-            order = [str(q.id) for q in shown]
-            if exam.randomize_questions:
-                secrets.SystemRandom().shuffle(order)
+            order = _paper_order(exam, list(qs))
             attempt.question_order = order
-            attempt.option_order = _make_option_order(shown, exam.randomize_options)
+            attempt.option_order = _make_option_order(
+                [by_id[i] for i in order if i in by_id], exam.randomize_options
+            )
         await db.flush()
 
-    by_id = {str(q.id): q for q in shown}
     ordered = [by_id[i] for i in attempt.question_order if i in by_id]
     answers = {
         str(a.exam_question_id): {"answer": a.answer, "is_flagged": bool(a.is_flagged)}
@@ -3694,9 +3752,17 @@ async def submit_attempt(
     if attempt.deadline_at and now > attempt.deadline_at:
         payload.is_auto_submit = True  # server knows it was late → auto
 
-    qs = (
+    qs_all = (
         await db.execute(select(SchoolExamQuestion).where(SchoolExamQuestion.exam_id == exam.id))
     ).scalars().all()
+    # Mark ONLY the paper this student actually received. Previously every
+    # bank question was counted, so "display 20 of 40" scored students out of
+    # 40 and any unseen question counted as wrong.
+    by_id = {str(q.id): q for q in qs_all}
+    if attempt.question_order:
+        qs = [by_id[i] for i in attempt.question_order if i in by_id]
+    else:
+        qs = _exam_questions_available(exam, list(qs_all))
     ans_rows = (
         await db.execute(select(SchoolExamAnswer).where(SchoolExamAnswer.attempt_id == attempt.id))
     ).scalars().all()
@@ -3878,11 +3944,19 @@ async def offline_sync(
                     )
                 )
             ).scalar_one_or_none()
+            if not dl_rec:
+                # An offline attempt MUST be based on a downloaded package so
+                # the device's paper and the server's marking key agree.
+                raise HTTPException(status_code=400, detail="Download the examination first")
+            retakes = [str(x) for x in (exam.retake_student_ids or [])]
+            if str(user.id) in retakes:
+                exam.retake_student_ids = [x for x in retakes if x != str(user.id)]
             qs_off = (
                 await db.execute(
                     select(SchoolExamQuestion).where(SchoolExamQuestion.exam_id == exam.id).order_by(SchoolExamQuestion.position)
                 )
             ).scalars().all()
+            by_off = {str(q.id): q for q in qs_off}
             # Device clocks send tz-aware ISO strings; normalize to naive UTC
             # so deadline comparisons never mix naive and aware datetimes.
             started = to_naive_utc(payload.started_at) if payload.started_at else naive_utc_now()
@@ -3894,8 +3968,14 @@ async def offline_sync(
                 deadline_at=started + timedelta(minutes=int(exam.duration_minutes or 60)),
             )
             # Offline copy ≡ marking key: reuse the downloaded mapping.
-            attempt.question_order = list(dl_rec.question_order or [str(q.id) for q in qs_off])
-            attempt.option_order = dict(dl_rec.option_order or _make_option_order(list(qs_off), exam.randomize_options))
+            order_off = list(dl_rec.question_order or _paper_order(exam, list(qs_off)))
+            attempt.question_order = order_off
+            attempt.option_order = dict(
+                dl_rec.option_order
+                or _make_option_order(
+                    [by_off[i] for i in order_off if i in by_off], exam.randomize_options
+                )
+            )
             db.add(attempt)
             await db.flush()
             if code and not code.is_used:

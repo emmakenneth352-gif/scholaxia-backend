@@ -6,6 +6,7 @@ from typing import Optional, List
 from datetime import datetime, timedelta
 import httpx
 import json
+import secrets
 import uuid
 from app.core.database import get_db
 from app.core.deps import (
@@ -288,6 +289,9 @@ class ExamSummary(BaseModel):
     camera_required: bool = False
     scheduled_start: Optional[datetime] = None
     scheduled_end: Optional[datetime] = None
+    # Set when the school office granted this student a retake: clients drop
+    # any cached paper so the next download is freshly randomized.
+    retake_granted: Optional[bool] = None
 
 
 def _exam_summary(e: CBTExam) -> ExamSummary:
@@ -1082,6 +1086,17 @@ async def _exams_for_student_impl(
     ssce_pool = list(ssce_subjects or []) or (selected if wants_ssce else [])
     now = datetime.utcnow()
 
+    # Retakes granted by the school office: a closed school exam stays visible
+    # (and startable) for exactly the students the staff re-opened it for.
+    from app.models.school_office import SchoolExamCandidate
+
+    _candidate = (
+        await db.execute(
+            select(SchoolExamCandidate).where(SchoolExamCandidate.user_id == current_user["sub"])
+        )
+    ).scalars().first()
+    retake_ids = {str(x) for x in (_candidate.retake_exam_ids or [])} if _candidate else set()
+
     wanted_kind = normalize_paper_kind(paper_kind)
     result = await db.execute(
         select(CBTExam).where(CBTExam.is_published == True)  # noqa: E712
@@ -1127,8 +1142,15 @@ async def _exams_for_student_impl(
             subjects = list({*jamb_pool, *ssce_pool, *selected})
             if subjects and not subject_matches(e.subject, subjects):
                 continue
-            if _school_exam_is_open(e, now) or (e.scheduled_start and e.scheduled_start > now):
-                school.append(_exam_summary(e))
+            retake = str(e.id) in retake_ids
+            if (
+                retake
+                or _school_exam_is_open(e, now)
+                or (e.scheduled_start and e.scheduled_start > now)
+            ):
+                summary = _exam_summary(e)
+                summary.retake_granted = retake or None
+                school.append(summary)
             continue
 
         if _is_class_level(e.exam_type):
@@ -1251,6 +1273,12 @@ async def download_exam(
             item["explanation"] = q.explanation
         question_list.append(item)
 
+    # §10 — every student downloads their own randomized question order.
+    # Marking is keyed by question id, so shuffling here cannot break scores;
+    # it just stops a whole class from seeing the same paper in the same order.
+    if exam.is_school_exam:
+        secrets.SystemRandom().shuffle(question_list)
+
     return {
         "id": str(exam.id),
         "title": exam.title,
@@ -1295,7 +1323,21 @@ async def start_session(
 
     now = datetime.utcnow()
     if exam.is_school_exam:
-        if not _school_exam_is_open(exam, now):
+        # A granted retake must work even after the scheduled window closed —
+        # otherwise "Grant Retake" could never actually be used on exam day+1.
+        from app.models.school_office import SchoolExamCandidate
+
+        _cand = (
+            await db.execute(
+                select(SchoolExamCandidate).where(SchoolExamCandidate.user_id == current_user["sub"])
+            )
+        ).scalars().first()
+        retakes = [str(x) for x in ((_cand.retake_exam_ids or []) if _cand else [])]
+        if str(exam.id) in retakes:
+            # Consume the retake so it buys exactly ONE more sitting; the school
+            # office re-grants it if the student needs another.
+            _cand.retake_exam_ids = [x for x in retakes if x != str(exam.id)]
+        elif not _school_exam_is_open(exam, now):
             raise HTTPException(status_code=403, detail="This school exam is not open right now")
         # School exams: lock AI and navigation; camera only if teacher enabled it
         if not exam.ai_locked:
@@ -1850,6 +1892,17 @@ async def internal_exams_for_me(
     )
     taken = {str(x) for x in taken_res.scalars().all()}
 
+    # Students given a retake by the school office: the app uses this flag to
+    # drop its cached offline copy so the next download is freshly randomized.
+    from app.models.school_office import SchoolExamCandidate
+
+    candidate = (
+        await db.execute(
+            select(SchoolExamCandidate).where(SchoolExamCandidate.user_id == current_user["sub"])
+        )
+    ).scalars().first()
+    retake_ids = {str(x) for x in (candidate.retake_exam_ids or [])} if candidate else set()
+
     out = []
     teacher_ids = {e.created_by for e in exams if e.created_by}
     teachers = {}
@@ -1892,8 +1945,14 @@ async def internal_exams_for_me(
             "notes_url": e.notes_url,
             "notes_title": e.notes_title,
             "already_taken": str(e.id) in taken,
+            "retake_granted": str(e.id) in retake_ids,
             "my_score_percent": score_pct,
         })
+
+    # NOTE: the retake notice is intentionally NOT consumed on read — every
+    # installed device must see it once so it can drop its cached paper. Each
+    # client sets a local "already cleared" marker, so repeated polls do not
+    # wipe a freshly downloaded package. The notice is cleared on submit.
     return {"exams": out}
 
 
@@ -2042,6 +2101,19 @@ async def submit_internal_exam(
             },
         )
     )
+    # The retake has now been used — clear the notice so the student's apps
+    # stop treating this exam as "retake pending" until a new grant arrives.
+    from app.models.school_office import SchoolExamCandidate
+
+    cand = (
+        await db.execute(
+            select(SchoolExamCandidate).where(SchoolExamCandidate.user_id == current_user["sub"])
+        )
+    ).scalars().first()
+    if cand is not None:
+        pending = [str(x) for x in (cand.retake_exam_ids or [])]
+        if str(exam.id) in pending:
+            cand.retake_exam_ids = [x for x in pending if x != str(exam.id)]
     await db.flush()
 
     student_res = await db.execute(select(User).where(User.id == current_user["sub"]))

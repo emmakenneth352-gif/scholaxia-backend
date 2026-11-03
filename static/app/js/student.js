@@ -1446,6 +1446,7 @@
         retries: 3,
       })
       .then(function (data) {
+        dropRetakePacks(data);
         examsCacheByKind[paperKind] = data || {};
         if (paperKind === "cbt_practice") examsForMeCache = examsCacheByKind[paperKind];
         return examsCacheByKind[paperKind];
@@ -1479,6 +1480,26 @@
 
   function setPack(id, isExternal, data) {
     writeLocalJson(packKey(id, isExternal), data);
+  }
+
+  /** A granted retake drops the cached school paper once, so the next start
+   *  downloads a freshly randomized paper; the marker stops the new pack from
+   *  being wiped again on the next refresh. */
+  function dropRetakePacks(data) {
+    var list = (data && data.school_exams) || [];
+    list.forEach(function (ex) {
+      var id = ex && (ex.id || ex.exam_id);
+      if (!id) return;
+      var marker = "sia_school_retake_cleared_" + id;
+      if (ex.retake_granted) {
+        if (!localStorage.getItem(marker)) {
+          try { localStorage.removeItem(packKey(id, false)); } catch (e) {}
+          try { localStorage.setItem(marker, "1"); } catch (e) {}
+        }
+      } else {
+        try { localStorage.removeItem(marker); } catch (e) {}
+      }
+    });
   }
 
   function examMinutes(exam) {

@@ -465,6 +465,12 @@ async def main():
 
         print("\n── 12. Grant retake → student can start again ──")
         await scbt.grant_retake(exam_id, scbt.RetakeIn(student_ids=[str(students[0].id)]), staff_school, admin_user, db)
+        # A retake deletes the old download so the student receives a NEW
+        # randomized paper (offline exams must download again first).
+        mine_after = await scbt.student_my_exams(credentials=tok, db=db)
+        check("retake requires a fresh download", mine_after["exams"][0]["needs_download"] is True,
+              str(mine_after["exams"][0])[:200])
+        await scbt.download_exam(exam_id, credentials=tok, db=db)
         started2 = await scbt.start_attempt(exam_id, credentials=tok, db=db)
         check("retake attempt started", started2["attempt_id"] != att_id)
 

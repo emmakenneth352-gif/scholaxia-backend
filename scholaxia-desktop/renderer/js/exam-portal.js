@@ -299,6 +299,24 @@
     if (!S.token) { renderOfflineExams(); return; }
     api("/school-cbt/student/my-exams").then(function (d) {
       S.exams = d.exams || [];
+      // A granted retake invalidates anything cached on this device: drop the
+      // old attempt and the old downloaded paper so the next start/download
+      // gets a fresh randomized set of questions. Clear it exactly once so a
+      // freshly downloaded paper is not wiped on the next refresh.
+      S.exams.forEach(function (x) {
+        var rk = "sia_retake_cleared_" + x.id;
+        if (x.retake_granted) {
+          if (!lsGet(rk)) {
+            lsDel(K.att(x.id));
+            lsDel(K.pkg(x.id));
+            lsDel("sx_attempt_" + x.id);
+            lsDel("sx_exam_pkg_" + x.id);
+            lsSet(rk, true);
+          }
+        } else {
+          lsDel(rk);
+        }
+      });
       $("examGrid").innerHTML = S.exams.length ? S.exams.map(examCard).join("") : '<div class="ecard">No examinations assigned to you yet.</div>';
       flushAllQueues();
     }).catch(function (e) {
@@ -366,10 +384,9 @@
     var pkg = lsGet(K.pkg(examId));
     if ((!isOnline() || !S.token) && pkg) return openExamOffline(examId);
     if (!isOnline()) { toast("You are offline — only downloaded exams can open."); return; }
-    var att = lsGet(K.att(examId));
-    if (att && att.questions) {
-      R = att; R.idx = R.idx || 0; startRunner(); return;
-    }
+    // Always let the server decide which attempt is live. Resuming from a
+    // local cached attempt used to hide a granted retake (the old paper kept
+    // reappearing). /start returns the in-progress attempt + saved answers.
     api("/school-cbt/student/exams/" + examId + "/start", { method: "POST" }).then(function (d) {
       R = {
         attemptId: d.attempt_id,

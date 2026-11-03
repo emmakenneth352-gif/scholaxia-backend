@@ -28,6 +28,11 @@ async function sxEncGet(key) {
   try { return JSON.parse(localStorage.getItem(key) || "null"); } catch (e) { return null; }
 }
 
+async function sxEncDel(key) {
+  if (typeof ssDel === "function") { await ssDel(key); return; }
+  try { localStorage.removeItem(key); } catch (e) { /* ignore */ }
+}
+
 /** Exam pack cache (download once → take offline). Encrypted at rest. */
 async function getInternalPack(examId) {
   var pack = await sxEncGet(INTERNAL_CACHE_PREFIX + examId);
@@ -156,6 +161,7 @@ async function loadInternalExamsPage() {
   try {
     var data = await api("/api/v1/cbt/external-exams/for-me");
     internalExamsList = (data && data.exams) || [];
+    await dropRetakeCaches(internalExamsList);
     renderInternalExamsList();
   } catch (e) {
     el.innerHTML = '<div class="empty-state-premium"><h3>Could not load exams</h3><p>' + ieEsc(e.message) + "</p>";
@@ -164,6 +170,29 @@ async function loadInternalExamsPage() {
       el.innerHTML += "<p>You have " + cached.length + " downloaded exam(s) available offline.</p>";
     }
     el.innerHTML += "</div>";
+  }
+}
+
+/** A granted retake invalidates this device's cached paper + queued answers
+ *  exactly once, so the next download is freshly randomized. The marker stops
+ *  the newly downloaded pack from being wiped on the next refresh. */
+async function dropRetakeCaches(exams) {
+  for (var i = 0; i < (exams || []).length; i++) {
+    var ex = exams[i] || {};
+    var rid = String(ex.id || "");
+    if (!rid) continue;
+    var marker = "sia_internal_retake_cleared_" + rid;
+    if (ex.retake_granted) {
+      if (!localStorage.getItem(marker)) {
+        await sxEncDel(INTERNAL_CACHE_PREFIX + rid);
+        var list = await getPendingSubmits();
+        var kept = list.filter(function (p) { return String(p.exam_id) !== rid; });
+        if (kept.length !== list.length) await savePendingSubmits(kept);
+        try { localStorage.setItem(marker, "1"); } catch (e) { /* ignore */ }
+      }
+    } else {
+      try { localStorage.removeItem(marker); } catch (e) { /* ignore */ }
+    }
   }
 }
 

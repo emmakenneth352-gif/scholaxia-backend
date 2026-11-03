@@ -279,6 +279,27 @@ _SCHEMA_STATEMENTS = (
     "ALTER TABLE marketplace_orders ADD COLUMN IF NOT EXISTS delivery_fee DOUBLE PRECISION NOT NULL DEFAULT 0",
     "ALTER TABLE marketplace_orders ADD COLUMN IF NOT EXISTS delivery_assigned BOOLEAN NOT NULL DEFAULT FALSE",
     "ALTER TABLE marketplace_orders ADD COLUMN IF NOT EXISTS delivery_assigned_at TIMESTAMP NULL",
+    # School CBT: every student gets their own randomized paper. New exams
+    # default to ON, and existing exams are switched on exactly ONCE so a
+    # school that deliberately turns randomization off later keeps that choice.
+    "ALTER TABLE school_exams ALTER COLUMN randomize_questions SET DEFAULT TRUE",
+    "ALTER TABLE school_exams ALTER COLUMN randomize_options SET DEFAULT TRUE",
+    """
+    CREATE TABLE IF NOT EXISTS app_migrations (
+        key TEXT PRIMARY KEY,
+        applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+    """,
+    """
+    UPDATE school_exams
+       SET randomize_questions = TRUE, randomize_options = TRUE
+     WHERE (randomize_questions IS FALSE OR randomize_options IS FALSE)
+       AND NOT EXISTS (SELECT 1 FROM app_migrations WHERE key = 'school_exam_randomize_default_on')
+    """,
+    """
+    INSERT INTO app_migrations (key) VALUES ('school_exam_randomize_default_on')
+    ON CONFLICT (key) DO NOTHING
+    """,
     """
     CREATE TABLE IF NOT EXISTS vendor_withdrawal_requests (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -714,8 +735,8 @@ async def ensure_school_cbt_schema() -> None:
             duration_minutes INTEGER NOT NULL DEFAULT 60,
             questions_to_display INTEGER NOT NULL DEFAULT 0,
             questions_to_answer INTEGER NOT NULL DEFAULT 0,
-            randomize_questions BOOLEAN NOT NULL DEFAULT FALSE,
-            randomize_options BOOLEAN NOT NULL DEFAULT FALSE,
+            randomize_questions BOOLEAN NOT NULL DEFAULT TRUE,
+            randomize_options BOOLEAN NOT NULL DEFAULT TRUE,
             allow_review BOOLEAN NOT NULL DEFAULT TRUE,
             allow_previous BOOLEAN NOT NULL DEFAULT TRUE,
             allow_flagging BOOLEAN NOT NULL DEFAULT TRUE,

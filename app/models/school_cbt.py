@@ -129,8 +129,8 @@ class SchoolExam(Base):
     questions_to_display: Mapped[int] = mapped_column(Integer, default=0, nullable=False)  # 0 = all
     questions_to_answer: Mapped[int] = mapped_column(Integer, default=0, nullable=False)   # 0 = all
     # §10 — randomization; correct-answer mapping preserved server-side.
-    randomize_questions: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    randomize_options: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    randomize_questions: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    randomize_options: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     allow_review: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     allow_previous: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     allow_flagging: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

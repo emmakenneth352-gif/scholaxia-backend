@@ -711,6 +711,10 @@ async def student_package(
             .order_by(ExternalExamQuestion.number)
         )
     ).scalars().all()
+    # Per-student question order. Marking is keyed by question id/number, so
+    # shuffling delivery cannot change any score.
+    rows = list(rows)
+    secrets.SystemRandom().shuffle(rows)
     return {
         "package_ready": True,
         "exam": {

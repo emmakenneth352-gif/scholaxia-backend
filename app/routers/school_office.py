@@ -1055,6 +1055,14 @@ async def grant_retake(
         student_id = user.id
     if not student_id:
         raise HTTPException(status_code=400, detail="Could not match a student account to retake")
+    if candidate is None or str(candidate.user_id or "") != str(student_id):
+        # Email/candidate-less grants still need to notify the student's app
+        # so it drops its cached paper and re-downloads a randomized one.
+        candidate = (
+            await db.execute(
+                select(SchoolExamCandidate).where(SchoolExamCandidate.user_id == student_id)
+            )
+        ).scalars().first()
     session_ids = (
         await db.execute(
             select(CBTSession.id).where(
