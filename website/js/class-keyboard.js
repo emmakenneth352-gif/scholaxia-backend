@@ -239,9 +239,23 @@
     return true;
   }
 
+  // When the panel runs INSIDE plugNmeet (desktop injection or the bookmarklet)
+  // an adapter registers itself here and types into the field the teacher was
+  // last using — chat, whiteboard note, rename boxes… — so nothing to paste.
+  function hostInsert(text) {
+    var host = window.SXClassKeyboardHost;
+    if (!host || typeof host.insert !== "function") return false;
+    try { return host.insert(text) === true; } catch (e) { return false; }
+  }
+
   function toChat() {
     var text = out && out.value ? out.value : "";
     if (!text) { flash("Type something first"); return; }
+    if (hostInsert(text)) {
+      out.value = "";
+      flash("Typed into the class");
+      return;
+    }
     var chatInput = document.getElementById("chat-input");
     if (!chatInput) { copyText(text); flash("Copied — paste in chat"); return; }
     appendToInput(chatInput, text);

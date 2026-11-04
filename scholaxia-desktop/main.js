@@ -1,5 +1,6 @@
 const { app, BrowserWindow, shell, screen, session, desktopCapturer } = require("electron");
 const path = require("path");
+const fs = require("fs");
 const { startDesktopServer, stopDesktopServer } = require("./desktop-server");
 let mainWindow;
 let appBaseUrl = "";
@@ -139,6 +140,41 @@ const PNM_HOST_RE = /(^|\.)plugnmeet\.(cloud|in)$/i;
 let pnmRoomWin = null;
 let keyboardWin = null;
 
+// ── Subject keyboard INSIDE the plugNmeet room ─────────────────────────────
+// plugNmeet is a third-party client, so Scholaxia's own pages cannot add a
+// button to it — but the room window belongs to us. We inject the class
+// keyboard panel plus the adapter that types into whichever plugNmeet box the
+// teacher last clicked, so Maths/Physics/Chemistry/Igbo/Hausa/Yoruba keys work
+// inside the live class itself.
+let pnmKeyboardSource = null;
+
+function readRendererScript(name) {
+  try {
+    return fs.readFileSync(path.join(__dirname, "renderer", "js", name), "utf8");
+  } catch (err) {
+    return "";
+  }
+}
+
+function getPnmKeyboardSource() {
+  if (pnmKeyboardSource) return pnmKeyboardSource;
+  const panel = readRendererScript("class-keyboard.js");
+  const adapter = readRendererScript("plugmeet-keyboard.js");
+  if (!panel || !adapter) return "";
+  pnmKeyboardSource = panel + "\n" + adapter + "\ntrue;";
+  return pnmKeyboardSource;
+}
+
+function injectRoomKeyboard(win) {
+  if (!win || win.isDestroyed()) return;
+  const src = getPnmKeyboardSource();
+  if (!src) return;
+  win.webContents.executeJavaScript(src, true).catch((err) => {
+    console.warn("class keyboard injection skipped", err && err.message ? err.message : err);
+  });
+}
+
+
 function openPnmRoom(joinUrl) {
   try {
     const url = new URL(joinUrl);
@@ -166,6 +202,8 @@ function openPnmRoom(joinUrl) {
     });
     pnmRoomWin = roomWin;
     roomWin.loadURL(joinUrl);
+    // After every load of the room, put the class keyboard inside the page.
+    roomWin.webContents.on("did-finish-load", () => injectRoomKeyboard(roomWin));
     roomWin.webContents.on("will-navigate", (_e, next) => {
       // plugNmeet ended the meeting → logout_url redirect: close and return.
       if (typeof next === "string" && !PNM_HOST_RE.test(new URL(next).hostname.split("@").pop() || "")) {
