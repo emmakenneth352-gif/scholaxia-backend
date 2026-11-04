@@ -432,7 +432,13 @@ async function endClass(id) {
     }
   }
 
+  var enterBusy = false;
   async function enterClassroom(classId, title, subject, endTime, alreadyLive) {
+    // One click at a time: /start + room create + /token takes a few seconds
+    // and the join token is single-use, so a second click used to bring up a
+    // second plugNmeet window that had nothing left to spend.
+    if (enterBusy) return;
+    enterBusy = true;
     try {
       if (!alreadyLive) {
         await api.api("/api/v1/live-classes/" + encodeURIComponent(classId) + "/start", {
@@ -448,9 +454,19 @@ async function endClass(id) {
       if (token.pnm_join_url) {
         var roomWin = null;
         try {
-          roomWin = window.open(token.pnm_join_url, "_blank", "noopener");
+          // NB: no "noopener" in this call. Chrome returns null from
+          // window.open() whenever noopener is requested, even though the tab
+          // did open — so the fallback below also ran, and the dashboard tab
+          // navigated into the same one-time link. That produced two
+          // plugNmeet windows, the second of which had an already-spent token
+          // and dropped the teacher on plugNmeet's plain "join a room" screen.
+          roomWin = window.open(token.pnm_join_url, "_blank");
         } catch (eOpen) { roomWin = null; }
-        if (!roomWin) window.location.href = token.pnm_join_url;
+        if (roomWin) {
+          try { roomWin.opener = null; } catch (eOp) { /* ignore */ }
+        } else {
+          window.location.href = token.pnm_join_url;
+        }
         return;
       }
       localStorage.setItem(
@@ -478,6 +494,8 @@ async function endClass(id) {
       window.location.href = "classroom.html";
     } catch (e) {
       alert(e.message || "Could not enter classroom.");
+    } finally {
+      enterBusy = false;
     }
   }
 

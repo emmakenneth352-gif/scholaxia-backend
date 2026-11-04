@@ -1138,6 +1138,20 @@ async def start_class(
     if live_class.end_time and live_class.end_time <= now:
         live_class.end_time = now + timedelta(hours=2)
 
+    if not was_live and live_class.room_id:
+        # Restarting a finished class must not drop the teacher into the room
+        # left over from its previous session. plugNmeet keeps an emptied room
+        # alive for a while, so its old whiteboard and chat would come back as
+        # "the old live class". Closing it here lets the token call below build
+        # a clean room (and pick up the caller's current logout URL).
+        try:
+            from app.services.plugnmeet_client import end_room, pnm_configured
+
+            if pnm_configured():
+                await end_room(str(live_class.room_id))
+        except Exception:
+            pass
+
     try:
         from app.services.live_class_room import set_room_meta
 
