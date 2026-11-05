@@ -1470,8 +1470,22 @@
       });
   }
 
+  /** Stable per-student scope for device-cached exam papers and queued
+   *  answers. Shared devices hand over between students, so exam-only keys
+   *  let the next student see the previous one's downloaded paper. */
+  function localStudentScope() {
+    var raw = "";
+    try {
+      raw = localStorage.getItem("sia_user_id") ||
+        localStorage.getItem("sia_school_student_id") ||
+        localStorage.getItem("sia_email") ||
+        localStorage.getItem("sia_name") || "";
+    } catch (e) { /* ignore */ }
+    return String(raw).trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "anon";
+  }
+
   function packKey(id, isExternal) {
-    return isExternal ? "sia_cbt_pack_ext_" + id : "sia_cbt_pack_" + id;
+    return (isExternal ? "sia_cbt_pack_ext_" : "sia_cbt_pack_") + localStudentScope() + "_" + id;
   }
 
   function getPack(id, isExternal) {
@@ -1490,7 +1504,7 @@
     list.forEach(function (ex) {
       var id = ex && (ex.id || ex.exam_id);
       if (!id) return;
-      var marker = "sia_school_retake_cleared_" + id;
+      var marker = "sia_school_retake_cleared_" + localStudentScope() + "_" + id;
       if (ex.retake_granted) {
         if (!localStorage.getItem(marker)) {
           try { localStorage.removeItem(packKey(id, false)); } catch (e) {}
@@ -2191,13 +2205,17 @@
     }
   }
 
-  var SIA_EXT_QUEUED_KEY = "sia_ext_pending_submits";
+  var SIA_EXT_QUEUED_PREFIX = "sia_ext_pending_submits__";
+  function extQueueKey() { return SIA_EXT_QUEUED_PREFIX + localStudentScope(); }
   async function readQueuedExams() {
-    var list = await sxSecGet(SIA_EXT_QUEUED_KEY);
-    return Array.isArray(list) ? list : [];
+    var list = await sxSecGet(extQueueKey());
+    var owner = localStudentScope();
+    return Array.isArray(list)
+      ? list.filter(function (x) { return x.owner === owner; })
+      : [];
   }
   async function writeQueuedExams(list) {
-    await sxSecSet(SIA_EXT_QUEUED_KEY, list || []);
+    await sxSecSet(extQueueKey(), list || []);
   }
   // One entry per exam: a re-queued submission replaces the older draft, so
   // the same attempt can never be submitted twice.
@@ -2207,6 +2225,7 @@
       list = list.filter(function (x) { return x.exam_id !== st.examId; });
       list.push({
         exam_id: st.examId,
+        owner: localStudentScope(),
         title: st.title || "",
         answers: answers,
         started_at: st.startedAt || null,

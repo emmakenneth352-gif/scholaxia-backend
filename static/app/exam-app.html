@@ -295,6 +295,25 @@ input{font-family:inherit;font-size:15px}
   }
   var TK = "sx_exam_token", TU = "sx_exam_user";
   var S = { token: localStorage.getItem(TK) || null, me: null, exams: [], current: null, loginTyped: null };
+
+  /* ── PER-STUDENT DEVICE STATE ──
+     A school exam device is shared: student A submits and logs out, then
+     student B logs in. Every cached paper/attempt/queued answer is therefore
+     namespaced by the student's registration number (`sx2_<kind>__<owner>__<exam>`),
+     so B can never read A's answers or have A's sealed submission synced under
+     B's account. Legacy exam-only keys are migrated once on login. */
+  function normOwner(reg) {
+    return String(reg == null ? "" : reg).trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  }
+  function currentOwner() {
+    var m = S.me || {};
+    var typed = S.loginTyped || {};
+    return normOwner(m.reg_number || typed.reg || "");
+  }
+  function stateKeyFor(kind, owner, id) {
+    return "sx2_" + kind + "__" + (owner || "anon") + "__" + id;
+  }
+  function stateKey(kind, id) { return stateKeyFor(kind, currentOwner(), id); }
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); };
 
@@ -324,20 +343,87 @@ input{font-family:inherit;font-size:15px}
       });
   }
 
-  /* ── TRUE OFFLINE STORE (§16–§23) — one localStorage key per exam ──
-     sx_exam_pkg_<id>    : downloaded exam package (server-verified order)
-     sx_attempt_<examId> : { attemptId, exam, seconds, questions, answers, flags } — survives reload/offline
-     sx_offq_<examId>    : answers saved on the device while offline
-     sx_pending_<examId> : sealed FULL submission awaiting secure sync
+  /* ── TRUE OFFLINE STORE (§16–§23) — one per-student, per-exam key ──
+     sx2_exam_pkg__<reg>__<id>    : downloaded exam package (server-verified order)
+     sx2_attempt__<reg>__<examId> : { attemptId, exam, seconds, questions, answers, flags } — survives reload/offline
+     sx2_offq__<reg>__<examId>    : answers saved on the device while offline
+     sx2_pending__<reg>__<examId> : sealed FULL submission awaiting secure sync
+     sx2_sealed__<reg>__<examId>  : marks a sealed submission as awaiting sync
   */
   var K = {
-    pkg: function (id) { return "sx_exam_pkg_" + id; },
-    att: function (id) { return "sx_attempt_" + id; },
-    pend: function (id) { return "sx_pending_" + id; },
+    pkg: function (id) { return stateKey("exam_pkg", id); },
+    att: function (id) { return stateKey("attempt", id); },
+    pend: function (id) { return stateKey("pending", id); },
+    offq: function (id) { return stateKey("offq", id); },
+    seal: function (id) { return stateKey("sealed", id); },
+    retake: function (id) { return stateKey("retake_cleared", id); },
   };
   function lsGet(k) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
   function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
+  function allKeysWithPrefix(prefix) {
+    var out = [];
+    try {
+      Object.keys(localStorage).forEach(function (k) { if (k.indexOf(prefix) === 0) out.push(k); });
+    } catch (e) {}
+    return out;
+  }
+  function listOwned(kind) {
+    var prefix = "sx2_" + kind + "__" + (currentOwner() || "anon") + "__";
+    return allKeysWithPrefix(prefix).map(function (k) {
+      return { key: k, examId: k.slice(prefix.length) };
+    });
+  }
+  function allPkgKeys() {
+    return allKeysWithPrefix("sx2_exam_pkg__").concat(allKeysWithPrefix("sx_exam_pkg_"));
+  }
+  function examIdFromPkgKey(k) {
+    if (k.indexOf("sx2_exam_pkg__") === 0) {
+      var rest = k.slice("sx2_exam_pkg__".length);
+      var cut = rest.indexOf("__");
+      return cut >= 0 ? rest.slice(cut + 2) : rest;
+    }
+    return k.slice("sx_exam_pkg_".length);
+  }
+  /* One-time migration of old exam-only keys. Packages know their owner; the
+     attempt/queue/seal keys for that exam move with the package. Keys whose
+     owner cannot be established are dropped rather than shown to the next
+     student on this device. */
+  function migrateLegacyState() {
+    var ownerByExam = {};
+    allKeysWithPrefix("sx_exam_pkg_").forEach(function (k) {
+      var examId = k.slice("sx_exam_pkg_".length);
+      var pkg = lsGet(k);
+      var owner = normOwner(pkg && pkg.student && pkg.student.reg_number);
+      ownerByExam[examId] = owner;
+      if (owner) {
+        var nk = stateKeyFor("exam_pkg", owner, examId);
+        if (!lsGet(nk)) lsSet(nk, pkg);
+      }
+      lsDel(k);
+    });
+    [
+      ["sx_attempt_", "attempt"],
+      ["sx_offq_", "offq"],
+      ["sx_pending_", "pending"],
+      ["sx_sealed_", "sealed"],
+      ["sx_retake_cleared_", "retake_cleared"],
+    ].forEach(function (pair) {
+      allKeysWithPrefix(pair[0]).forEach(function (k) {
+        var examId = k.slice(pair[0].length);
+        var val = lsGet(k);
+        // Never fall back to the current login: an unattributable key is
+        // dropped so it cannot be replayed under the next student's account.
+        var owner = ownerByExam[examId] || normOwner(val && (val.owner || val.reg_number));
+        if (pair[1] === "pending" && val && !val.owner) val.owner = owner;
+        if (owner) {
+          var nk = stateKeyFor(pair[1], owner, examId);
+          if (!lsGet(nk)) lsSet(nk, val);
+        }
+        lsDel(k);
+      });
+    });
+  }
 
   /* ── Durable offline identity ──
      The typed reg + access code are remembered across reloads, so a package
@@ -358,7 +444,7 @@ input{font-family:inherit;font-size:15px}
   function backfillPkgIdentities() {
     // Devices that already downloaded packages before this fix: fill in the
     // access code from the remembered identity so their seals can sync.
-    Object.keys(localStorage).filter(function (k) { return k.indexOf("sx_exam_pkg_") === 0; }).forEach(function (k) {
+    allPkgKeys().forEach(function (k) {
       var pkg = lsGet(k);
       if (pkg && pkg.student && !pkg.student.access_code) {
         var id = knownIdentity(pkg.student.reg_number);
@@ -367,8 +453,8 @@ input{font-family:inherit;font-size:15px}
     });
   }
 
-  /* Offline answer queue (per exam) — saved locally, flushed when online. */
-  function offlineQueueKey(examId) { return "sx_offq_" + examId; }
+  /* Offline answer queue (per student, per exam) — saved locally, flushed when online. */
+  function offlineQueueKey(examId) { return K.offq(examId); }
   function queueOffline(examId, entry) {
     var q = lsGet(offlineQueueKey(examId)) || [];
     for (var i = 0; i < q.length; i++) {
@@ -386,12 +472,12 @@ input{font-family:inherit;font-size:15px}
     }).then(function () { lsDel(offlineQueueKey(examId)); return q.length; });
   }
   function flushAllQueues() {
-    if (!S.token || !isOnline()) return;
-    Object.keys(localStorage).filter(function (k) { return k.indexOf("sx_offq_") === 0; }).forEach(function (k) {
-      drainOfflineQueue(k.replace("sx_offq_", "")).catch(function () {});
+    if (!S.token || !isOnline() || !currentOwner()) return;
+    listOwned("offq").forEach(function (item) {
+      drainOfflineQueue(item.examId).catch(function () {});
     });
-    Object.keys(localStorage).filter(function (k) { return k.indexOf("sx_pending_") === 0; }).forEach(function (k) {
-      syncPendingExam(k.replace("sx_pending_", ""), null).catch(function () {});
+    listOwned("pending").forEach(function (item) {
+      syncPendingExam(item.examId, null).catch(function () {});
     });
   }
   window.addEventListener("online", function () { toast("🌐 Back online — syncing…"); flushAllQueues(); if (S.me) loadExams(); });
@@ -404,6 +490,15 @@ input{font-family:inherit;font-size:15px}
     toast("Ask your school exam officer — they issued your Registration Number and Access Code.");
   };
   function logout() {
+    // Clear only THIS student's transient exam state. Downloaded papers stay
+    // namespaced under their owner, and another student's sealed submission is
+    // never flushed with this session's token.
+    try {
+      ["attempt", "offq", "sealed"].forEach(function (kind) {
+        listOwned(kind).forEach(function (item) { lsDel(item.key); });
+      });
+      localStorage.removeItem(SI_KEY);
+    } catch (e) {}
     localStorage.removeItem(TK); localStorage.removeItem(TU);
     S.token = null; S.me = null; location.reload();
   }
@@ -416,17 +511,16 @@ input{font-family:inherit;font-size:15px}
   function scheduledLogout(examId, seconds) {
     setTimeout(function () {
       lsDel(K.att(examId));
-      lsDel("sx_offq_" + examId);
+      lsDel(K.offq(examId));
       toast("✓ Submitted — logging out. Hand over to the next student.");
       setTimeout(function () { logout(); }, 800);
-      // sx_pending_<examId> + sx_sealed_<examId> stay on the device until the
+      // sx2_pending__<reg>__<examId> + the seal stay on the device until the
       // submission syncs; pendingSealOnBoot() clears them afterwards.
     }, Math.max(4000, (seconds || 12) * 1000));
   }
   function pendingSealOnBoot() {
-    Object.keys(localStorage).filter(function (k) { return k.indexOf("sx_sealed_") === 0; }).forEach(function (k) {
-      var examId = k.replace("sx_sealed_", "");
-      if (!lsGet(K.pend(examId))) lsDel(k); // sync already finished — clear the seal
+    listOwned("sealed").forEach(function (item) {
+      if (!lsGet(K.pend(item.examId))) lsDel(item.key); // sync already finished — clear the seal
     });
   }
 
@@ -444,6 +538,7 @@ input{font-family:inherit;font-size:15px}
         S.token = d.access_token; S.me = d.student;
         localStorage.setItem(TK, S.token);
         localStorage.setItem(TU, JSON.stringify(d.student));
+        migrateLegacyState();
         flushAllQueues();
         enterHome();
       })
@@ -468,11 +563,11 @@ input{font-family:inherit;font-size:15px}
         the student offline later. ── */
   function findOfflineIdentity(reg) {
     var found = null;
-    Object.keys(localStorage).forEach(function (k) {
-      if (found || k.indexOf("sx_exam_pkg_") !== 0) return;
+    allPkgKeys().forEach(function (k) {
+      if (found) return;
       var pkg = lsGet(k);
       if (pkg && pkg.student && String(pkg.student.reg_number || "").toUpperCase() === String(reg || "").toUpperCase()) {
-        found = { examId: k.replace("sx_exam_pkg_", ""), student: pkg.student };
+        found = { examId: examIdFromPkgKey(k), student: pkg.student };
       }
     });
     return found;
@@ -501,6 +596,7 @@ input{font-family:inherit;font-size:15px}
     S.loginTyped = { reg: reg, code: code };
     rememberIdentity(reg, code);
     localStorage.setItem(TU, JSON.stringify(S.me));
+    migrateLegacyState();
     enterHome();
     toast("📴 Offline mode — answers are saved on this device and sync automatically.");
   }
@@ -515,8 +611,8 @@ input{font-family:inherit;font-size:15px}
   }
   function tryResume() {
     var u = localStorage.getItem(TU);
-    if (S.token && u) { try { S.me = JSON.parse(u); enterHome(); } catch (e) { logout(); return; } }
-    else if (!S.token && u && !isOnline()) { try { S.me = JSON.parse(u); enterHome(); } catch (e2) { localStorage.removeItem(TU); } }
+    if (S.token && u) { try { S.me = JSON.parse(u); migrateLegacyState(); enterHome(); } catch (e) { logout(); return; } }
+    else if (!S.token && u && !isOnline()) { try { S.me = JSON.parse(u); migrateLegacyState(); enterHome(); } catch (e2) { localStorage.removeItem(TU); } }
     pendingSealOnBoot();
   }
 
@@ -533,7 +629,7 @@ input{font-family:inherit;font-size:15px}
       // gets a fresh randomized set of questions. Clear it exactly once so a
       // freshly downloaded paper is not wiped on the next refresh.
       S.exams.forEach(function (x) {
-        var rk = "sx_retake_cleared_" + x.id;
+        var rk = K.retake(x.id);
         if (x.retake_granted) {
           if (!lsGet(rk)) {
             lsDel(K.att(x.id));
@@ -575,13 +671,12 @@ input{font-family:inherit;font-size:15px}
       '<div class="emeta"><span><b>' + x.questions + '</b> Questions</span><span><b>' + fmtDur(x.duration_minutes) + '</b></span><span>Total Mark: <b>' + x.total_mark + '</b></span></div>' +
       pill + body + '</div>';
   }
-  /* Offline home: everything downloaded on this device + pending syncs. */
+  /* Offline home: everything downloaded on this device for THIS student + pending syncs. */
   function renderOfflineExams() {
     var rows = [];
-    Object.keys(localStorage).forEach(function (k) {
-      if (k.indexOf("sx_exam_pkg_") !== 0) return;
-      var examId = k.replace("sx_exam_pkg_", "");
-      var pkg = lsGet(k); if (!pkg || !pkg.exam) return;
+    listOwned("exam_pkg").forEach(function (item) {
+      var examId = item.examId;
+      var pkg = lsGet(item.key); if (!pkg || !pkg.exam) return;
       var pend = lsGet(K.pend(examId));
       var att = lsGet(K.att(examId));
       var st = pend ? '<div class="scorecard" style="background:var(--warnbg);color:var(--warn)">⏳ Completed — waiting for secure sync</div>'
@@ -792,7 +887,7 @@ input{font-family:inherit;font-size:15px}
       return api("/school-cbt/student/exams/" + R.exam.id + "/submit", { method: "POST", body: payload });
     }).then(function (d) {
       lsDel(K.att(examId));
-      lsDel("sx_offq_" + examId);
+      lsDel(K.offq(examId));
       showCompletion(d);
     }).catch(function () { showOfflineWait(payload); });
   }
@@ -800,8 +895,10 @@ input{font-family:inherit;font-size:15px}
     // §23 — seal the FULL submission (every answer) on the device; it syncs
     // automatically when the network returns, then the device logs out.
     var examId = R.pkgExamId;
+    payload.owner = currentOwner();
+    payload.reg_number = (S.me && S.me.reg_number) || "";
     lsSet(K.pend(examId), payload);
-    lsSet("sx_sealed_" + examId, { at: payload.submitted_at });
+    lsSet(K.seal(examId), { at: payload.submitted_at, owner: payload.owner });
     if (R && R._th) clearInterval(R._th);
     persistAttempt();
     var b = document.createElement("div"); b.className = "mback"; b.id = "pendModal";
@@ -826,8 +923,8 @@ input{font-family:inherit;font-size:15px}
       syncPendingExam(examId, payload).then(function () {
         clearInterval(h);
         lsDel(K.att(examId));
-        lsDel("sx_offq_" + examId);
-        lsDel("sx_sealed_" + examId);
+        lsDel(K.offq(examId));
+        lsDel(K.seal(examId));
         box.className = "syncbox done";
         box.textContent = "✓ Connecting… Verifying examination… Uploading answers… Submission Successful";
         setTimeout(function () { var m = $("pendModal"); if (m) m.remove(); scheduledLogout(examId, 8); }, 1600);
@@ -844,11 +941,16 @@ input{font-family:inherit;font-size:15px}
   }
   function clearSeal(examId) {
     lsDel(K.pend(examId));
-    lsDel("sx_sealed_" + examId);
+    lsDel(K.seal(examId));
   }
   function syncPendingExam(examId, payloadOverride) {
     var pend = payloadOverride || lsGet(K.pend(examId));
     if (!pend) return Promise.reject(new Error("nothing pending"));
+    // Never upload another student's sealed answers under the current login.
+    var pendOwner = normOwner(pend.owner || pend.reg_number || "");
+    if (!currentOwner() || (pendOwner && pendOwner !== currentOwner())) {
+      return Promise.reject(new Error("submission belongs to another student"));
+    }
     var body = {
       attempt_id: pend.attempt_id || null,
       exam_id: examId,

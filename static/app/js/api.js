@@ -314,6 +314,7 @@
       "User";
     localStorage.setItem("sia_name", name);
     if (data.user) {
+      if (data.user.id) localStorage.setItem("sia_user_id", String(data.user.id));
       if (data.user.school_id) localStorage.setItem("sia_user_school_id", data.user.school_id);
       if (data.user.school_name) localStorage.setItem("sia_user_school_name", data.user.school_name);
       if (data.user.education_level) localStorage.setItem("sia_class", data.user.education_level);
@@ -335,6 +336,7 @@
       "sia_exam_type",
       "sia_subjects",
       "sia_age_group",
+      "sia_user_id",
       "sia_user_school_id",
       "sia_user_school_name",
       "sia_class",
