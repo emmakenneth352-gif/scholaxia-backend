@@ -1,6 +1,6 @@
 {
   "name": "scholaxia-desktop",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "Scholaxia Portal — Windows Desktop App",
   "main": "main.js",
   "scripts": {
