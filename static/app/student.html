@@ -7,6 +7,13 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <title>Scholaxia — Student</title>
     <link rel="icon" type="image/png" href="media/logo-main.png" />
+    <!-- Warm the live-class hosts while the dashboard renders: joining then
+         skips DNS + TLS setup for the API, plugNmeet and LiveKit. -->
+    <link rel="preconnect" href="https://scholaxia1.onrender.com" crossorigin />
+    <link rel="dns-prefetch" href="https://scholaxia1.onrender.com" />
+    <link rel="preconnect" href="https://edge.plugnmeet.cloud" crossorigin />
+    <link rel="dns-prefetch" href="https://edge.plugnmeet.cloud" />
+    <link rel="dns-prefetch" href="wss://scholaxia-neyu04kd.livekit.cloud" />
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="css/app.css?v=20261024b" />
     <link rel="stylesheet" href="css/student-pretty.css?v=20261024b" />

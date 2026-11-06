@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; script-src-attr 'unsafe-inline'; connect-src * blob: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src * data: blob:; media-src * blob: data:; worker-src 'self' blob:; frame-src 'self' blob:;" />
   <title>Live Classroom — Scholaxia</title>
+  <!-- Warm API + media hosts before the LiveKit SDK boots. -->
+  <link rel="preconnect" href="https://scholaxia1.onrender.com" crossorigin />
+  <link rel="dns-prefetch" href="https://scholaxia1.onrender.com" />
+  <link rel="dns-prefetch" href="wss://scholaxia-neyu04kd.livekit.cloud" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     /* Inline — always loads with page (fixes white Windows button chrome on Hide / Lower all) */

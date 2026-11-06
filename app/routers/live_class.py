@@ -38,6 +38,11 @@ from app.models.live_class_access_code import LiveClassAccessCodeDelivery
 
 router = APIRouter(prefix="/live-classes", tags=["Live Classes"])
 
+# Bound how long a join waits on the third-party plugNmeet API. If it is slow
+# or down we return without pnm_join_url and the client opens the LiveKit
+# classroom instead, so joining never hangs for a minute.
+PNM_JOIN_TIMEOUT_S = 8.0
+
 
 @router.get("/board-sync/{room_id}")
 async def board_sync_state(
@@ -500,24 +505,44 @@ async def _pnm_join_info(
     rid = str(room_id or "").strip()
     if not rid or not pnm.pnm_configured():
         return {}
-    try:
-        if not await pnm.ensure_room(rid, title or "Scholaxia Live Class", logout_url):
-            return {}
+
+    async def _mint() -> dict:
+        # Optimistic token first: by the time anyone joins, the teacher's
+        # /token call has already created the room, so we can skip the extra
+        # isRoomActive round-trip and save ~1s of join latency. Only if the
+        # token fails (room missing/expired) do we create it and retry.
+        ct = "HYBRID_WEB" if hybrid_web else "WEB"
         info = await pnm.join_token(
             rid,
             str(user_id),
             display_name,
             is_admin,
-            client_type="HYBRID_WEB" if hybrid_web else "WEB",
+            client_type=ct,
         )
+        if not info or not info.get("join_url"):
+            if not await pnm.ensure_room(rid, title or "Scholaxia Live Class", logout_url):
+                return {}
+            info = await pnm.join_token(
+                rid,
+                str(user_id),
+                display_name,
+                is_admin,
+                client_type=ct,
+            )
         if not info or not info.get("join_url"):
             return {}
         return {
             "pnm_token": info["token"],
             "pnm_join_url": info["join_url"],
             "pnm_is_admin": bool(is_admin),
-            "pnm_client_type": "HYBRID_WEB" if hybrid_web else "WEB",
+            "pnm_client_type": ct,
         }
+
+    try:
+        # Hard cap: a slow/unreachable plugNmeet must never hold the join
+        # request open. The caller still gets the LiveKit token and can open
+        # the in-house classroom; plugNmeet is only a bonus path.
+        return await asyncio.wait_for(_mint(), timeout=PNM_JOIN_TIMEOUT_S)
     except Exception:
         return {}
 
@@ -634,9 +659,20 @@ def _session_status(live_class: LiveClass, now: datetime | None = None) -> str:
     )
 
 
+_last_live_heal_at = 0.0
+
+
 async def _heal_stale_live_flags(db: AsyncSession, now: datetime | None = None) -> None:
     """Best-effort clear of stuck is_live rows (savepoint — never poisons list SELECT)."""
+    global _last_live_heal_at
     from sqlalchemy import text as sql_text
+    import time as _time
+
+    # This runs an UPDATE on every live-class list request. Once a minute is
+    # plenty; the extra write was adding latency to the dashboard's first load.
+    if _time.monotonic() - _last_live_heal_at < 60:
+        return
+    _last_live_heal_at = _time.monotonic()
 
     now = now or naive_utc_now()
     try:
@@ -1228,6 +1264,8 @@ async def join_class(
 
     log = logging.getLogger(__name__)
 
+    pnm_task = None
+
     async def _safe_rollback():
         try:
             await db.rollback()
@@ -1335,6 +1373,32 @@ async def join_class(
                             detail="This live class is not for one of your selected subjects."
                             + (" Enter the class access code to join." if subjects else ""),
                         )
+
+        # Mint the plugNmeet join info concurrently with the remaining DB work
+        # (live-flag update, attendance, teacher lookup). The ~1s token
+        # round-trip used to run last, stacked on top of every query.
+        student_display = (
+            current_user.get("full_name")
+            or current_user.get("name")
+            or current_user.get("email")
+            or "Student"
+        )
+        is_teacher_caller = (
+            teacher_id == sid
+            or str(current_user.get("role", "")).lower() in ("teacher", "admin")
+        )
+        actual_role = "teacher" if is_teacher_caller else "student"
+        pnm_task = asyncio.create_task(
+            _pnm_join_info(
+                room_id,
+                title,
+                sid,
+                student_display,
+                is_teacher_caller,
+                logout_url=_request_logout_url(request, is_teacher_caller),
+                hybrid_web=bool(hybrid_web),
+            )
+        )
 
         if not is_live:
             # Do not resurrect a class that already has an end_time in the past
@@ -1481,12 +1545,6 @@ async def join_class(
         try:
             from app.services.live_class_room import set_room_meta, upsert_participant
 
-            student_display = (
-                current_user.get("full_name")
-                or current_user.get("name")
-                or current_user.get("email")
-                or "Student"
-            )
             set_room_meta(
                 room_id,
                 classId=str(class_uuid),
@@ -1506,12 +1564,8 @@ async def join_class(
         mic_ok = _mic_allowed_for(room_id, sid, att)
         cam_ok = _camera_allowed_for(room_id, sid, att)
 
-        # Determine if caller is the teacher or admin
-        is_teacher_caller = (
-            teacher_id == sid
-            or str(current_user.get("role", "")).lower() in ("teacher", "admin")
-        )
-        actual_role = "teacher" if is_teacher_caller else "student"
+        # is_teacher_caller / actual_role were resolved before the DB work so
+        # the plugNmeet token could start minting in parallel.
         can_publish_final = True if is_teacher_caller else can_publish_student
         mic_ok = True if is_teacher_caller else mic_ok
         cam_ok = True if is_teacher_caller else cam_ok
@@ -1544,15 +1598,8 @@ async def join_class(
             can_publish=can_publish_final,
             role=actual_role,
         )
-        pnm_info = await _pnm_join_info(
-            room_id,
-            title,
-            sid,
-            current_user.get("full_name") or current_user.get("email") or "Student",
-            actual_role in ("teacher", "admin", "host"),
-            logout_url=_request_logout_url(request, actual_role in ("teacher", "admin", "host")),
-            hybrid_web=bool(hybrid_web),
-        )
+        pnm_info = await pnm_task if pnm_task is not None else {}
+        pnm_task = None
         return {
             "class_id": str(class_uuid),
             "title": title,
@@ -1578,6 +1625,11 @@ async def join_class(
             status_code=500,
             detail=f"Could not join live class: {short}",
         ) from exc
+    finally:
+        # If a permission/validation error short-circuited the request after
+        # the token task started, do not leave it running.
+        if pnm_task is not None and not pnm_task.done():
+            pnm_task.cancel()
 
 
 @router.get("/{class_id}/token")

@@ -4681,19 +4681,16 @@
     var originalLabel = joinBtn.textContent || "Join now";
     joinBtn.disabled = true;
     joinBtn.textContent = "Joining…";
-    var joinPromise = Promise.resolve();
-    if (api.wakeServer) {
-      joinPromise = api.wakeServer(20000).catch(function () { return null; });
-    }
-    joinPromise
-      .then(function () {
-        return api.api("/api/v1/live-classes/" + encodeURIComponent(id) + "/join", {
-          method: "POST",
-          preferXhr: true,
-          awaitWake: true,
-          timeout: 45000,
-          retries: 2,
-        });
+    // Fire the join immediately. A separate /health "wake" round-trip used to
+    // run first, adding ~1s even when the API was already warm; if the server
+    // really is cold, api() wakes and retries on the failed attempt instead.
+    api
+      .api("/api/v1/live-classes/" + encodeURIComponent(id) + "/join", {
+        method: "POST",
+        preferXhr: true,
+        awaitWake: false,
+        timeout: 45000,
+        retries: 2,
       })
       .then(function (res) {
         showLiveJoinResult(res || {});

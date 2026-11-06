@@ -274,15 +274,12 @@
 
   async function joinLive(id) {
     try {
-      if (api.wakeServer) {
-        try {
-          await api.wakeServer(20000);
-        } catch (w) {}
-      }
+      // Join immediately — api() only pays the wake/health cost if the first
+      // attempt actually fails (cold Render instance).
       var res = await api.api("/api/v1/live-classes/" + encodeURIComponent(id) + "/join", {
         method: "POST",
         preferXhr: true,
-        awaitWake: true,
+        awaitWake: false,
         timeout: 45000,
         retries: 2,
       });

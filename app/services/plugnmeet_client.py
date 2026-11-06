@@ -13,9 +13,10 @@ import asyncio
 import hashlib
 import hmac
 import json
+import threading
 import time
-import urllib.error
-import urllib.request
+
+import httpx
 
 from app.core.config import settings
 
@@ -41,24 +42,57 @@ def _base_url() -> str:
     return (settings.PLUGNMEET_URL or "").strip().rstrip("/")
 
 
+_http_lock = threading.Lock()
+_http_client: httpx.Client | None = None
+
+
+def _http() -> httpx.Client:
+    """One pooled keep-alive client for every plugNmeet call.
+
+    Each call used to open a fresh TLS connection: from the API host that is
+    ~1.2s of handshake before the request even starts, and opening a class
+    makes three of them (room check, create, join token) — so most of the
+    "joining is slow" wait was connection setup, not plugNmeet itself. With a
+    reused connection the same calls measure ~0.2s each.
+    """
+    global _http_client
+    if _http_client is None:
+        with _http_lock:
+            if _http_client is None:
+                _http_client = httpx.Client(
+                    timeout=25.0,
+                    limits=httpx.Limits(max_keepalive_connections=8, max_connections=16),
+                )
+    return _http_client
+
+
 def _call(path: str, payload: dict) -> dict:
     """Signed POST to the plugNmeet API. HMAC-SHA256 hex signature of raw body."""
     body = json.dumps(payload, separators=(",", ":")).encode()
     signature = hmac.new(
         (settings.PLUGNMEET_API_SECRET or "").encode(), body, hashlib.sha256
     ).hexdigest()
-    req = urllib.request.Request(
-        _base_url() + _API_PATH + path,
-        data=body,
-        headers={
-            "API-KEY": (settings.PLUGNMEET_API_KEY or "").strip(),
-            "HASH-SIGNATURE": signature,
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
-    with urllib.request.urlopen(req, timeout=25) as resp:
-        return json.loads(resp.read().decode())
+    url = _base_url() + _API_PATH + path
+    headers = {
+        "API-KEY": (settings.PLUGNMEET_API_KEY or "").strip(),
+        "HASH-SIGNATURE": signature,
+        "Content-Type": "application/json",
+    }
+    resp = None
+    for attempt in (1, 2):
+        try:
+            resp = _http().post(url, content=body, headers=headers)
+            break
+        except httpx.HTTPError:
+            # A pooled socket the server already closed fails exactly once;
+            # retry on a fresh connection instead of failing the join.
+            if attempt == 2:
+                raise
+    if resp.status_code >= 400:
+        # Same contract as before: an HTTP-level failure is an exception the
+        # callers already handle (they fall back to a clean retry).
+        raise RuntimeError(f"plugNmeet {path} returned HTTP {resp.status_code}")
+    return resp.json()
 
 
 async def acall(path: str, payload: dict) -> dict:
