@@ -289,6 +289,15 @@
         (data && (data.detail || data.message)) ||
         "Request failed (" + res.status + ")";
       if (typeof msg === "object") msg = JSON.stringify(msg);
+      // An expired/invalidated login must sign the user out, not fail every
+      // tab with "Invalid token". Without this the whole portal sat on a dead
+      // token and each screen reported the API as broken/offline.
+      if (res.status === 401) {
+        if (typeof handleApiUnauthorized === "function") {
+          handleApiUnauthorized(msg);
+        }
+        return null;
+      }
       var err = new Error(msg);
       err.status = res.status;
       err.data = data;
@@ -445,6 +454,13 @@
         }
         var msg = (data && (data.detail || data.message)) || ("Request failed (" + xhr.status + ")");
         if (typeof msg === "object") msg = JSON.stringify(msg);
+        if (xhr.status === 401) {
+          if (typeof handleApiUnauthorized === "function") {
+            handleApiUnauthorized(msg);
+          }
+          resolve(null);
+          return;
+        }
         var err = new Error(msg);
         err.status = xhr.status;
         err.data = data;
