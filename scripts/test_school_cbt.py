@@ -443,6 +443,54 @@ async def main():
         cl = await scbt.clear_schedule("SS2", staff_school, admin_user, db)
         check("clear keeps exams with submissions", cl["removed"] == 0, str(cl))
 
+        print("\n── 9h. Class spacing + publish fills a 0-question exam ──")
+        jss_csv = (
+            "question_text,option_a,option_b,option_c,option_d,correct_option\n"
+            "JSS odd one out?,A,B,C,D,A\n"
+            "JSS 2 + 2?,1,2,3,4,D\n"
+        ).encode("utf-8")
+
+        class _JssUp:
+            filename = "jss1-maths.csv"
+
+            async def read(self):
+                return jss_csv
+
+        jimp = await scbt.import_bank_questions(
+            _JssUp(), class_name="JSS 1", subject="Mathematics", name=None,
+            topic=None, marks=1, school_id=staff_school, current_user=admin_user, db=db)
+        check("JSS 1 bank uploaded", jimp["bank_total"] == 2, str(jimp))
+
+        # "JSS1" (schedule) must see the "JSS 1" bank — this mismatch is what
+        # made the first publish report 0 questions.
+        jsv = await scbt.save_schedule(scbt.ScheduleSaveIn(
+            class_name="JSS1", subjects=["Mathematics"], question_count=2,
+            duration_minutes=30, starts_at=datetime.utcnow(), total_mark=20),
+            staff_school, admin_user, db)
+        check("spaced class name matches the bank",
+              jsv["created"] == 1 and not jsv["missing_questions"], str(jsv))
+        jrows = (await db.execute(select(SchoolExam).where(
+            SchoolExam.school_id == campus.id,
+            func.upper(func.replace(SchoolExam.class_name, " ", "")) == "JSS1"))).scalars().all()
+        jexam = next(e for e in jrows if e.subject == "Mathematics")
+        jcount = (await db.execute(select(func.count(SchoolExamQuestion.id)).where(
+            SchoolExamQuestion.exam_id == jexam.id))).scalar_one()
+        check("schedule created the questions", int(jcount) == 2, str(jcount))
+
+        # An exam published while its bank was still empty heals on the first
+        # publish instead of staying at 0 until a second click.
+        orphan = SchoolExam(
+            school_id=campus.id, title="JSS 1 Maths (orphan)", subject="Mathematics",
+            class_name="JSS 1", exam_type="SCHOOL", exam_mode="ONLINE",
+            total_mark=20, duration_minutes=30, status="draft", is_published=False,
+        )
+        db.add(orphan)
+        await db.flush()
+        patched = await scbt.patch_exam(
+            str(orphan.id), scbt.ExamPatchIn(is_published=True), staff_school, admin_user, db)
+        check("first publish fills questions from the bank",
+              patched["question_count"] == 2, str(patched))
+
         print("\n── 10. Result hidden until publish (§22) ──")
         mine2 = await scbt.student_my_exams(credentials=tok, db=db)
         check("student sees no result before publish", mine2["exams"][0]["result"] is None)

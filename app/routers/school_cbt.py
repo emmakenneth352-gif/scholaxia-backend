@@ -48,6 +48,7 @@ from app.models.school_cbt import (
 )
 from app.models.user import User, UserRole, StudentProfile
 from app.models.school_campus import SchoolCampus
+from app.models.school_subjects import normalize_class_name
 
 router = APIRouter(prefix="/school-cbt", tags=["School CBT"])
 
@@ -161,6 +162,125 @@ def _exam_row(exam: SchoolExam, question_count: int = 0, submission_count: int =
         "submission_count": submission_count,
         "created_at": exam.created_at.isoformat() if exam.created_at else None,
     }
+
+
+async def _sync_exam_questions_from_bank(
+    db: AsyncSession, exam: SchoolExam, sid: UUID
+) -> int:
+    """Copy the matching class/subject bank questions into an exam.
+
+    Used when an exam is published or re-scheduled while it still has zero
+    questions — e.g. the schedule was saved before the upload finished, or the
+    class name was stored as "JSS 1" while the bank said "JSS1". Class names are
+    compared on the canonical key so spacing/case never hides a bank again.
+    """
+    cls_norm = normalize_class_name(exam.class_name)
+    subj = (exam.subject or "").strip()
+    q = (
+        select(SchoolExQuestion)
+        .join(SchoolExQuestionBank, SchoolExQuestionBank.id == SchoolExQuestion.bank_id)
+        .where(
+            SchoolExQuestionBank.school_id == sid,
+            func.upper(func.replace(SchoolExQuestionBank.class_name, " ", "")) == cls_norm,
+            SchoolExQuestion.status == "active",
+        )
+    )
+    if subj and subj.upper() != "ALL":
+        q = q.where(func.lower(SchoolExQuestionBank.subject) == subj.lower())
+    bank_qs = (await db.execute(q)).scalars().all()
+    for i, bq in enumerate(bank_qs):
+        db.add(
+            SchoolExamQuestion(
+                exam_id=exam.id,
+                school_id=sid,
+                bank_question_id=bq.id,
+                question_text=bq.question_text,
+                option_a=bq.option_a,
+                option_b=bq.option_b,
+                option_c=bq.option_c,
+                option_d=bq.option_d,
+                correct_option=bq.correct_option,
+                question_type=bq.question_type if bq.question_type in ("mcq", "true_false", "multi_select", "theory") else "mcq",
+                topic=bq.topic,
+                marks=bq.marks,
+                image_url=bq.image_url,
+                position=i,
+            )
+        )
+    return len(bank_qs)
+
+
+async def _exam_question_count(db: AsyncSession, exam_id) -> int:
+    return int(
+        (
+            await db.execute(
+                select(func.count(SchoolExamQuestion.id)).where(
+                    SchoolExamQuestion.exam_id == exam_id
+                )
+            )
+        ).scalar_one()
+        or 0
+    )
+
+
+async def _ensure_exam_has_questions(db: AsyncSession, exam: SchoolExam, sid: UUID) -> int:
+    """Copy questions into an exam that has none yet; return how many landed.
+
+    A school publishes an exam whose questions never arrived — the bank upload
+    finished after the schedule was saved, the bank's class/subject was typed
+    differently ("JSS 1" vs "JSS1"), or a wizard-created exam only kept the
+    ticked bank ids. That left "0 questions" on screen and needed a SECOND
+    publish to work. Recover on the first publish instead: first by class +
+    subject, then by the exam's own bank ids.
+    """
+    if await _exam_question_count(db, exam.id):
+        return 0
+    added = await _sync_exam_questions_from_bank(db, exam, sid)
+    if not added and exam.bank_ids:
+        bank_uuids: list[UUID] = []
+        for raw in exam.bank_ids:
+            try:
+                bank_uuids.append(UUID(str(raw)))
+            except (ValueError, AttributeError, TypeError):
+                continue
+        if bank_uuids:
+            rows = (
+                await db.execute(
+                    select(SchoolExQuestion).where(
+                        SchoolExQuestion.bank_id.in_(bank_uuids),
+                        SchoolExQuestion.school_id == sid,
+                        SchoolExQuestion.status == "active",
+                    )
+                )
+            ).scalars().all()
+            for i, bq in enumerate(rows):
+                db.add(
+                    SchoolExamQuestion(
+                        exam_id=exam.id,
+                        school_id=sid,
+                        bank_question_id=bq.id,
+                        question_text=bq.question_text,
+                        option_a=bq.option_a,
+                        option_b=bq.option_b,
+                        option_c=bq.option_c,
+                        option_d=bq.option_d,
+                        correct_option=bq.correct_option,
+                        question_type=bq.question_type if bq.question_type in ("mcq", "true_false", "multi_select", "theory") else "mcq",
+                        topic=bq.topic,
+                        marks=bq.marks,
+                        image_url=bq.image_url,
+                        position=i,
+                    )
+                )
+            added = len(rows)
+    if added:
+        # Never ask for more questions than the exam actually holds.
+        if (exam.questions_to_display or 0) > added:
+            exam.questions_to_display = added
+        if (exam.questions_to_answer or 0) > added:
+            exam.questions_to_answer = added
+        await db.flush()
+    return added
 
 
 def _exam_window_open(exam: SchoolExam, now: datetime) -> bool:
@@ -515,7 +635,8 @@ async def import_bank_questions(
         await db.execute(
             select(SchoolExQuestionBank).where(
                 SchoolExQuestionBank.school_id == sid,
-                func.upper(SchoolExQuestionBank.class_name) == cls,
+                func.upper(func.replace(SchoolExQuestionBank.class_name, " ", ""))
+                == normalize_class_name(cls),
                 func.lower(SchoolExQuestionBank.subject) == subj.lower(),
             )
         )
@@ -984,7 +1105,8 @@ async def _materialize_assignments(db: AsyncSession, exam: SchoolExam, sid: UUID
                 .where(
                     User.school_id == sid,
                     User.role == UserRole.student,
-                    func.upper(StudentProfile.education_level) == str(cls).upper(),
+                    func.upper(func.replace(StudentProfile.education_level, " ", ""))
+                    == normalize_class_name(str(cls)),
                 )
             )
         ).scalars().all()
@@ -1197,6 +1319,7 @@ async def class_roster(
     to, their reg number + code status, and their submission counts."""
     sid = _staff_school_id(current_user, school_id)
     cls = (class_name or "").strip().upper()
+    cls_norm = normalize_class_name(class_name)
     students = (
         await db.execute(
             select(User)
@@ -1204,7 +1327,7 @@ async def class_roster(
             .where(
                 User.school_id == sid,
                 User.role == UserRole.student,
-                func.upper(StudentProfile.education_level) == cls,
+                func.upper(func.replace(StudentProfile.education_level, " ", "")) == cls_norm,
             )
             .order_by(User.full_name)
         )
@@ -1214,7 +1337,7 @@ async def class_roster(
             select(SchoolExam)
             .where(
                 SchoolExam.school_id == sid,
-                func.upper(SchoolExam.class_name) == cls,
+                func.upper(func.replace(SchoolExam.class_name, " ", "")) == cls_norm,
             )
             .order_by(SchoolExam.created_at.desc())
         )
@@ -1423,7 +1546,7 @@ async def register_exam_student(
 
     q = select(SchoolExam).where(
         SchoolExam.school_id == sid,
-        func.upper(SchoolExam.class_name) == cls,
+        func.upper(func.replace(SchoolExam.class_name, " ", "")) == normalize_class_name(cls),
     )
     if not is_all:
         q = q.where(func.lower(SchoolExam.subject).in_([s.lower() for s in sel]))
@@ -1477,7 +1600,10 @@ async def exam_students_aggregate(
         .order_by(SchoolExamAccessCode.reg_number)
     )
     if class_name and str(class_name).strip().upper() != "ALL":
-        q = q.where(func.upper(SchoolExam.class_name) == str(class_name).strip().upper())
+        q = q.where(
+            func.upper(func.replace(SchoolExam.class_name, " ", ""))
+            == normalize_class_name(str(class_name))
+        )
     if subject and str(subject).strip().upper() != "ALL":
         q = q.where(func.lower(SchoolExam.subject) == str(subject).strip().lower())
     rows = (await db.execute(q)).all()
@@ -1589,6 +1715,12 @@ async def save_schedule(
     """
     sid = _staff_school_id(current_user, school_id)
     cls = payload.class_name.strip().upper()
+    # Class names are stored in several shapes ("JSS1", "JSS 1", "jss1")
+    # depending on where they were created. Compare on the canonical key so a
+    # bank uploaded as "JSS 1" is found when the schedule says "JSS1" — the
+    # mismatch made Save Schedule report 0 created/0 questions and forced a
+    # second publish.
+    cls_norm = normalize_class_name(payload.class_name)
     want = {s.strip() for s in payload.subjects if s.strip()}
     if not want:
         raise HTTPException(status_code=400, detail="Select at least one subject")
@@ -1601,7 +1733,7 @@ async def save_schedule(
             await db.execute(
                 select(SchoolExQuestionBank.subject).where(
                     SchoolExQuestionBank.school_id == sid,
-                    func.upper(SchoolExQuestionBank.class_name) == cls,
+                    func.upper(func.replace(SchoolExQuestionBank.class_name, " ", "")) == cls_norm,
                 )
             )
         ).scalars().all()
@@ -1618,7 +1750,7 @@ async def save_schedule(
         await db.execute(
             select(SchoolExam).where(
                 SchoolExam.school_id == sid,
-                func.upper(SchoolExam.class_name) == cls,
+                func.upper(func.replace(SchoolExam.class_name, " ", "")) == cls_norm,
             )
         )
     ).scalars().all()
@@ -1633,12 +1765,44 @@ async def save_schedule(
                 .join(SchoolExQuestionBank, SchoolExQuestionBank.id == SchoolExQuestion.bank_id)
                 .where(
                     SchoolExQuestionBank.school_id == sid,
-                    func.upper(SchoolExQuestionBank.class_name) == cls,
+                    func.upper(func.replace(SchoolExQuestionBank.class_name, " ", "")) == cls_norm,
                     func.lower(SchoolExQuestionBank.subject) == subject.strip().lower(),
                 )
             )
         ).scalar_one()
         return int(rows or 0)
+
+    async def class_bank_questions(subject: str) -> list[SchoolExQuestion]:
+        return (
+            await db.execute(
+                select(SchoolExQuestion)
+                .join(SchoolExQuestionBank, SchoolExQuestionBank.id == SchoolExQuestion.bank_id)
+                .where(
+                    SchoolExQuestionBank.school_id == sid,
+                    func.upper(func.replace(SchoolExQuestionBank.class_name, " ", "")) == cls_norm,
+                    func.lower(SchoolExQuestionBank.subject) == subject.strip().lower(),
+                    SchoolExQuestion.status == "active",
+                )
+            )
+        ).scalars().all()
+
+    def _exam_question(exam_id, q: SchoolExQuestion, position: int) -> SchoolExamQuestion:
+        return SchoolExamQuestion(
+            exam_id=exam_id,
+            school_id=sid,
+            bank_question_id=q.id,
+            question_text=q.question_text,
+            option_a=q.option_a,
+            option_b=q.option_b,
+            option_c=q.option_c,
+            option_d=q.option_d,
+            correct_option=q.correct_option,
+            question_type=q.question_type if q.question_type in ("mcq", "true_false", "multi_select", "theory") else "mcq",
+            topic=q.topic,
+            marks=q.marks,
+            image_url=q.image_url,
+            position=position,
+        )
 
     made, updated, missing = 0, 0, []
     for subject in sorted(want, key=str.lower):
@@ -1656,6 +1820,10 @@ async def save_schedule(
             exam.scheduled_end = start + timedelta(minutes=int(payload.duration_minutes))
             exam.is_published = start <= now or exam.is_published
             exam.status = "published" if (start <= now or exam.is_published) else "draft"
+            # An exam published before its questions existed (or whose bank
+            # was filled after the schedule was saved) can stay at 0
+            # questions forever — top it up on save so one publish is enough.
+            await _ensure_exam_has_questions(db, exam, sid)
             updated += 1
         else:
             exam = SchoolExam(
@@ -1679,37 +1847,9 @@ async def save_schedule(
             await db.flush()
             # §8 — fill exam questions from the class bank (all of them; the
             # engine shows questions_to_display of them per attempt).
-            bank_qs = (
-                await db.execute(
-                    select(SchoolExQuestion)
-                    .join(SchoolExQuestionBank, SchoolExQuestionBank.id == SchoolExQuestion.bank_id)
-                    .where(
-                        SchoolExQuestionBank.school_id == sid,
-                        func.upper(SchoolExQuestionBank.class_name) == cls,
-                        func.lower(SchoolExQuestionBank.subject) == subject.strip().lower(),
-                        SchoolExQuestion.status == "active",
-                    )
-                )
-            ).scalars().all()
+            bank_qs = await class_bank_questions(subject)
             for i, q in enumerate(bank_qs):
-                db.add(
-                    SchoolExamQuestion(
-                        exam_id=exam.id,
-                        school_id=sid,
-                        bank_question_id=q.id,
-                        question_text=q.question_text,
-                        option_a=q.option_a,
-                        option_b=q.option_b,
-                        option_c=q.option_c,
-                        option_d=q.option_d,
-                        correct_option=q.correct_option,
-                        question_type=q.question_type if q.question_type in ("mcq", "true_false", "multi_select", "theory") else "mcq",
-                        topic=q.topic,
-                        marks=q.marks,
-                        image_url=q.image_url,
-                        position=i,
-                    )
-                )
+                db.add(_exam_question(exam.id, q, i))
             # Reference flow — every student REGISTERED for this class gets
             # assigned + their access code the moment the subject is scheduled.
             class_students = (
@@ -1719,7 +1859,7 @@ async def save_schedule(
                     .where(
                         User.school_id == sid,
                         User.role == UserRole.student,
-                        func.upper(StudentProfile.education_level) == cls,
+                        func.upper(func.replace(StudentProfile.education_level, " ", "")) == cls_norm,
                     )
                 )
             ).scalars().all()
@@ -1783,7 +1923,8 @@ async def clear_schedule(
         await db.execute(
             select(SchoolExam).where(
                 SchoolExam.school_id == sid,
-                func.upper(SchoolExam.class_name) == cls,
+                func.upper(func.replace(SchoolExam.class_name, " ", ""))
+                == normalize_class_name(class_name),
             )
         )
     ).scalars().all()
@@ -1908,7 +2049,23 @@ async def patch_exam(
     if payload.scheduled_end is not None:
         exam.scheduled_end = payload.scheduled_end
     await db.flush()
-    return {"ok": True, "status": exam.status, "is_published": exam.is_published}
+    # Publishing an exam that still has zero questions used to leave it stuck
+    # at "0 questions" until the school published a second time. Fill it on the
+    # first publish so one click is enough.
+    if exam.is_published:
+        await _ensure_exam_has_questions(db, exam, sid)
+    count = await _exam_question_count(db, exam.id)
+    return {
+        "ok": True,
+        "status": exam.status,
+        "is_published": exam.is_published,
+        "question_count": count,
+        "warning": (
+            "This exam still has 0 questions — upload or add questions before students open it."
+            if exam.is_published and count == 0
+            else None
+        ),
+    }
 
 
 @router.delete("/exams/{exam_id}")
@@ -2095,8 +2252,8 @@ async def _codes_for(db: AsyncSession, exam: SchoolExam, payload: CodesIn, sid: 
         except ValueError:
             continue
     for cls in payload.class_names or []:
-        c = str(cls).strip().upper()
-        if not c:
+        c_norm = normalize_class_name(str(cls))
+        if not c_norm:
             continue
         wanted.extend(
             (
@@ -2106,7 +2263,7 @@ async def _codes_for(db: AsyncSession, exam: SchoolExam, payload: CodesIn, sid: 
                     .where(
                         User.school_id == sid,
                         User.role == UserRole.student,
-                        func.upper(StudentProfile.education_level) == c,
+                        func.upper(func.replace(StudentProfile.education_level, " ", "")) == c_norm,
                     )
                 )
             ).scalars().all()
@@ -2518,7 +2675,8 @@ async def registration_approve(
     want = _requested_subject_filter(cred)
     _eq = select(SchoolExam).where(
         SchoolExam.school_id == sid,
-        func.upper(SchoolExam.class_name) == cls,
+        func.upper(func.replace(SchoolExam.class_name, " ", ""))
+        == normalize_class_name(cls),
     )
     if want is not None:
         _eq = _eq.where(func.lower(SchoolExam.subject).in_(want))
@@ -2568,7 +2726,8 @@ async def registrations_approve_all(
     approved, attached_total = 0, 0
     for uid, edu in rows:
         cls = (edu or "").upper()
-        if cls_filter and cls_filter != "ALL" and cls != cls_filter:
+        cls_norm = normalize_class_name(edu)
+        if cls_filter and cls_filter != "ALL" and cls_norm != normalize_class_name(cls_filter):
             continue
         if str(uid) in assigned:
             continue
@@ -2576,7 +2735,7 @@ async def registrations_approve_all(
         want = _requested_subject_filter(cred)
         _aq = select(SchoolExam).where(
             SchoolExam.school_id == sid,
-            func.upper(SchoolExam.class_name) == cls,
+            func.upper(func.replace(SchoolExam.class_name, " ", "")) == cls_norm,
             SchoolExam.is_published == True,  # noqa: E712
         )
         if want is not None:
@@ -2625,7 +2784,8 @@ async def registrations_restrict(
         q = select(User.id).where(User.school_id == sid, User.role == UserRole.student)
         if payload.class_name and payload.class_name.strip().upper() != "ALL":
             q = q.join(StudentProfile, StudentProfile.user_id == User.id).where(
-                func.upper(StudentProfile.education_level) == payload.class_name.strip().upper()
+                func.upper(func.replace(StudentProfile.education_level, " ", ""))
+                == normalize_class_name(payload.class_name)
             )
         targets = (await db.execute(q)).scalars().all()
     changed = 0
@@ -2681,7 +2841,8 @@ async def registrations_delete_all(
         q = select(User.id).where(User.school_id == sid, User.role == UserRole.student)
         if payload.class_name and payload.class_name.strip().upper() != "ALL":
             q = q.join(StudentProfile, StudentProfile.user_id == User.id).where(
-                func.upper(StudentProfile.education_level) == payload.class_name.strip().upper()
+                func.upper(func.replace(StudentProfile.education_level, " ", ""))
+                == normalize_class_name(payload.class_name)
             )
         ids = (await db.execute(q)).scalars().all()
     n = 0

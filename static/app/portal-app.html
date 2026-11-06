@@ -846,6 +846,12 @@ tr:last-child td{border-bottom:none}
   /* ═══ EXAMS & CBT — each function is its OWN tab in the MAIN sidebar,
      exactly like the reference dashboard (Register Student, Exam Students,
      Access Subjects, Exam Schedule, Exam Results…). ═══ */
+  // Class names come back as "JSS1", "JSS 1" or "jss1" depending on where
+  // they were typed. Compare on the space/case-free key so a bank uploaded
+  // as "JSS 1" is still auto-selected for an exam typed as "JSS1".
+  function clsKey(v) {
+    return String(v || "").toUpperCase().replace(/\s+/g, "");
+  }
   var EX_PAGE = "exsched";
   var EX_PAGES = [
     ["exbank", "Upload CBT Exams", "Upload questions and build CBT exams per class — JS1 to SS3", "<button class=\"btn\" onclick=\"uploadQuestionsModal()\">⬆ Upload Questions</button>"],
@@ -1023,7 +1029,15 @@ tr:last-child td{border-bottom:none}
   function fmtDurM(mins) { var h = Math.floor((mins || 0) / 60), m = (mins || 0) % 60; return (h ? h + "h" + (m ? " " + m + "m" : "") : m + "m") || "—"; }
   window.toggleSxPublish = function (id, pub) {
     cbtApi("/exams/" + id, { method: "PATCH", body: { is_published: pub } })
-      .then(function () { toast(pub ? "Exam published — students can now see it" : "Exam unpublished"); renderExTab(); })
+      .then(function (d) {
+        // The API fills a question-less exam from its bank on this first
+        // publish, so report the real count (and say plainly when it is still
+        // empty) instead of a bare "published" that made schools publish twice.
+        if (!pub) toast("Exam unpublished");
+        else if (d && d.warning) toast("⚠️ " + d.warning);
+        else toast("Exam published — " + ((d && d.question_count) || 0) + " questions, students can now see it");
+        renderExTab();
+      })
       .catch(toastErr);
   };
   window.delSxExam = function (id, title) {
@@ -1158,10 +1172,10 @@ tr:last-child td{border-bottom:none}
       var banks = window.__allBanks || [];
       if (!banks.length) { box.innerHTML = '<div class="empty">No question banks yet — create one under the Exam Bank tab first.</div>'; return; }
       var subj = (($("exSubject") || {}).value || "").trim().toLowerCase();
-      var cls = (($("exClass") || {}).value || "").trim().toUpperCase();
+      var cls = clsKey(($("exClass") || {}).value || "");
       window.__bankPicks = window.__bankPicks || {};
       var match = banks.filter(function (b) {
-        return (!subj || (b.subject || "").toLowerCase() === subj) && (!cls || (b.class_name || "").toUpperCase() === cls);
+        return (!subj || (b.subject || "").toLowerCase() === subj) && (!cls || clsKey(b.class_name) === cls);
       });
       var rest = banks.filter(function (b) { return match.indexOf(b) < 0; });
       match.forEach(function (b) { if (window.__bankPicks[b.id] == null) window.__bankPicks[b.id] = b.question_count; });
@@ -1607,7 +1621,7 @@ tr:last-child td{border-bottom:none}
         cbtApi("/banks").then(function (d) {
           var found = (d.banks || []).filter(function (b) {
             return (b.subject || "").toLowerCase() === UQ.subj.name.toLowerCase() &&
-              (b.class_name || "").toUpperCase() === UQ.cls.toUpperCase();
+              clsKey(b.class_name) === clsKey(UQ.cls);
           })[0];
           if (found) { closeModal(); addBankQ(found.id, ""); return; }
           cbtApi("/banks", { method: "POST", body: { name: UQ.subj.name + " " + UQ.cls + " Bank", subject: UQ.subj.name, class_name: UQ.cls } }).then(function (nb) {
