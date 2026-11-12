@@ -547,6 +547,10 @@
     if (old && old.parentNode) old.parentNode.removeChild(old);
     return;
     if (document.getElementById('langWrap') || document.getElementById('sxPageLang')) return;
+    /* Live classroom: the fixed EN/FR/PT/AR pill sits exactly on top of the
+       bottom toolbar (End class / camera / mic) on phones — never inject it. */
+    if (document.getElementById('classroom') || document.getElementById('classroom-toolbar')
+        || document.body.classList.contains('meet-v2')) return;
     const picker = document.createElement('div');
     picker.id = 'sxPageLang';
     picker.className = 'sx-page-lang';

@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; script-src-attr 'unsafe-inline'; connect-src * blob: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src * data: blob:; media-src * blob: data:; worker-src 'self' blob:; frame-src 'self' blob:;" />
   <title>Live Classroom — Scholaxia</title>
+  <script src="/app/js/site-guard.js?v=20261112a"></script>
+  <!-- Warm API + media hosts before the LiveKit SDK boots. -->
+  <link rel="preconnect" href="https://scholaxia1.onrender.com" crossorigin />
+  <link rel="dns-prefetch" href="https://scholaxia1.onrender.com" />
+  <link rel="dns-prefetch" href="wss://scholaxia-neyu04kd.livekit.cloud" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     /* Inline — always loads with page (fixes white Windows button chrome on Hide / Lower all) */
@@ -151,7 +158,7 @@
                 <input type="file" id="board-image-input" class="hidden" accept="image/jpeg,image/png,image/webp" />
               </div>
               <div class="board-type-row">
-                <input type="text" id="board-type-input" class="board-type-input" placeholder="Type on the board — students see it live" autocomplete="off" />
+                <textarea id="board-type-input" class="board-type-input" rows="1" placeholder="Type here; Enter adds a line, ↓ starts the next board line" aria-label="Type on the whiteboard"></textarea>
               </div>
               <div id="symbol-palette" class="symbol-palette"></div>
             </div>
@@ -278,9 +285,18 @@
     <div class="more-menu-list">
       <button type="button" onclick="toggleParticipantStrip(); toggleMoreMenu(false)">Participants strip</button>
       <button type="button" onclick="toggleMeetChatPanel(); toggleMoreMenu(false)">Chat</button>
-      <button type="button" class="host-only hidden" onclick="toggleHostSidebar(); toggleMoreMenu(false)">Host sidebar</button>
+      <button type="button" class="host-only hidden" onclick="setSpotlight('teacher'); toggleMoreMenu(false)">Focus: teacher</button>
+      <button type="button" class="host-only hidden" onclick="setSpotlight('board'); toggleMoreMenu(false)">Focus: board</button>
+      <button type="button" class="host-only hidden" onclick="setSpotlight('screen'); toggleMoreMenu(false)">Focus: screen</button>
+      <button type="button" class="host-only hidden" onclick="setSpotlight('grid'); toggleMoreMenu(false)">Focus: grid</button>
+      <button type="button" class="host-only hidden" onclick="toggleBoard(); toggleMoreMenu(false)">Whiteboard</button>
       <button type="button" onclick="openClassKeyboard(); toggleMoreMenu(false)">Subject &amp; language keyboard</button>
+      <button type="button" class="host-only hidden" onclick="toggleHostSidebar(); toggleMoreMenu(false)">Host sidebar</button>
       <button type="button" class="host-only hidden" onclick="toggleScreenShare(); toggleMoreMenu(false)">Share screen</button>
+      <button type="button" class="student-only" onclick="raiseHand(); toggleMoreMenu(false)">Raise hand</button>
+      <button type="button" onclick="toggleReactionSheet(true)">Reactions</button>
+      <button type="button" class="host-only hidden" onclick="toggleSaveLive(); toggleMoreMenu(false)">Record class</button>
+      <button type="button" onclick="toggleStageFullscreen(); toggleMoreMenu(false)">Full screen</button>
       <button type="button" onclick="leaveClassroom()">Leave class</button>
     </div>
   </div>

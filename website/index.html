@@ -2,6 +2,7 @@
 <html lang="en" dir="ltr">
   <head>
     <meta charset="UTF-8" />
+    <script src="js/site-guard.js?v=20261112a"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Scholaxia — smart, simple learning for modern students. Live classes, CBT, AI tutor, library, marketplace, and community." />
     <meta name="theme-color" content="#7c3aed" />
@@ -28,8 +29,7 @@
 
       <nav class="nav" aria-label="Primary">
         <a href="#top" class="is-active" data-i18n="nav_home">Home</a>
-        <a href="https://scholaxia1.onrender.com/exam" data-i18n="nav_exam">School Exam</a>
-        <a href="portal.html" data-i18n="nav_cbt">CBT Practice</a>
+        <a href="/exam" data-i18n="nav_exam">School Exam</a>
         <a href="past-questions.html" data-i18n="nav_pq">Past questions</a>
         <a href="marketplace.html" data-i18n="nav_market">Marketplace</a>
         <a href="register-school.html" data-i18n="nav_schools">For schools</a>
@@ -91,8 +91,7 @@
     <!-- ══ MOBILE NAV ══ -->
     <div class="mobile-nav" id="mobileNav" hidden>
       <a href="#top" data-i18n="nav_home">Home</a>
-      <a href="https://scholaxia1.onrender.com/exam" data-i18n="nav_exam">School Exam</a>
-      <a href="portal.html" data-i18n="nav_cbt">CBT Practice</a>
+      <a href="/exam" data-i18n="nav_exam">School Exam</a>
       <a href="past-questions.html" data-i18n="nav_pq">Past questions</a>
       <a href="marketplace.html" data-i18n="nav_market">Marketplace</a>
       <a href="register-school.html" data-i18n="nav_schools">For schools</a>
@@ -392,7 +391,7 @@
             <h2 data-i18n="aff_h2">Grow with us as an affiliate partner</h2>
             <p data-i18n="aff_p">Share Scholaxia with students and schools. Earn when they join live classes, CBT practice, and skills programs.</p>
             <div class="affiliate-actions">
-              <a class="btn btn-gold" href="portal.html" data-i18n="aff_btn1">Join to get started</a>
+              <a class="btn btn-gold" href="affiliate.html" data-i18n="aff_btn1">Join &amp; start earning</a>
               <a class="btn btn-glass" href="mailto:scholaxia23@gmail.com?subject=Affiliate%20enquiry" data-i18n="aff_btn2">Email affiliate team</a>
             </div>
           </div>
@@ -433,13 +432,13 @@
         <div>
           <p class="kicker" data-i18n="dl_kicker">Windows app</p>
           <h2 data-i18n="dl_h2">Download Scholaxia Desktop</h2>
-          <p data-i18n="dl_p">Install the Scholaxia app on your PC for live classes, CBT practice, and study tools — same account as the website.</p>
+          <p data-i18n="dl_p">Install the Scholaxia Student app on your PC for live classes, CBT practice, and study tools — same account as the website.</p>
         </div>
         <div class="download-actions">
           <a class="btn btn-red btn-cta" data-desktop-dl href="https://github.com/emmakenneth352-gif/scholaxia-websit/releases/download/desktop-v1.0.10/Scholaxia-Student-Setup-1.0.10.exe" download>
-            Download for Windows (Installer)
+            Download for Windows
           </a>
-          <p class="download-note">Windows 10/11 · <span data-desktop-ver>v1.0.10</span> · ~160 MB · Includes offline CBT scoring and compact, scrollable tutorial code entry. Installs like a normal program — download, double-click <b>Scholaxia-Student-Setup.exe</b>, follow the steps, done. Desktop icon is created automatically.</p>
+          <p class="download-note">Windows 10/11 · <span data-desktop-ver>v1.0.10</span> · ~160 MB · Includes offline CBT scoring and compact, scrollable tutorial code entry</p>
           <!-- Google Play button -->
           <button class="btn btn-google-play" type="button" onclick="document.getElementById('playStoreModal').showModal()" aria-label="Get it on Google Play">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="currentColor">
@@ -467,9 +466,9 @@
       <div class="modal-inner">
         <div class="modal-icon" aria-hidden="true">🖥️</div>
         <h3>Scholaxia Desktop for Windows</h3>
-        <p>Live classes, CBT practice, offline school exams, Sia AI tutor and more — running on your PC. Same account as the website.</p>
-        <a class="btn btn-red" data-desktop-dl href="https://github.com/emmakenneth352-gif/scholaxia-websit/releases/download/desktop-v1.0.10/Scholaxia-Student-Setup-1.0.10.exe" download>Download Installer (recommended)</a>
-        <p style="font-size:0.85rem;opacity:0.75;margin-top:0.5rem;"><span data-desktop-ver>v1.0.10</span> · ~160 MB · Double-click the setup file and it installs Scholaxia Desktop with a desktop shortcut — no zip, no manual steps.<br/>Includes offline CBT scoring and exams that work fully offline.</p>
+        <p>Live classes, CBT practice, Sia AI tutor and more — installed on your PC. Same account as the website.</p>
+        <a class="btn btn-red" data-desktop-dl href="https://github.com/emmakenneth352-gif/scholaxia-websit/releases/download/desktop-v1.0.10/Scholaxia-Student-Setup-1.0.10.exe" download>Download for Windows</a>
+        <p style="font-size:0.85rem;opacity:0.7;margin-top:0.5rem;">Windows 10/11 · <span data-desktop-ver>v1.0.10</span> · ~160 MB · Includes offline CBT scoring</p>
         <button class="modal-close" type="button" onclick="document.getElementById('desktopModal').close()" aria-label="Close">✕</button>
       </div>
     </dialog>
@@ -507,23 +506,21 @@
         <div class="footer-col">
           <h4 data-i18n="footer_links">Quick Links</h4>
           <a href="#top" data-i18n="nav_home">Home</a>
-          <a href="https://scholaxia1.onrender.com/exam" data-i18n="nav_exam">School Exam</a>
-          <a href="portal.html" data-i18n="nav_cbt">CBT Practice</a>
+          <a href="/exam" data-i18n="nav_exam">School Exam</a>
           <a href="past-questions.html" data-i18n="nav_pq">Past questions</a>
           <a class="footer-link-hot" href="marketplace.html">
             <span class="hot-ico" aria-hidden="true">▣</span>
             <span data-i18n="nav_market">Marketplace</span>
           </a>
           <a href="#download" data-i18n="footer_dl">Download Desktop</a>
-          <a href="register-school.html" data-i18n="nav_schools">For schools</a>
-        <a href="#affiliate" data-i18n="nav_affiliate">Affiliate</a>
+          <a href="#affiliate" data-i18n="nav_affiliate">Affiliate</a>
           <a href="#about" data-i18n="nav_about">About</a>
           <a href="#contact" data-i18n="nav_contact">Contact</a>
         </div>
 
         <div class="footer-col">
           <h4 data-i18n="footer_courses">Popular Courses</h4>
-          <a class="course-chip" href="https://scholaxia1.onrender.com/exam" data-i18n="nav_exam">School Exam</a>
+          <a class="course-chip" href="/exam" data-i18n="nav_exam">School Exam</a>
           <a class="course-chip" href="#product" data-i18n="feat_live_h">Live Classes</a>
           <a class="course-chip" href="#product" data-i18n="feat_ai_h">Sia AI Tutor</a>
           <a class="course-chip" href="#product" data-i18n="feat_lib_h">Digital Library</a>

@@ -22,7 +22,6 @@
   var pageHistory = ["home"];
   var currentPage = "home";
   var siaHistory = [];
-  var siaThinking = false;
   var cbtState = { exam: null, session: null, answers: {}, index: 0 };
   var kindLibraryCache = [];
   var kindVideosCache = [];
@@ -79,6 +78,18 @@
     id = String(id || "").trim();
     if (!TITLES[id]) return;
     opts = opts || {};
+
+    var featureKey = "kind." + id;
+    if (window.ScholaxiaFeatures && window.ScholaxiaFeatures.isLocked(featureKey)) {
+      window.ScholaxiaFeatures.showLocked(featureKey);
+      // A direct hash/link to a locked page must not leave the shell blank.
+      if (id !== "home" && !document.querySelector(".page.is-on")) {
+        showPage("home", { replace: true });
+      }
+      return;
+    }
+    document.body.setAttribute("data-sx-feature", featureKey);
+
     if (!opts.replace && currentPage !== id) {
       pageHistory.push(id);
       if (pageHistory.length > 20) pageHistory.shift();
@@ -184,30 +195,12 @@
         '<div class="sia-welcome"><div class="sia-orb sm">S</div><div><strong>Hi friend!</strong><p>What do you want to learn today?</p></div></div>';
       return;
     }
-    var html = siaHistory
+    box.innerHTML = siaHistory
       .map(function (m) {
         return '<div class="bubble ' + (m.isAi ? "bot" : "me") + '">' + esc(m.text) + "</div>";
       })
       .join("");
-    // Typing indicator while Sia thinks of the answer.
-    if (siaThinking) {
-      html +=
-        '<div class="bubble bot sia-typing" aria-label="Sia is typing">' +
-        '<span class="sia-typing-dots"><span></span><span></span><span></span></span></div>';
-    }
-    box.innerHTML = html;
-    // While typing keep the indicator in view; once the reply lands, align the
-    // TOP of the newest reply in view — reads down naturally.
-    var last = box.lastElementChild;
-    if (!last) return;
-    if (siaThinking) {
-      if (last.scrollIntoView) last.scrollIntoView({ block: "end", behavior: "smooth" });
-      else box.scrollTop = box.scrollHeight;
-    } else if (last.scrollIntoView) {
-      last.scrollIntoView({ block: "start", behavior: "smooth" });
-    } else {
-      box.scrollTop = box.scrollHeight;
-    }
+    box.scrollTop = box.scrollHeight;
   }
 
   async function sendSia(question) {
@@ -219,7 +212,6 @@
       err.className = "form-status";
     }
     siaHistory.push({ isAi: false, text: q });
-    siaThinking = true;
     renderSia();
     try {
       var history = siaHistory.slice(-10).map(function (m) {
@@ -236,10 +228,8 @@
           "I'd love to help you learn! Tell me a subject (like English or Maths) and what you want to practise.";
       }
       siaHistory.push({ isAi: true, text: String(reply) });
-      siaThinking = false;
       renderSia();
     } catch (e) {
-      siaThinking = false;
       if (err) {
         err.textContent = e.message || "Sia is resting. Try again!";
         err.className = "form-status err";
@@ -296,15 +286,12 @@
 
   async function joinLive(id) {
     try {
-      if (api.wakeServer) {
-        try {
-          await api.wakeServer(20000);
-        } catch (w) {}
-      }
+      // Join immediately — api() only pays the wake/health cost if the first
+      // attempt actually fails (cold Render instance).
       var res = await api.api("/api/v1/live-classes/" + encodeURIComponent(id) + "/join", {
         method: "POST",
         preferXhr: true,
-        awaitWake: true,
+        awaitWake: false,
         timeout: 45000,
         retries: 2,
       });

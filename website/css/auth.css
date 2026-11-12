@@ -294,6 +294,15 @@ body.auth-body {
   border: 1px solid #e2e8f0;
 }
 
+/* Vendor button is Marketplace-only — 3 tabs fill the row on the normal page */
+.role-row:not(.role-row-market) .role-btn[data-role='vendor'] {
+  display: none;
+}
+.role-row:not(.role-row-market) .role-btn[data-role='student'] { grid-column: auto / span 1; }
+.role-row:not(.role-row-market) {
+  grid-template-columns: repeat(3, 1fr);
+}
+
 .role-btn {
   border: 0;
   background: transparent;

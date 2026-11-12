@@ -1950,3 +1950,337 @@ body.app-body {
     border-radius: 12px;
   }
 }
+
+/* =====================================================================
+   SHINY POLISH PASS - buttons, cards, panels and every student screen
+   ===================================================================== */
+.page.is-on {
+  animation: sx-page-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes sx-page-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+.panel {
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  box-shadow: 0 16px 40px rgba(76, 29, 149, 0.07), 0 1px 0 #fff inset;
+}
+
+.hub-hero,
+.pay-hero {
+  box-shadow: 0 20px 46px rgba(76, 29, 149, 0.2);
+}
+
+.side-link.is-active {
+  background: linear-gradient(135deg, #7c3aed, #6d28d9) !important;
+  color: #fff !important;
+  box-shadow: 0 10px 22px rgba(124, 58, 237, 0.28) !important;
+}
+.side-link.is-active .ico {
+  color: #fff !important;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.16));
+}
+
+.quick.action {
+  position: relative;
+  overflow: hidden;
+}
+.quick.action::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 90% at 100% 0%, rgba(255, 255, 255, 0.7), transparent 55%);
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.quick.action:hover::after { opacity: 0.9; }
+
+.btn-primary {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.btn-primary::after {
+  content: "";
+  position: absolute;
+  top: -30%;
+  bottom: -30%;
+  left: -70%;
+  width: 45%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  transform: skewX(-20deg);
+  transition: left 0.55s ease;
+  pointer-events: none;
+  z-index: 0;
+}
+.btn-primary:hover::after { left: 130%; }
+
+.card {
+  position: relative;
+  overflow: hidden;
+}
+.card::after {
+  content: "";
+  position: absolute;
+  top: -45%;
+  right: -35%;
+  width: 70%;
+  height: 90%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(124, 58, 237, 0.13), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+.card:hover::after { opacity: 1; }
+.card:hover { transform: translateY(-5px); }
+
+.tabs {
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tab { flex: 0 0 auto; }
+
+/* =====================================================================
+   PAST QUESTIONS STUDIO
+   ===================================================================== */
+.pq-studio {
+  display: grid;
+  gap: 1.15rem;
+}
+
+.pq-studio-hero {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  padding: clamp(1.35rem, 4vw, 2.25rem);
+  border-radius: 26px;
+  color: #fff;
+  background:
+    radial-gradient(100% 120% at 90% 0%, rgba(236, 72, 153, 0.5), transparent 55%),
+    radial-gradient(90% 100% at 0% 100%, rgba(56, 189, 248, 0.34), transparent 55%),
+    linear-gradient(135deg, #1e1b4b 0%, #4c1d95 48%, #6d28d9 100%);
+  box-shadow: 0 24px 54px rgba(76, 29, 149, 0.28);
+}
+.pq-studio-hero::after {
+  content: "";
+  position: absolute;
+  width: 220px;
+  height: 220px;
+  right: -60px;
+  bottom: -120px;
+  border-radius: 50%;
+  border: 24px solid rgba(255, 255, 255, 0.09);
+  pointer-events: none;
+}
+.pq-studio-copy { position: relative; z-index: 1; max-width: 38rem; }
+.pq-studio-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.55rem;
+  padding: 0.34rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #f5f3ff;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(6px);
+}
+.pq-studio-hero h2 {
+  margin: 0 0 0.45rem;
+  font-size: clamp(1.45rem, 4vw, 2.05rem);
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  color: #fff;
+}
+.pq-studio-hero p {
+  margin: 0;
+  max-width: 42ch;
+  color: rgba(245, 243, 255, 0.86);
+  font-size: 0.94rem;
+  line-height: 1.55;
+}
+.pq-studio-badge {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  display: grid;
+  gap: 0.15rem;
+  justify-items: center;
+  min-width: 116px;
+  padding: 0.85rem 1rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.13);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 10px 24px rgba(2, 6, 23, 0.18);
+}
+.pq-studio-badge span {
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: #ddd6fe;
+}
+.pq-studio-badge strong {
+  font-size: 0.82rem;
+  line-height: 1.25;
+  text-align: center;
+  color: #fff;
+}
+
+.pq-search-shell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 62px;
+  padding: 0.35rem 0.45rem 0.35rem 1rem;
+  border-radius: 18px;
+  background: #fff;
+  border: 1.5px solid #ddd6fe;
+  box-shadow: 0 14px 34px rgba(76, 29, 149, 0.1);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+.pq-search-shell:focus-within {
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.12), 0 18px 40px rgba(76, 29, 149, 0.14);
+  transform: translateY(-1px);
+}
+.pq-search-glyph {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f3e8ff, #ede9fe);
+  color: #6d28d9;
+  font-size: 1.05rem;
+}
+#pqStudentSearch {
+  flex: 1;
+  min-width: 0;
+  min-height: 50px;
+  padding: 0.55rem 0.6rem !important;
+  border: 0 !important;
+  border-radius: 12px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-size: 1rem !important;
+  font-weight: 500;
+  color: #1e1b4b;
+  outline: none !important;
+}
+#pqStudentSearch::placeholder { color: #8b8aa8; }
+.pq-search-clear {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 50%;
+  background: #f1f5f9;
+  color: #475569;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.pq-search-clear[hidden] { display: none; }
+.pq-search-clear:hover { background: #fee2e2; color: #b91c1c; }
+
+.pq-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.pq-tabs {
+  margin-bottom: 0 !important;
+  width: auto !important;
+  max-width: 100%;
+  background: #eef2ff;
+  box-shadow: 0 2px 0 rgba(255, 255, 255, 0.9) inset;
+}
+.pq-tabs .tab {
+  white-space: nowrap;
+}
+.pq-tabs .tab.is-active {
+  background: linear-gradient(135deg, #7c3aed, #6d28d9) !important;
+  color: #fff !important;
+  box-shadow: 0 8px 18px rgba(124, 58, 237, 0.28) !important;
+}
+.pq-result-pill {
+  flex: 0 0 auto;
+  padding: 0.5rem 0.9rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f3e8ff, #e0e7ff);
+  border: 1px solid #ddd6fe;
+  color: #5b21b6;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.pq-card-grid {
+  grid-template-columns: repeat(auto-fill, minmax(255px, 1fr));
+}
+.pq-paper-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  min-height: 178px;
+  padding: 1.05rem;
+  border: 1px solid #e9e5f7;
+  background:
+    radial-gradient(120% 80% at 100% 0%, rgba(124, 58, 237, 0.06), transparent 55%),
+    #fff;
+}
+.pq-paper-card:hover {
+  border-color: #c4b5fd;
+  box-shadow: 0 22px 48px rgba(76, 29, 149, 0.15);
+}
+.pq-paper-top {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+.pq-paper-card h4 {
+  margin: 0.1rem 0 0;
+  font-size: 1.02rem;
+}
+.pq-paper-card p {
+  flex: 1;
+  margin: 0;
+  color: #64748b;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.pq-paper-card .card-foot {
+  margin-top: auto;
+  padding-top: 0.7rem;
+  border-top: 1px dashed #e9e5f7;
+}
+
+@media (max-width: 720px) {
+  .pq-studio-hero { align-items: flex-start; }
+  .pq-studio-badge { display: none; }
+  .pq-search-shell { min-height: 58px; padding-left: 0.75rem; }
+  .pq-toolbar { align-items: stretch; }
+  .pq-result-pill { align-self: flex-start; }
+  .pq-card-grid { grid-template-columns: 1fr; }
+}
+

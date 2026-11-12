@@ -629,7 +629,8 @@ body.classroom-board-open .board-overlay:not(.hidden) {
 .board-type-input {
   width: 100%; padding: 10px 12px; border-radius: 8px;
   border: 1px solid #7c3aed; background: #0a0612; color: #fff;
-  font-size: 1rem; font-family: inherit;
+  font-size: 1rem; font-family: inherit; line-height: 1.4;
+  min-height: 42px; max-height: 120px; resize: vertical; overflow-y: auto;
 }
 .board-type-input:focus { outline: none; border-color: #c4b5fd; box-shadow: 0 0 0 2px rgba(125, 211, 160, 0.2); }
 .board-toolbar .vc-btn.sm.active { background: #5b21b6; border-color: #c4b5fd; color: #fff; }
@@ -995,6 +996,8 @@ body:not(.classroom-chrome-hidden) .classroom-chrome-toggle {
   .board-type-input {
     font-size: 0.88rem;
     padding: 8px 10px;
+    min-height: 40px;
+    resize: none;
   }
   .participants-list {
     max-height: 36px;
@@ -1957,6 +1960,19 @@ body.meet-v2.host-view .meet-main {
 }
 .meet-end-btn { margin-left: 8px; }
 
+.more-menu-list button {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid #4c1d95;
+  border-radius: 9px;
+  background: #130d20;
+  color: #e9d5ff;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
 @media (max-width: 900px) {
   body.meet-v2.host-view .meet-main {
     grid-template-columns: 1fr;
@@ -1976,6 +1992,28 @@ body.meet-v2.host-view .meet-main {
   }
   .meet-tool-btn span:not(.chat-unread) { display: none; }
   .meet-tool-btn { min-width: 44px; padding: 10px 8px; }
+  #spotlight-bar { display: none !important; }
+  .meet-toolbar { padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px)); }
+  .meet-toolbar-inner {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    gap: 8px;
+    width: 100%;
+    overflow: hidden;
+  }
+  .meet-toolbar-inner > .meet-tool-btn,
+  .meet-toolbar-inner > .mic-wrap {
+    flex: 0 0 48px;
+    min-width: 48px;
+  }
+  .meet-toolbar-inner > .mic-wrap .meet-tool-btn { width: 100%; }
+  .meet-toolbar-inner > .meet-tool-btn:not(#btn-mic):not(#btn-cam):not(#btn-more),
+  .meet-toolbar-inner > .mic-live-badge,
+  .meet-toolbar-inner > .save-live-badge {
+    display: none !important;
+  }
+  #sxPageLang,
+  .sx-page-lang { display: none !important; }
 }
 
 /* Meet v2 layout fixes — override legacy mobile classroom rules */

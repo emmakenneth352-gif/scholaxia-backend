@@ -6,6 +6,22 @@
   var nextUrl = "";
   var marketMode = false;
 
+  // Affiliate "Refer & Earn" — remember ?ref=CODE from the shared link for the
+  // 30 days users typically take between clicking and finally signing up.
+  try {
+    var refQ = new URLSearchParams(window.location.search).get("ref");
+    if (refQ && String(refQ).trim()) {
+      localStorage.setItem("sia_ref_code", String(refQ).trim().toUpperCase());
+      localStorage.setItem("sia_ref_code_since", String(Date.now()));
+    } else if (localStorage.getItem("sia_ref_code")) {
+      var since = Number(localStorage.getItem("sia_ref_code_since") || 0);
+      if (!since || Date.now() - since > 30 * 86400000) {
+        localStorage.removeItem("sia_ref_code");
+        localStorage.removeItem("sia_ref_code_since");
+      }
+    }
+  } catch (eRef) { /* ignore */ }
+
   var ROLE_META = {
     student: {
       subLogin: "Student portal — log in with your email or school Student ID",
@@ -487,11 +503,21 @@
         if (!body.location) throw new Error("Location is required");
         if (!body.address) throw new Error("Business address is required");
       }
-      await api.api("/api/v1/auth/signup/start", {
+      var signupResult = await api.api("/api/v1/auth/signup/start", {
         method: "POST",
         noAuth: true,
         body: body,
       });
+      var devOtpHint = $("devOtpHint");
+      if (devOtpHint && signupResult && signupResult.debug_otp) {
+        devOtpHint.textContent = "Local development OTP: " + signupResult.debug_otp;
+        devOtpHint.hidden = false;
+        devOtpHint.style.display = "block";
+      } else if (devOtpHint) {
+        devOtpHint.textContent = "";
+        devOtpHint.hidden = true;
+        devOtpHint.style.display = "none";
+      }
       pendingEmail = email;
       setVisible($("signupStepDetails"), false);
       setVisible($("signupStepOtp"), true);
@@ -518,7 +544,7 @@
       var data = await api.api("/api/v1/auth/signup/verify", {
         method: "POST",
         noAuth: true,
-        body: { email: pendingEmail || $("signupEmail").value.trim(), otp: otp },
+        body: { email: pendingEmail || $("signupEmail").value.trim(), otp: otp, ref_code: (function(){ try { var c = localStorage.getItem("sia_ref_code") || ""; return c && c.trim() ? c.trim() : undefined; } catch (e) { return undefined; } })() },
       });
       // Switch the whole site to the language chosen at signup
       var chosenLang = ($("signupLanguage") && $("signupLanguage").value) || "";
@@ -530,6 +556,8 @@
         pendingEmail || $("signupEmail").value.trim(),
         $("signupName").value.trim()
       );
+      // Affiliate code consumed — the account exists now.
+      try { localStorage.removeItem("sia_ref_code"); localStorage.removeItem("sia_ref_code_since"); } catch (e) {}
     } catch (err) {
       showErr($("otpError"), err.message || "Verification failed");
       btn.disabled = false;

@@ -55,7 +55,7 @@
             <button type="button" class="role-btn" data-role="kind" role="tab" aria-selected="false">
               Kid
             </button>
-            <button type="button" class="role-btn" data-role="vendor" role="tab" aria-selected="false">
+            <button type="button" class="role-btn" data-role="vendor" role="tab" aria-selected="false" data-show-market hidden>
               Vendor
             </button>
           </div>
@@ -73,8 +73,8 @@
           <div class="auth-panels">
             <form id="formLogin" class="auth-form" role="tabpanel" aria-labelledby="tabLogin">
               <label>
-                Email or Student ID
-                <input id="loginEmail" type="text" autocomplete="username" required placeholder="you@email.com or STU-24-001" />
+                Email
+                <input id="loginEmail" type="text" autocomplete="username" required placeholder="you@email.com" />
               </label>
               <label>
                 Password
@@ -82,7 +82,6 @@
               </label>
               <p class="auth-error" id="loginError" hidden></p>
               <button class="auth-submit" type="submit" id="btnLogin">Log in</button>
-              <p class="auth-hint">School student? Log in with the <strong>Student ID</strong> and password from your school office — no email needed.</p>
               <p class="auth-switch" id="loginSwitch">
                 New here?
                 <button type="button" id="gotoSignup">Create an account</button>
@@ -195,6 +194,7 @@
                   <input id="signupOtp" type="text" inputmode="numeric" maxlength="8" placeholder="6-digit code" />
                 </label>
                 <p class="auth-error" id="otpError" hidden></p>
+                <p class="auth-hint" id="devOtpHint" hidden style="display:none"></p>
                 <button class="auth-submit" type="button" id="btnVerify">Verify &amp; continue</button>
                 <button class="auth-linkish" type="button" id="btnBackDetails">← Back</button>
               </div>

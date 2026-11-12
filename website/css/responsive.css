@@ -314,6 +314,9 @@ body {
   }
 
   /* ===== TOOLBAR - FIX WRAPPING ===== */
+  /* Phone toolbar: keep the essentials visible; the full list stays in the
+     More sheet. Without this the icon rail outgrows the screen and the
+     fixed language pill sat on top of the End button. */
   .classroom-toolbar,
   .meet-toolbar {
     flex: 0 0 auto !important;
@@ -397,6 +400,35 @@ body {
   /* Hide right toolbar on mobile (extra controls) */
   .classroom-toolbar .toolbar-right {
     display: none !important;
+  }
+
+  /* Language chip injected by i18n.js lives on top of this toolbar — the
+     classroom has its own controls; never render the pill here. */
+  .sx-page-lang {
+    display: none !important;
+  }
+
+  /* Declutter: teacher-only extras stay available in the More sheet. */
+  #btn-share,
+  #btn-stage-fullscreen,
+  #btn-save-live,
+  #mic-live-badge,
+  #save-live-badge {
+    display: none !important;
+  }
+
+  /* The build tag is developer info, not classroom info. */
+  .sx-build-badge {
+    display: none !important;
+  }
+
+  /* End class must always be reachable — pin it to the end of the
+     scrollable toolbar rail. */
+  .btn-end-class {
+    position: sticky !important;
+    right: 0 !important;
+    margin-left: 4px;
+    flex: 0 0 auto !important;
   }
 
   /* ===== CHAT PANEL FIXES ===== */

@@ -339,6 +339,18 @@
     if (id === "saved") id = "home";
     if (!PAGE_TITLES.hasOwnProperty(id)) id = "home";
 
+    var featureId = id === "coding" ? "study-materials" : id;
+    var featureKey = "student." + featureId;
+    if (window.ScholaxiaFeatures && window.ScholaxiaFeatures.isLocked(featureKey)) {
+      window.ScholaxiaFeatures.showLocked(featureKey);
+      // A direct hash/link to a locked page must not leave the shell blank.
+      if (id !== "home" && !document.querySelector(".page.is-on")) {
+        showPage("home", { replace: true });
+      }
+      return;
+    }
+    document.body.setAttribute("data-sx-feature", featureKey);
+
     if (!opts.replace && currentPageId && currentPageId !== id) {
       pageHistory.push(currentPageId);
       if (pageHistory.length > 20) pageHistory = pageHistory.slice(-20);
@@ -374,6 +386,9 @@
     btn.hidden = !show;
     btn.setAttribute("aria-hidden", show ? "false" : "true");
   }
+
+  // Used by the feature guard's "Go to Home" button.
+  window.studentShowPage = showPage;
 
   function goBack() {
     var prev = null;
@@ -1143,11 +1158,13 @@
         '">Buy &amp; download</button>';
     }
     return (
-      '<div class="card">' +
+      '<div class="card pq-paper-card">' +
+      '<div class="pq-paper-top">' +
       '<span class="card-tag">' +
       esc(exam || "Past Questions") +
       "</span>" +
       (canDownload ? '<span class="card-tag is-downloadable">PDF</span>' : "") +
+      "</div>" +
       "<h4>" +
       esc(title) +
       "</h4>" +
@@ -1156,6 +1173,20 @@
       foot +
       "</div></div>"
     );
+  }
+
+  function setPastQuestionCount(shown, total) {
+    var el = $("pqResultCount");
+    if (!el) return;
+    if (shown == null) {
+      el.textContent = "Loading papers...";
+      return;
+    }
+    var word = shown === 1 ? "paper" : "papers";
+    el.textContent =
+      shown === 0
+        ? "No papers found"
+        : shown + " " + word + (total && total !== shown ? " of " + total : "") + " found";
   }
 
   function loadPastQuestions() {
@@ -1221,12 +1252,14 @@
       });
     }
     if (!items.length) {
+      setPastQuestionCount(0, pastQuestionsCache.length);
       wrap.innerHTML = emptyHtml(
         "📄",
         "No past-question PDFs match your search. Try another subject, title, or exam category."
       );
       return;
     }
+    setPastQuestionCount(items.length, pastQuestionsCache.length);
     wrap.innerHTML = items.map(renderPastQuestionCard).join("");
   }
 
@@ -1244,10 +1277,21 @@
   }
 
   var pqStudentSearch = $("pqStudentSearch");
+  var pqSearchClear = $("pqSearchClear");
   if (pqStudentSearch) {
     pqStudentSearch.addEventListener("input", function () {
       pqSearchTerm = (pqStudentSearch.value || "").trim();
+      if (pqSearchClear) pqSearchClear.hidden = !pqSearchTerm;
       renderPastQuestions();
+    });
+  }
+  if (pqSearchClear && pqStudentSearch) {
+    pqSearchClear.addEventListener("click", function () {
+      pqStudentSearch.value = "";
+      pqSearchTerm = "";
+      pqSearchClear.hidden = true;
+      renderPastQuestions();
+      pqStudentSearch.focus();
     });
   }
 
@@ -1446,6 +1490,7 @@
         retries: 3,
       })
       .then(function (data) {
+        dropRetakePacks(data);
         examsCacheByKind[paperKind] = data || {};
         if (paperKind === "cbt_practice") examsForMeCache = examsCacheByKind[paperKind];
         return examsCacheByKind[paperKind];
@@ -1469,8 +1514,22 @@
       });
   }
 
+  /** Stable per-student scope for device-cached exam papers and queued
+   *  answers. Shared devices hand over between students, so exam-only keys
+   *  let the next student see the previous one's downloaded paper. */
+  function localStudentScope() {
+    var raw = "";
+    try {
+      raw = localStorage.getItem("sia_user_id") ||
+        localStorage.getItem("sia_school_student_id") ||
+        localStorage.getItem("sia_email") ||
+        localStorage.getItem("sia_name") || "";
+    } catch (e) { /* ignore */ }
+    return String(raw).trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "anon";
+  }
+
   function packKey(id, isExternal) {
-    return isExternal ? "sia_cbt_pack_ext_" + id : "sia_cbt_pack_" + id;
+    return (isExternal ? "sia_cbt_pack_ext_" : "sia_cbt_pack_") + localStudentScope() + "_" + id;
   }
 
   function getPack(id, isExternal) {
@@ -1479,6 +1538,26 @@
 
   function setPack(id, isExternal, data) {
     writeLocalJson(packKey(id, isExternal), data);
+  }
+
+  /** A granted retake drops the cached school paper once, so the next start
+   *  downloads a freshly randomized paper; the marker stops the new pack from
+   *  being wiped again on the next refresh. */
+  function dropRetakePacks(data) {
+    var list = (data && data.school_exams) || [];
+    list.forEach(function (ex) {
+      var id = ex && (ex.id || ex.exam_id);
+      if (!id) return;
+      var marker = "sia_school_retake_cleared_" + localStudentScope() + "_" + id;
+      if (ex.retake_granted) {
+        if (!localStorage.getItem(marker)) {
+          try { localStorage.removeItem(packKey(id, false)); } catch (e) {}
+          try { localStorage.setItem(marker, "1"); } catch (e) {}
+        }
+      } else {
+        try { localStorage.removeItem(marker); } catch (e) {}
+      }
+    });
   }
 
   function examMinutes(exam) {
@@ -2170,13 +2249,17 @@
     }
   }
 
-  var SIA_EXT_QUEUED_KEY = "sia_ext_pending_submits";
+  var SIA_EXT_QUEUED_PREFIX = "sia_ext_pending_submits__";
+  function extQueueKey() { return SIA_EXT_QUEUED_PREFIX + localStudentScope(); }
   async function readQueuedExams() {
-    var list = await sxSecGet(SIA_EXT_QUEUED_KEY);
-    return Array.isArray(list) ? list : [];
+    var list = await sxSecGet(extQueueKey());
+    var owner = localStudentScope();
+    return Array.isArray(list)
+      ? list.filter(function (x) { return x.owner === owner; })
+      : [];
   }
   async function writeQueuedExams(list) {
-    await sxSecSet(SIA_EXT_QUEUED_KEY, list || []);
+    await sxSecSet(extQueueKey(), list || []);
   }
   // One entry per exam: a re-queued submission replaces the older draft, so
   // the same attempt can never be submitted twice.
@@ -2186,6 +2269,7 @@
       list = list.filter(function (x) { return x.exam_id !== st.examId; });
       list.push({
         exam_id: st.examId,
+        owner: localStudentScope(),
         title: st.title || "",
         answers: answers,
         started_at: st.startedAt || null,
@@ -4641,19 +4725,16 @@
     var originalLabel = joinBtn.textContent || "Join now";
     joinBtn.disabled = true;
     joinBtn.textContent = "Joining…";
-    var joinPromise = Promise.resolve();
-    if (api.wakeServer) {
-      joinPromise = api.wakeServer(20000).catch(function () { return null; });
-    }
-    joinPromise
-      .then(function () {
-        return api.api("/api/v1/live-classes/" + encodeURIComponent(id) + "/join", {
-          method: "POST",
-          preferXhr: true,
-          awaitWake: true,
-          timeout: 45000,
-          retries: 2,
-        });
+    // Fire the join immediately. A separate /health "wake" round-trip used to
+    // run first, adding ~1s even when the API was already warm; if the server
+    // really is cold, api() wakes and retries on the failed attempt instead.
+    api
+      .api("/api/v1/live-classes/" + encodeURIComponent(id) + "/join", {
+        method: "POST",
+        preferXhr: true,
+        awaitWake: false,
+        timeout: 45000,
+        retries: 2,
       })
       .then(function (res) {
         showLiveJoinResult(res || {});

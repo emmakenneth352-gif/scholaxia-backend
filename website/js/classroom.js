@@ -284,6 +284,9 @@ var _boardRedrawScheduled = false;
 var _boardTypeSendTimer = null;
 var _lastBoardTypeStream = "";
 var _lastRemoteTextStream = "";
+// Id of the most recent text line the LOCAL teacher committed — the server
+// echo of it must not be re-added to teacher history (dup guard).
+var _lastOwnTextId = "";
 var _boardCacheCanvas = null;
 var _boardCacheHistoryLen = -1;
 
@@ -2740,14 +2743,27 @@ function onBoardTypeInput() {
 }
 
 function onBoardTypeKeydown(e) {
-  if (!board.canDraw || e.key !== "Enter") return;
-  e.preventDefault();
-  commitBoardLine();
+  if (!board.canDraw) return;
+  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    commitBoardLine();
+    return;
+  }
+  if (e.key === "ArrowDown") {
+    var inp = document.getElementById("board-type-input");
+    if (inp && inp.selectionStart === inp.value.length && inp.selectionEnd === inp.value.length) {
+      e.preventDefault();
+      commitBoardLine();
+    }
+  }
 }
 
 function commitBoardLine() {
   var inp = document.getElementById("board-type-input");
   var text = inp ? inp.value.trim() : "";
+  var committedLineCount = text
+    ? wrapBoardTextLines(text, getBoardTextMaxWidth(), board.fontSize).length
+    : 1;
   if (text) {
     var data = {
       id: newBoardTextId(),
@@ -2756,6 +2772,7 @@ function commitBoardLine() {
       text: text,
       size: board.fontSize
     };
+    _lastOwnTextId = data.id;
     board.history.push({ type: "text", data: data });
     invalidateBoardCache();
     sendBoardEvent("text", data);
@@ -2770,7 +2787,7 @@ function commitBoardLine() {
   });
   if (inp) inp.value = "";
   board.liveText = "";
-  board.textY += board.lineHeight;
+  board.textY += board.lineHeight * committedLineCount;
   board.liveTextId = boardLiveTextId();
   ensureBoardCanvasFitsContent();
   redrawBoard();
@@ -2785,15 +2802,40 @@ function commitBoardLine() {
   if (inp) inp.focus();
 }
 
+// Canvas growth must NEVER wipe existing ink: assigning canvas.height clears
+// every pixel, which (a) erased committed content while typing on slow phones
+// and (b) forced a full history replay after every keystroke. Copy the current
+// bitmap into an offscreen canvas first, then paste it back after the resize.
+function growBoardCanvasTo(nextH) {
+  if (!board.canvas || !board.ctx) return false;
+  nextH = Math.max(getBoardMinCanvasHeight(), Math.floor(nextH));
+  if (nextH <= board.canvas.height) return false;
+  var keep = null;
+  try {
+    keep = document.createElement("canvas");
+    keep.width = board.canvas.width;
+    keep.height = board.canvas.height;
+    keep.getContext("2d").drawImage(board.canvas, 0, 0);
+  } catch (eKeep) { keep = null; }
+  board.canvas.height = nextH;
+  if (keep) {
+    try {
+      board.ctx.drawImage(keep, 0, 0);
+    } catch (ePaste) { /* full redraw will restore ink */ }
+  }
+  return true;
+}
+
 function ensureBoardCanvasFitsForLiveText() {
   if (!board.canvas || !board.ctx) return;
   var lines = wrapBoardTextLines(board.liveText || "", getBoardTextMaxWidth(), board.fontSize);
   var need = board.textY + lines.length * board.lineHeight + board.lineHeight * 2;
-  var minH = getBoardMinCanvasHeight();
-  var nextH = Math.max(minH, need);
-  if (nextH > board.canvas.height) {
-    board.canvas.height = nextH;
-  }
+  growBoardCanvasTo(need);
+}
+
+function ensureBoardCanvasFitsPoint(y) {
+  if (!board.canvas || typeof y !== "number" || !isFinite(y)) return;
+  growBoardCanvasTo(y + board.lineHeight * 3);
 }
 
 function getBoardMinCanvasHeight() {
@@ -2809,19 +2851,17 @@ function getBoardMinCanvasHeight() {
   return minH;
 }
 
-function ensureBoardCanvasFitsContent() {
+// Coordinates expect the canvas top-left as (0, 0), so the needed height is
+// relative to the top of the CURRENT canvas, not its bottom: keep the largest
+// height seen so far.
+function ensureBoardCanvasFitsContent(minBottomY) {
   if (!board.canvas) return;
-  var need = Math.max(board.textY + board.lineHeight * 3, board.canvas.height || 0);
-  var nextH = Math.max(getBoardMinCanvasHeight(), need);
-  if (nextH > board.canvas.height) {
-    board.canvas.height = nextH;
-    if (board.ctx) {
-      board.ctx.lineCap = "round";
-      board.ctx.lineJoin = "round";
-      board.ctx.strokeStyle = "#e8f5ec";
-      board.ctx.lineWidth = 6;
-    }
-  }
+  var need = Math.max(
+    board.textY + board.lineHeight * 3,
+    (typeof minBottomY === "number" ? minBottomY : 0),
+    board.canvas.height || 0
+  );
+  growBoardCanvasTo(need);
 }
 
 function scrollBoardToTypingCursor() {
@@ -2927,6 +2967,8 @@ function onBoardPointerMove(ev) {
     var eraseStroke = {
       x0: board.lastX, y0: board.lastY, x1: p.x, y1: p.y, width: 28
     };
+    ensureBoardCanvasFitsPoint(Math.max(eraseStroke.y0, eraseStroke.y1));
+    invalidateBoardCache();
     applyEraseStroke(eraseStroke, false);
     sendBoardEvent("erase", eraseStroke);
     board.history.push({ type: "erase", data: eraseStroke });
@@ -2938,6 +2980,7 @@ function onBoardPointerMove(ev) {
     x0: board.lastX, y0: board.lastY, x1: p.x, y1: p.y,
     color: "#e8f5ec", width: 6
   };
+  ensureBoardCanvasFitsPoint(Math.max(stroke.y0, stroke.y1));
   applyDrawStroke(stroke, false);
   sendBoardEvent("draw", stroke);
   board.history.push({ type: "draw", data: stroke });
@@ -3168,6 +3211,8 @@ function handleBoardMessage(msg) {
       return;
     }
     board.open = !!data.open;
+    var wasOpen = !!window._sxBoardWasOpen;
+    window._sxBoardWasOpen = board.open;
     var overlay = document.getElementById("board-overlay");
     if (overlay) overlay.classList.toggle("hidden", !board.open);
     syncMainStageLayers();
@@ -3178,7 +3223,9 @@ function handleBoardMessage(msg) {
         redrawBoard();
       });
       if (!isTeacherRole()) {
-        addChatMessage("", "Teacher opened the board.", true);
+        // The teacher's own heartbeat re-sends board_open every ~12s — only
+        // announce the close→open transition, repeated status must not spam chat.
+        if (!wasOpen) addChatMessage("", "Teacher opened the board.", true);
         if (liveSocket && liveSocket.readyState === WebSocket.OPEN) {
           try {
             liveSocket.send(JSON.stringify({ event: "request_board_sync" }));
@@ -3204,6 +3251,7 @@ function handleBoardMessage(msg) {
   if (!isTeacherRole()) showBoardForStudent(true);
   if (msg.action === "draw") {
     var drData = msg.data || {};
+    ensureBoardCanvasFitsPoint(Math.max(drData.y0 || 0, drData.y1 || 0));
     var dupDraw = board.history.some(function (h) {
       return h.type === "draw" && h.data
         && h.data.x0 === drData.x0 && h.data.y0 === drData.y0
@@ -3218,6 +3266,7 @@ function handleBoardMessage(msg) {
   }
   if (msg.action === "erase") {
     var erData = msg.data || {};
+    ensureBoardCanvasFitsPoint(Math.max(erData.y0 || 0, erData.y1 || 0));
     if (!board.history.some(function (h) {
       return h.type === "erase" && h.data
         && h.data.x0 === erData.x0 && h.data.y0 === erData.y0
@@ -3230,8 +3279,27 @@ function handleBoardMessage(msg) {
     return;
   }
   if (msg.action === "text") {
+    /* Server broadcasts every whiteboard message back to ALL room members
+       (echo), and periodic replay syncs re-send old messages. Without a
+       dedupe, the teacher's own committed line was appended to board.history
+       again on every echo — history grew forever (canvas got slower and
+       slower to redraw, the spam the teacher saw boil up after a few
+       minutes). Draw and erase already dedupe; text must too. */
+    var dupText = data.id
+      ? board.history.some(function (h) {
+          return h.type === "text" && h.data && h.data.id === data.id;
+        })
+      : board.history.some(function (h) {
+          return h.type === "text" && h.data
+            && h.data.y === data.y && h.data.text === data.text;
+        });
+    var textLines = (data.text ? wrapBoardTextLines(data.text, getBoardTextMaxWidth(data.x), data.size || board.fontSize).length : 1);
+    ensureBoardCanvasFitsPoint(data.y + textLines * board.lineHeight);
     invalidateBoardCache();
-    applyBoardText(data, true);
+    applyBoardText(data, false);
+    if (!dupText && !(isTeacherRole() && data.id && data.id === _lastOwnTextId)) {
+      board.history.push({ type: "text", data: data });
+    }
     board.liveText = "";
     if (data && typeof data.y === "number") {
       board.textY = Math.max(board.textY, data.y + board.lineHeight);

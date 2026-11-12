@@ -7,9 +7,17 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <title>Scholaxia — Student</title>
     <link rel="icon" type="image/png" href="media/logo-main.png" />
+    <!-- Warm the live-class hosts while the dashboard renders: joining then
+         skips DNS + TLS setup for the API, plugNmeet and LiveKit. -->
+    <link rel="preconnect" href="https://scholaxia1.onrender.com" crossorigin />
+    <link rel="dns-prefetch" href="https://scholaxia1.onrender.com" />
+    <link rel="preconnect" href="https://edge.plugnmeet.cloud" crossorigin />
+    <link rel="dns-prefetch" href="https://edge.plugnmeet.cloud" />
+    <link rel="dns-prefetch" href="wss://scholaxia-neyu04kd.livekit.cloud" />
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="css/app.css?v=20261024b" />
-    <link rel="stylesheet" href="css/student-pretty.css?v=20261024b" />
+    <link rel="stylesheet" href="css/app.css?v=20261112a" />
+    <link rel="stylesheet" href="css/student-pretty.css?v=20261112a" />
+    <script src="js/site-guard.js?v=20261112a"></script>
     <script>
       // Drop stale caches so CBT updates are not stuck on old JS
       try {
@@ -53,7 +61,7 @@
           <button class="side-link" data-page="about" type="button"><span class="ico">ℹ</span>About</button>
           <button class="side-link" data-page="contact" type="button"><span class="ico">✉</span>Contact</button>
           <button class="side-link" data-page="profile" type="button"><span class="ico">👤</span>Profile</button>
-          <a class="side-link" href="affiliate.html"><span class="ico">💜</span>Refer &amp; Earn</a>
+          <a class="side-link" href="affiliate.html" data-feature-lock="student.affiliate"><span class="ico">💜</span>Refer &amp; Earn</a>
         </nav>
         <div class="side-promo">
           <strong>Subscription</strong>
@@ -159,31 +167,48 @@
 
           <!-- ================= PAST QUESTIONS ================= -->
           <section class="page" id="page-past-questions">
-            <div class="panel">
-              <h2>Past Questions</h2>
-              <p>Buy and download past-question <strong>PDFs</strong> here. Admin uploads them under <strong>Library → Past Questions</strong>. These are not timed CBT — use <strong>CBT Practice</strong> for interactive exams.</p>
-              <div class="field" style="margin-bottom:0.85rem;">
+            <div class="pq-studio">
+              <header class="pq-studio-hero">
+                <div class="pq-studio-copy">
+                  <span class="pq-studio-kicker">Past Questions Library</span>
+                  <h2>Find your next past paper</h2>
+                  <p>Search JAMB, WAEC, NECO and Common Entrance papers. Buy once, download the PDF and revise offline.</p>
+                </div>
+                <div class="pq-studio-badge" aria-hidden="true">
+                  <span>PDF</span>
+                  <strong>Instant access</strong>
+                </div>
+              </header>
+
+              <div class="pq-search-shell">
+                <span class="pq-search-glyph" aria-hidden="true">&#128269;</span>
                 <input
                   id="pqStudentSearch"
                   type="search"
-                  placeholder="Search by exam, subject, or paper title…"
+                  placeholder="Search by exam, subject, year or paper title..."
                   autocomplete="off"
                   aria-label="Search past questions"
                 />
+                <button type="button" class="pq-search-clear" id="pqSearchClear" aria-label="Clear search" hidden>&#10005;</button>
               </div>
-              <div class="tabs" id="pqFilterTabs">
-                <button type="button" class="tab is-active" data-cat="all">All</button>
-                <button type="button" class="tab" data-cat="jamb">JAMB</button>
-                <button type="button" class="tab" data-cat="waec">WAEC</button>
-                <button type="button" class="tab" data-cat="neco">NECO</button>
-                <button type="button" class="tab" data-cat="igcse">IGCSE</button>
-                <button type="button" class="tab" data-cat="sat">SAT</button>
-                <button type="button" class="tab" data-cat="kcse">KCSE</button>
-                <button type="button" class="tab" data-cat="bece">BECE</button>
-                <button type="button" class="tab" data-cat="common">Common Entrance</button>
-                <button type="button" class="tab" data-cat="post">Post-UTME</button>
+
+              <div class="pq-toolbar">
+                <div class="tabs pq-tabs" id="pqFilterTabs">
+                  <button type="button" class="tab is-active" data-cat="all">All</button>
+                  <button type="button" class="tab" data-cat="jamb">JAMB</button>
+                  <button type="button" class="tab" data-cat="waec">WAEC</button>
+                  <button type="button" class="tab" data-cat="neco">NECO</button>
+                  <button type="button" class="tab" data-cat="igcse">IGCSE</button>
+                  <button type="button" class="tab" data-cat="sat">SAT</button>
+                  <button type="button" class="tab" data-cat="kcse">KCSE</button>
+                  <button type="button" class="tab" data-cat="bece">BECE</button>
+                  <button type="button" class="tab" data-cat="common">Common Entrance</button>
+                  <button type="button" class="tab" data-cat="post">Post-UTME</button>
+                </div>
+                <div class="pq-result-pill" id="pqResultCount">Loading papers...</div>
               </div>
-              <div class="card-grid" id="pastQuestionsList"><div class="loading-state">Loading past questions…</div></div>
+
+              <div class="card-grid pq-card-grid" id="pastQuestionsList"><div class="loading-state">Loading past questions...</div></div>
             </div>
           </section>
 
@@ -823,10 +848,11 @@
     <!-- Live-class ring sound removed — invitations surface on the Access Codes page. -->
 
     <script src="js/i18n.js?v=20261024b"></script>
-    <script src="js/api.js?v=20261024b"></script>
+    <script src="js/api.js?v=20261105a"></script>
+    <script src="js/feature-lock.js?v=20261112a"></script>
     <script src="js/paystack.js?v=20261024b"></script>
     <script src="js/games.js?v=20261024b"></script>
     <script src="js/sx-calc.js?v=20261027c"></script>
-    <script src="js/student.js?v=20261027a"></script>
+    <script src="js/student.js?v=20261112a"></script>
   </body>
 </html>
