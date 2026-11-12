@@ -41,6 +41,7 @@ from app.routers import school_core, school_results_router
 from app.routers import past_questions_shop
 from app.routers import ai_tokens
 from app.routers import affiliate
+from app.routers import feature_access
 from app.websockets.live_class_ws import live_class_endpoint
 
 
@@ -85,6 +86,8 @@ app.add_middleware(
 )
 
 app.include_router(app_meta.router, prefix="/api/v1")
+app.include_router(feature_access.router, prefix="/api/v1")
+app.include_router(feature_access.admin_router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(students.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")

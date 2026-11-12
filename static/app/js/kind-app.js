@@ -78,6 +78,18 @@
     id = String(id || "").trim();
     if (!TITLES[id]) return;
     opts = opts || {};
+
+    var featureKey = "kind." + id;
+    if (window.ScholaxiaFeatures && window.ScholaxiaFeatures.isLocked(featureKey)) {
+      window.ScholaxiaFeatures.showLocked(featureKey);
+      // A direct hash/link to a locked page must not leave the shell blank.
+      if (id !== "home" && !document.querySelector(".page.is-on")) {
+        showPage("home", { replace: true });
+      }
+      return;
+    }
+    document.body.setAttribute("data-sx-feature", featureKey);
+
     if (!opts.replace && currentPage !== id) {
       pageHistory.push(id);
       if (pageHistory.length > 20) pageHistory.shift();

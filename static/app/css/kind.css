@@ -740,7 +740,7 @@ input, select, textarea { font: inherit; }
   .kind-content { padding: 1rem 0.85rem 5rem; }
 }
 
-/* �� Kids games �� */
+/* �� Kids games �� */
 .hidden { display: none !important; }
 .kind-games-grid {
   display: grid;
@@ -846,3 +846,48 @@ input, select, textarea { font: inherit; }
 .kind-game-feedback { text-align: center; font-weight: 700; margin: 16px 0; color: #6b6280; }
 .kind-game-feedback.ok { color: #16a34a; }
 .quick-tile.t-games { background: linear-gradient(135deg, #fef3c7, #fde68a); }
+
+/* ── Shiny polish for the kids app ─────────────────────────────────────── */
+.page.is-on { animation: kind-page-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes kind-page-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.kind-hero { box-shadow: 0 22px 52px rgba(76, 29, 149, 0.26); }
+.kind-nav-btn.is-active { box-shadow: 0 12px 26px rgba(124, 58, 237, 0.34); }
+.kind-nav-btn.is-active .ico { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12); }
+
+.btn-primary {
+  position: relative;
+  overflow: hidden;
+}
+.btn-primary::after {
+  content: "";
+  position: absolute;
+  top: -30%;
+  bottom: -30%;
+  left: -70%;
+  width: 45%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  transform: skewX(-20deg);
+  transition: left 0.55s ease;
+  pointer-events: none;
+}
+.btn-primary:hover::after { left: 130%; }
+
+.quick-tile {
+  position: relative;
+  overflow: hidden;
+}
+.quick-tile::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(110% 80% at 100% 0%, rgba(255, 255, 255, 0.75), transparent 55%);
+  opacity: 0.6;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.quick-tile:hover::after { opacity: 1; }
+.quick-tile:hover { transform: translateY(-5px); }
+

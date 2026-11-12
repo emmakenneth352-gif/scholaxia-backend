@@ -11,7 +11,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/admin.css?v=20260903addq1" />
+  <link rel="stylesheet" href="css/admin.css?v=20261112a" />
   <link rel="stylesheet" href="css/responsive.css?v=20260805e" />
 </head>
 <body>
@@ -61,6 +61,7 @@
     <nav class="admin-nav">
       <div class="nav-section">Overview</div>
       <button class="nav-btn" data-page="dashboard" onclick="showAdminPage('dashboard')">Dashboard</button>
+      <button class="nav-btn" data-page="feature-access" onclick="showAdminPage('feature-access')">Feature Access</button>
       <button class="nav-btn main-admin-only" data-page="schools" onclick="showAdminPage('schools')">Schools</button>
       <div class="nav-section">People</div>
       <button class="nav-btn" data-page="students" onclick="showAdminPage('students')">Students</button>
@@ -113,6 +114,37 @@
     <section id="page-dashboard" class="admin-page active">
       <div class="page-head"><h2>Dashboard</h2><button class="btn-sm" onclick="loadDashboard()">Refresh</button></div>
       <div id="stats-grid" class="stats-grid"><div class="loading">Loading…</div></div>
+    </section>
+
+    <section id="page-feature-access" class="admin-page">
+      <div class="page-head">
+        <h2>Feature Access &amp; Maintenance</h2>
+        <div class="form-row">
+          <button class="btn-sm" onclick="loadFeatureAccess()">Refresh</button>
+          <button class="btn-sm secondary" onclick="unlockAllFeatures()">Unlock all</button>
+        </div>
+      </div>
+      <p class="page-desc">
+        Lock any student or kids feature. When a learner taps a locked feature, Scholaxia shows a friendly
+        maintenance message instead of the screen. Changes apply immediately in the app, website and desktop.
+      </p>
+
+      <div class="panel" style="margin-bottom:16px">
+        <h3>Maintenance message</h3>
+        <p class="cbt-hint small" style="margin-bottom:8px">
+          This message is shown for every locked feature. Save it once, then lock the features below.
+        </p>
+        <label style="display:block">
+          <span style="display:block;font-size:0.78rem;font-weight:700;margin-bottom:5px">Message students will see</span>
+          <input id="feature-lock-message" type="text" maxlength="1000" style="width:100%" placeholder="We are running an update - we will be open soon." />
+        </label>
+        <div class="form-row" style="margin-top:10px">
+          <button class="btn-sm primary" onclick="saveFeatureLockMessage()">Save message</button>
+          <span id="feature-lock-msg" class="cbt-hint small"></span>
+        </div>
+      </div>
+
+      <div id="feature-access-wrap"><div class="loading">Loading...</div></div>
     </section>
 
     <section id="page-schools" class="admin-page">
@@ -1413,7 +1445,7 @@
 
 <script src="js/admin-api.js?v=20260903addq1"></script>
 <script src="js/admin-auth.js?v=20260902adminfix"></script>
-<script src="js/admin.js?v=20261019studycategory1"></script>
+<script src="js/admin.js?v=20261112a"></script>
 <script src="js/responsive.js?v=20260805e"></script>
 </body>
 </html>

@@ -339,6 +339,18 @@
     if (id === "saved") id = "home";
     if (!PAGE_TITLES.hasOwnProperty(id)) id = "home";
 
+    var featureId = id === "coding" ? "study-materials" : id;
+    var featureKey = "student." + featureId;
+    if (window.ScholaxiaFeatures && window.ScholaxiaFeatures.isLocked(featureKey)) {
+      window.ScholaxiaFeatures.showLocked(featureKey);
+      // A direct hash/link to a locked page must not leave the shell blank.
+      if (id !== "home" && !document.querySelector(".page.is-on")) {
+        showPage("home", { replace: true });
+      }
+      return;
+    }
+    document.body.setAttribute("data-sx-feature", featureKey);
+
     if (!opts.replace && currentPageId && currentPageId !== id) {
       pageHistory.push(currentPageId);
       if (pageHistory.length > 20) pageHistory = pageHistory.slice(-20);
@@ -374,6 +386,9 @@
     btn.hidden = !show;
     btn.setAttribute("aria-hidden", show ? "false" : "true");
   }
+
+  // Used by the feature guard's "Go to Home" button.
+  window.studentShowPage = showPage;
 
   function goBack() {
     var prev = null;
@@ -1143,11 +1158,13 @@
         '">Buy &amp; download</button>';
     }
     return (
-      '<div class="card">' +
+      '<div class="card pq-paper-card">' +
+      '<div class="pq-paper-top">' +
       '<span class="card-tag">' +
       esc(exam || "Past Questions") +
       "</span>" +
       (canDownload ? '<span class="card-tag is-downloadable">PDF</span>' : "") +
+      "</div>" +
       "<h4>" +
       esc(title) +
       "</h4>" +
@@ -1156,6 +1173,20 @@
       foot +
       "</div></div>"
     );
+  }
+
+  function setPastQuestionCount(shown, total) {
+    var el = $("pqResultCount");
+    if (!el) return;
+    if (shown == null) {
+      el.textContent = "Loading papers...";
+      return;
+    }
+    var word = shown === 1 ? "paper" : "papers";
+    el.textContent =
+      shown === 0
+        ? "No papers found"
+        : shown + " " + word + (total && total !== shown ? " of " + total : "") + " found";
   }
 
   function loadPastQuestions() {
@@ -1221,12 +1252,14 @@
       });
     }
     if (!items.length) {
+      setPastQuestionCount(0, pastQuestionsCache.length);
       wrap.innerHTML = emptyHtml(
         "📄",
         "No past-question PDFs match your search. Try another subject, title, or exam category."
       );
       return;
     }
+    setPastQuestionCount(items.length, pastQuestionsCache.length);
     wrap.innerHTML = items.map(renderPastQuestionCard).join("");
   }
 
@@ -1244,10 +1277,21 @@
   }
 
   var pqStudentSearch = $("pqStudentSearch");
+  var pqSearchClear = $("pqSearchClear");
   if (pqStudentSearch) {
     pqStudentSearch.addEventListener("input", function () {
       pqSearchTerm = (pqStudentSearch.value || "").trim();
+      if (pqSearchClear) pqSearchClear.hidden = !pqSearchTerm;
       renderPastQuestions();
+    });
+  }
+  if (pqSearchClear && pqStudentSearch) {
+    pqSearchClear.addEventListener("click", function () {
+      pqStudentSearch.value = "";
+      pqSearchTerm = "";
+      pqSearchClear.hidden = true;
+      renderPastQuestions();
+      pqStudentSearch.focus();
     });
   }
 
