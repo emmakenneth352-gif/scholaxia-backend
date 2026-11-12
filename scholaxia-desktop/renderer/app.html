@@ -63,11 +63,6 @@
           <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 14h6M9 18h4"/></svg></span>
           <span class="nav-label">CBT Practice</span>
         </button>
-        <button type="button" class="nav-item topnav-btn" data-page="access-code" onclick="showPage('access-code')">
-          <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
-          <span class="nav-label">Access Code</span>
-          <span id="access-code-badge" class="nav-badge hidden">0</span>
-        </button>
         <button type="button" class="nav-item topnav-btn" data-page="live" onclick="showPage('live')">
           <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 10l5-3v10l-5-3v-4z"/><rect x="3" y="6" width="12" height="12" rx="2"/></svg></span>
           <span class="nav-label">Live Class</span>
@@ -201,7 +196,6 @@
         </div>
       </div>
       <div class="exam-body">
-        <div class="q-nav" id="q-nav"></div>
         <div class="q-panel">
           <p class="q-num" id="q-num">Question 1</p>
           <p class="q-text" id="q-text"></p>
@@ -213,6 +207,7 @@
             <button type="button" class="btn-submit-exam" onclick="submitExam()">Submit Exam</button>
           </div>
         </div>
+        <div class="q-nav" id="q-nav"></div>
       </div>
     </div>
 
@@ -365,9 +360,6 @@
     <!-- Live Class -->
 
     <section id="page-live" class="page">
-
-      <div class="info-banner">Copy your code from the <strong>Access Code</strong> tab. Tap <strong>Join live</strong> on a class below and paste the code once to enter.</div>
-
       <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px">
         <button type="button" class="btn-action" style="background:linear-gradient(135deg,#16a34a,#15803d)" onclick="showPage('holiday-packages')">&#127808; Scholaxia Live Class Plans</button>
         <button type="button" class="btn-secondary" onclick="showPage('class-packages')">Class packages</button>
@@ -417,19 +409,6 @@
 
 
 
-    <!-- Access Code -->
-
-    <section id="page-access-code" class="page">
-      <div class="info-banner">When your teacher hosts a class, your <strong>unique code</strong> appears here. <strong>Copy</strong> the code — when you tap <strong>Join Live</strong>, paste it once to enter the class.</div>
-      <div class="section-header access-codes-header">
-        <h2>Your codes</h2>
-        <div class="access-codes-toolbar">
-          <button type="button" class="btn-secondary btn-sm" onclick="clearOldAccessCodes()">Clear old codes</button>
-          <button type="button" class="btn-secondary btn-sm access-codes-clear-all" onclick="clearAllAccessCodes()">Clear all</button>
-        </div>
-      </div>
-      <div id="access-codes-list" class="access-codes-list"><div class="loading">Loading…</div></div>
-    </section>
 
 
 
@@ -965,13 +944,11 @@
     <div class="join-access-backdrop" onclick="closeJoinLiveModal()"></div>
     <div class="join-access-card">
       <h2 id="join-access-title">Join live class</h2>
-      <p>Paste the access code your teacher sent you (from the <strong>Access Code</strong> tab).</p>
-      <input type="text" id="join-access-modal-input" placeholder="SX-XXXXXXXX" autocomplete="off" />
+      <p>Tap <strong>Enter class</strong> to join the live session. Your teacher will let you in from the class lobby.</p>
       <div class="join-access-actions">
         <button type="button" class="btn-secondary" onclick="closeJoinLiveModal()">Cancel</button>
         <button type="button" class="btn-action" id="btn-join-access-modal" onclick="submitJoinLiveModal()">Enter class</button>
       </div>
-      <p class="host-hint"><a href="#" onclick="showPage('access-code'); closeJoinLiveModal(); return false;">Open Access Code tab to copy</a></p>
     </div>
   </div>
   </div>
@@ -1136,7 +1113,6 @@
 <script src="js/paystack-checkout.js"></script>
 <script src="js/pnm-launch.js"></script>
 <script src="js/live-payment.js"></script>
-<script src="js/access-codes.js"></script>
 <script src="js/groups.js"></script>
 <script src="js/group-chat.js"></script>
 <script src="js/library.js"></script>
