@@ -25,7 +25,21 @@
 
   function apiBase() {
     var base = global.API_BASE || global.SCHOLAXIA_API_BASE || "";
-    return String(base || "").replace(/\/$/, "");
+    if (base) return String(base).replace(/\/$/, "");
+    // Pages such as the public Past Questions marketplace do not load api.js,
+    // so derive the API host the same way it does.
+    try {
+      var host = String((global.location && location.hostname) || "").toLowerCase();
+      if (
+        host === "scholaxia1.onrender.com" ||
+        host === "localhost" ||
+        host === "127.0.0.1" ||
+        (/\.scholaxia\.com$/.test(host) && host !== "scholaxia.com" && host !== "www.scholaxia.com")
+      ) {
+        return String(location.origin || "").replace(/\/$/, "");
+      }
+    } catch (e) { /* fall through */ }
+    return "https://scholaxia1.onrender.com";
   }
 
   function readCache() {
