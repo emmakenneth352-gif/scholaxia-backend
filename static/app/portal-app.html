@@ -375,6 +375,27 @@ tr:last-child td{border-bottom:none}
   }
   function toastErr(e) { toast("⚠️ " + errText(e)); }
 
+  /* Every network call goes through here, so a slow or dead server can never
+     leave a button spinning forever — it gives up with a readable message. */
+  function sxFetch(url, opts, ms) {
+    opts = opts || {};
+    var ctrl = (typeof AbortController !== "undefined") ? new AbortController() : null;
+    var timer = null;
+    var req;
+    try { req = fetch(url, ctrl ? Object.assign({}, opts, { signal: ctrl.signal }) : opts); }
+    catch (e) { return Promise.reject(e); }
+    if (!ctrl) return req;
+    return Promise.race([
+      req,
+      new Promise(function (_, reject) {
+        timer = setTimeout(function () {
+          try { ctrl.abort(); } catch (_) {}
+          reject(new Error("The server took too long to answer. Check your connection and try again."));
+        }, ms || 60000);
+      })
+    ]).then(function (r) { clearTimeout(timer); return r; },
+            function (e) { clearTimeout(timer); throw e; });
+  }
   function _headers(json) {
     var h = {};
     if (json !== false) h["Content-Type"] = "application/json";
@@ -402,7 +423,7 @@ tr:last-child td{border-bottom:none}
     opts = opts || {};
     var method = String(opts.method || "GET").toUpperCase();
     var run = function () {
-      return fetch(API + "/school-portal/" + slug + path, {
+      return sxFetch(API + "/school-portal/" + slug + path, {
         method: method,
         headers: _headers(!opts.form),
         body: opts.form ? opts.form : (opts.body ? JSON.stringify(opts.body) : undefined),
@@ -414,7 +435,7 @@ tr:last-child td{border-bottom:none}
     opts = opts || {};
     var method = String(opts.method || "GET").toUpperCase();
     var run = function () {
-      return fetch(API + "/admin/school-office" + path, {
+      return sxFetch(API + "/admin/school-office" + path, {
         method: method,
         headers: _headers(!opts.form),
         body: opts.form ? opts.form : (opts.body ? JSON.stringify(opts.body) : undefined),
@@ -431,7 +452,7 @@ tr:last-child td{border-bottom:none}
     var sep = path.indexOf("?") >= 0 ? "&" : "?";
     var method = String(opts.method || "GET").toUpperCase();
     var run = function () {
-      return fetch(API + "/school-settings" + path + (sid ? sep + "school_id=" + sid : ""), {
+      return sxFetch(API + "/school-settings" + path + (sid ? sep + "school_id=" + sid : ""), {
         method: method,
         headers: _headers(!opts.form),
         body: opts.form ? opts.form : (opts.body ? JSON.stringify(opts.body) : undefined),
@@ -464,7 +485,7 @@ tr:last-child td{border-bottom:none}
     btn.innerHTML = on ? '<span class="spin"></span> Working…' : label;
   }
   window.confirmModal = function (title, msg, onYes, yesLabel, red) {
-    openModal(esc(title), '<p style="font-size:14.5px;line-height:1.6">' + msg + '</p>',
+    openModal(esc(title), '<p style="font-size:14.5px;line-height:1.6">' + msg + '</p><div class="merr" style="display:none;margin-top:10px"></div>',
       '<button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn ' + (red ? "red" : "") + '" id="cfYes">' + (yesLabel || "Confirm") + '</button>');
     $("cfYes").addEventListener("click", function () { onYes($("cfYes")); });
   };
@@ -472,7 +493,7 @@ tr:last-child td{border-bottom:none}
   /* ── LOGIN SCREEN ── */
   function initLogin() {
     if (!slug) { $("lgSchool").textContent = "School Portal"; return; }
-    fetch(API + "/school-portal/" + slug + "/public").then(function (r) { return r.json(); }).then(function (d) {
+    sxFetch(API + "/school-portal/" + slug + "/public").then(function (r) { return r.json(); }).then(function (d) {
       if (!d || !d.name) return;
       S.school = d;
       $("lgSchool").textContent = d.name;
@@ -491,7 +512,7 @@ tr:last-child td{border-bottom:none}
     var btn = $("lgBtn"), err = $("lgErr");
     err.style.display = "none";
     btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Logging in…';
-    fetch(API + "/school-portal/" + slug + "/login", {
+    sxFetch(API + "/school-portal/" + slug + "/login", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ identifier: $("lgId").value.trim(), password: $("lgPw").value }),
     }).then(_handle).then(function (d) {
@@ -522,7 +543,7 @@ tr:last-child td{border-bottom:none}
     var email = ($("fpEmail").value || "").trim();
     if (!email) return mErr("Enter the email the school was registered with.");
     busy($("fpSend"), true, "Send code");
-    fetch(API + "/auth/otp/send", {
+    sxFetch(API + "/auth/otp/send", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: email, purpose: "reset_password" }),
     }).then(_handle).then(function (d) {
@@ -546,7 +567,7 @@ tr:last-child td{border-bottom:none}
       if (!otp) return mErr("Enter the code from the email.");
       if (pw.length < 8) return mErr("New password must be at least 8 characters.");
       busy($("fpGo"), true, "Set new password");
-      fetch(API + "/auth/password/reset", {
+      sxFetch(API + "/auth/password/reset", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email, otp: otp, new_password: pw }),
       }).then(_handle).then(function () {
@@ -844,11 +865,7 @@ tr:last-child td{border-bottom:none}
   /* ═══ TEACHERS ═══ */
   R.teachers = function () {
     $("pages").innerHTML = head("Teachers", "Teaching staff in your school.", '<button class="btn" onclick="addTeacher()">+ Add Teacher</button>') +
-      '<div class="panel"><div id="tTbl"><div class="empty">Loading…</div></div></div>' +
-      '<div class="panel" style="margin-top:14px"><h3>🔒 What your teachers can use</h3>' +
-      '<p class="mhint">Switch anything off and your teachers see “Ask your school admin for access” when they tap it. Unlock it any time.</p>' +
-      '<div id="tLocksBody" class="empty">Loading…</div></div>';
-    loadTeacherLocks();
+      '<div class="panel"><div id="tTbl"><div class="empty">Loading…</div></div></div>';
     officeApi("/teachers").then(function (d) {
       var rows = (d.teachers || []).map(function (t) {
         return '<tr><td><strong>' + esc(t.full_name) + '</strong></td><td>' + esc(t.email) + '</td><td>' + (t.subjects || []).map(function (s) { return '<span class="pill blue">' + esc(s) + '</span>'; }).join(" ") + '</td><td>' + esc((t.academic_classes || []).join(", ") || "—") + '</td></tr>';
@@ -1018,7 +1035,7 @@ tr:last-child td{border-bottom:none}
     opts = opts || {};
     var sid = (S.user && S.user.school_id) || null;
     var sep = path.indexOf("?") >= 0 ? "&" : "?";
-    return fetch(API + "/school-cbt" + path + (sid ? sep + "school_id=" + sid : ""), {
+    return sxFetch(API + "/school-cbt" + path + (sid ? sep + "school_id=" + sid : ""), {
       method: opts.method || "GET",
       headers: _headers(!opts.form),
       body: opts.form ? opts.form : (opts.body ? JSON.stringify(opts.body) : undefined),
@@ -2266,7 +2283,7 @@ tr:last-child td{border-bottom:none}
     if (!ids.length) return toastErr("Nothing to export yet.");
     busy(btn, true, "⬇ Exporting…");
     var sid = (S.user && S.user.school_id) ? "?school_id=" + encodeURIComponent(S.user.school_id) : "";
-    fetch(API + "/school-cbt/registrations/export" + sid, {
+    sxFetch(API + "/school-cbt/registrations/export" + sid, {
       method: "POST", headers: _headers(true), body: JSON.stringify({ student_ids: ids }),
     }).then(function (r) {
       return r.text().then(function (t) {

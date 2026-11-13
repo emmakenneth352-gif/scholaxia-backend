@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import require_school_staff
+from app.core.purge import purge_user
 from app.core.datetime_utils import naive_utc_now, to_naive_utc
 from app.core.security import decode_token, hash_password
 from app.models.school_cbt import (
@@ -2817,15 +2818,8 @@ async def registration_delete_one(
     """Delete one registered exam student with all their exam data."""
     sid = _staff_school_id(current_user, school_id)
     u = await _own_student(db, sid, student_id)
-    await db.execute(delete(SchoolExamAnswer).where(SchoolExamAnswer.student_id == u.id))
-    await db.execute(delete(SchoolExamDownload).where(SchoolExamDownload.student_id == u.id))
-    await db.execute(delete(SchoolExamAttempt).where(SchoolExamAttempt.student_id == u.id))
-    await db.execute(delete(SchoolExamResult).where(SchoolExamResult.student_id == u.id))
-    await db.execute(delete(SchoolExamAccessCode).where(SchoolExamAccessCode.student_id == u.id))
-    await db.execute(delete(SchoolExamAssignment).where(SchoolExamAssignment.student_id == u.id))
-    await db.execute(delete(StudentProfile).where(StudentProfile.user_id == u.id))
-    await db.delete(u)
-    await db.flush()
+    uid = u.id
+    await purge_user(db, uid)
     return {"deleted": 1}
 
 
@@ -2855,16 +2849,8 @@ async def registrations_delete_all(
         ids = (await db.execute(q)).scalars().all()
     n = 0
     for uid in ids:
-        await db.execute(delete(SchoolExamAnswer).where(SchoolExamAnswer.student_id == uid))
-        await db.execute(delete(SchoolExamDownload).where(SchoolExamDownload.student_id == uid))
-        await db.execute(delete(SchoolExamAttempt).where(SchoolExamAttempt.student_id == uid))
-        await db.execute(delete(SchoolExamResult).where(SchoolExamResult.student_id == uid))
-        await db.execute(delete(SchoolExamAccessCode).where(SchoolExamAccessCode.student_id == uid))
-        await db.execute(delete(SchoolExamAssignment).where(SchoolExamAssignment.student_id == uid))
-        await db.execute(delete(StudentProfile).where(StudentProfile.user_id == uid))
-        await db.execute(delete(User).where(User.id == uid))
+        await purge_user(db, uid)
         n += 1
-    await db.flush()
     return {"deleted": n}
 
 
