@@ -280,7 +280,7 @@ tr:last-child td{border-bottom:none}
       <div class="topbar">
         <button class="mob-menu-btn" onclick="toggleMobNav()" aria-label="Open menu">☰</button>
         <div class="search">🔍 <input id="gSearch" placeholder="Search students… (press Enter)" /></div>
-        <div class="who"><div class="avatar" id="uAvatar">A</div><div><div class="nm" id="uName">—</div><div class="rl">School Admin</div></div>
+        <div class="who"><div class="avatar" id="uAvatar">A</div><div><div class="nm" id="uName">—</div><div class="rl" id="uRole">School Admin</div></div>
           <button class="btn sm ghost" onclick="logout()" style="margin-left:8px">Log out</button></div>
       </div>
       <div class="content" id="pages"></div>
@@ -339,7 +339,7 @@ tr:last-child td{border-bottom:none}
     API = location.origin + "/api/v1";
   }
 
-  var S = { school: null, user: null, token: localStorage.getItem("sx_portal_token_" + slug) || null, cache: {} };
+  var S = { school: null, user: null, token: localStorage.getItem("sx_portal_token_" + slug) || null, pin: null, cache: {} };
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); };
   var money = function (n) { return "₦" + Number(n || 0).toLocaleString("en-NG"); };
@@ -379,6 +379,7 @@ tr:last-child td{border-bottom:none}
     var h = {};
     if (json !== false) h["Content-Type"] = "application/json";
     if (S.token) h["Authorization"] = "Bearer " + S.token;
+    if (S.pin) h["X-School-Pin"] = S.pin;
     return h;
   }
   function _handle(r) {
@@ -386,25 +387,40 @@ tr:last-child td{border-bottom:none}
       var d = null;
       try { d = txt ? JSON.parse(txt) : null; } catch (_) { d = null; }
       if (r.status === 401 && S.token) { logout(); throw new Error("Session expired — log in again."); }
-      if (!r.ok) throw new Error(detailOf(d) || ("Request failed (" + r.status + ")"));
+      if (!r.ok) {
+        var det = detailOf(d);
+        if (String(det || "").indexOf("PIN_REQUIRED") >= 0) {
+          S.pin = null;
+          throw new Error("Admin PIN required — ask your school admin for access.");
+        }
+        throw new Error(det || ("Request failed (" + r.status + ")"));
+      }
       return d;
     });
   }
   function api(path, opts) {
     opts = opts || {};
-    return fetch(API + "/school-portal/" + slug + path, {
-      method: opts.method || "GET",
-      headers: _headers(!opts.form),
-      body: opts.form ? opts.form : (opts.body ? JSON.stringify(opts.body) : undefined),
-    }).then(_handle);
+    var method = String(opts.method || "GET").toUpperCase();
+    var run = function () {
+      return fetch(API + "/school-portal/" + slug + path, {
+        method: method,
+        headers: _headers(!opts.form),
+        body: opts.form ? opts.form : (opts.body ? JSON.stringify(opts.body) : undefined),
+      }).then(_handle);
+    };
+    return PIN_METHODS.indexOf(method) >= 0 ? withAdminPin(run) : run();
   }
   function officeApi(path, opts) {
     opts = opts || {};
-    return fetch(API + "/admin/school-office" + path, {
-      method: opts.method || "GET",
-      headers: _headers(!opts.form),
-      body: opts.form ? opts.form : (opts.body ? JSON.stringify(opts.body) : undefined),
-    }).then(_handle);
+    var method = String(opts.method || "GET").toUpperCase();
+    var run = function () {
+      return fetch(API + "/admin/school-office" + path, {
+        method: method,
+        headers: _headers(!opts.form),
+        body: opts.form ? opts.form : (opts.body ? JSON.stringify(opts.body) : undefined),
+      }).then(_handle);
+    };
+    return PIN_METHODS.indexOf(method) >= 0 ? withAdminPin(run) : run();
   }
 
   /* ── MODAL SYSTEM (replaces every prompt/alert/confirm) ── */
@@ -413,11 +429,17 @@ tr:last-child td{border-bottom:none}
     opts = opts || {};
     var sid = (S.user && S.user.school_id) || null;
     var sep = path.indexOf("?") >= 0 ? "&" : "?";
-    return fetch(API + "/school-settings" + path + (sid ? sep + "school_id=" + sid : ""), {
-      method: opts.method || "GET",
-      headers: _headers(!opts.form),
-      body: opts.form ? opts.form : (opts.body ? JSON.stringify(opts.body) : undefined),
-    }).then(_handle);
+    var method = String(opts.method || "GET").toUpperCase();
+    var run = function () {
+      return fetch(API + "/school-settings" + path + (sid ? sep + "school_id=" + sid : ""), {
+        method: method,
+        headers: _headers(!opts.form),
+        body: opts.form ? opts.form : (opts.body ? JSON.stringify(opts.body) : undefined),
+      }).then(_handle);
+    };
+    // The PIN endpoints themselves never ask for the PIN first.
+    if (path.indexOf("/pin") === 0) return run();
+    return PIN_METHODS.indexOf(method) >= 0 ? withAdminPin(run) : run();
   }
 
   function openModal(title, bodyHTML, footHTML, wide) {
@@ -473,17 +495,8 @@ tr:last-child td{border-bottom:none}
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ identifier: $("lgId").value.trim(), password: $("lgPw").value }),
     }).then(_handle).then(function (d) {
-      var role = String((d.user && d.user.role) || d.role || "").toLowerCase();
-      if (role === "teacher") {
-        // A SCHOOL teacher: straight into the teacher studio, never the admin
-        // panel — the PIN and the school settings are not theirs to see.
-        localStorage.setItem("sia_teacher_token", d.access_token);
-        localStorage.setItem("sia_role", "teacher");
-        if (d.user && d.user.full_name) localStorage.setItem("sia_teacher_name", d.user.full_name);
-        if (d.user && d.user.email) localStorage.setItem("sia_teacher_email", d.user.email);
-        location.href = "teacher.html";
-        return;
-      }
+      // School admin and school teachers land on the SAME portal. What they can
+      // save or delete is decided by the admin PIN, not by a different page.
       S.token = d.access_token; S.user = d.user; S.school = d.school;
       localStorage.setItem("sx_portal_token_" + slug, S.token);
       localStorage.setItem("sx_portal_user_" + slug, JSON.stringify(d.user));
@@ -571,50 +584,58 @@ tr:last-child td{border-bottom:none}
     ["results", "📊", "Results"], ["attendance", "🗓️", "Attendance"], ["fees", "💳", "Fees & Finance"],
     ["reports", "📈", "Reports"], ["settings", "⚙️", "Settings"],
   ];
-  /* ── ADMIN PIN GATE ──
-     The control panel is opened with a 6-digit PIN the school admin sets.
-     Teachers never see or need it. */
-  var PIN_KEY = "sx_portal_pin_ok_" + slug;
-  function enter() {
-    if (sessionStorage.getItem(PIN_KEY) === "1") return enterApp();
-    settingsApi("/pin").then(function (d) {
-      if (!d || !d.has_pin) return pinCreate();
-      pinAsk();
-    }).catch(function () {
-      // Settings service unreachable: never lock the admin out of the school.
-      enterApp();
+  /* ── ADMIN PIN ──
+     Teachers and the school admin share this portal. Read screens are open to
+     both; changing or deleting school data asks for the 6-digit admin PIN,
+     which only the school admin knows. */
+  function enter() { enterApp(); }
+
+  var PIN_METHODS = ["DELETE", "PATCH", "PUT"];
+
+  function requestAdminPin() {
+    return new Promise(function (resolve) {
+      openModal("Admin PIN needed",
+        '<p class="mhint">Changing or deleting school data needs the 6-digit admin PIN. Teachers do not have it — ask your school admin for access.</p>' +
+        '<div class="mrow" style="margin-top:14px"><label class="f-label">Admin PIN</label>' +
+        '<input class="f-in" id="pinInput" type="password" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="••••••" style="letter-spacing:.45em;font-size:20px;text-align:center" /></div>' +
+        '<div class="merr" style="display:none;margin-top:8px"></div>',
+        '<button class="btn ghost" id="pinCancel">Cancel</button><button class="btn" id="pinGo">Confirm</button>');
+      var inp = $("pinInput");
+      setTimeout(function () { if (inp) inp.focus(); }, 60);
+      var settled = false;
+      function done(ok) { if (settled) return; settled = true; closeModal(); resolve(ok); }
+      $("pinCancel").addEventListener("click", function () { done(false); });
+      inp.addEventListener("keydown", function (e) { if (e.key === "Enter") $("pinGo").click(); });
+      $("pinGo").addEventListener("click", function () {
+        var v = (inp.value || "").trim();
+        if (!/^\d{6}$/.test(v)) return mErr("Enter the 6-digit PIN.");
+        busy($("pinGo"), true);
+        settingsApi("/pin/verify", { method: "POST", body: { pin: v } }).then(function (d) {
+          if (!d || !d.ok) { busy($("pinGo"), false, "Confirm"); return mErr("Wrong PIN. Ask your school admin."); }
+          S.pin = v;
+          done(true);
+        }).catch(function (e) { busy($("pinGo"), false, "Confirm"); mErr(errText(e)); });
+      });
     });
   }
-  window.pinAsk = function () {
-    openModal("Enter your admin PIN",
-      '<p class="mhint">This 6-digit PIN opens the school control panel. Only the school admin (and staff the admin trusts with it) should know it — teachers are never asked for it.</p>' +
-      '<div class="mrow" style="margin-top:14px"><label class="f-label">PIN</label>' +
-      '<input class="f-in" id="pinInput" type="password" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="••••••" style="letter-spacing:.45em;font-size:20px;text-align:center" /></div>' +
-      '<div class="merr" style="display:none;margin-top:8px"></div>',
-      '<button class="btn ghost" onclick="logout()">Log out</button><button class="btn" id="pinGo">Unlock</button>');
-    var inp = $("pinInput");
-    setTimeout(function () { if (inp) inp.focus(); }, 60);
-    inp.addEventListener("keydown", function (e) { if (e.key === "Enter") $("pinGo").click(); });
-    $("pinGo").addEventListener("click", function () {
-      var v = (inp.value || "").trim();
-      if (!/^\d{6}$/.test(v)) return mErr("Enter the 6-digit PIN.");
-      busy($("pinGo"), true);
-      settingsApi("/pin/verify", { method: "POST", body: { pin: v } }).then(function (d) {
-        if (!d || !d.ok) { busy($("pinGo"), false, "Unlock"); return mErr("Wrong PIN. Try again."); }
-        sessionStorage.setItem(PIN_KEY, "1");
-        closeModal(); enterApp(); toast("Welcome back");
-      }).catch(function (e) { busy($("pinGo"), false, "Unlock"); mErr(errText(e)); });
+
+  function withAdminPin(run) {
+    if (S.pin) return run();
+    return requestAdminPin().then(function (ok) {
+      if (!ok) throw new Error("Admin PIN required");
+      return run();
     });
-  };
+  }
+
   window.pinCreate = function () {
-    openModal("Create your admin PIN",
-      '<p class="mhint">Choose a 6-digit PIN. It is asked once per session before the control panel opens, so students and teachers can never change school settings. Keep it private.</p>' +
+    openModal("Create the admin PIN",
+      '<p class="mhint">Choose a 6-digit PIN. It is asked before anyone changes or deletes school data, so only you and the people you trust can do it. Keep it private — teachers do not get it.</p>' +
       '<div class="mrow" style="margin-top:14px"><label class="f-label">New 6-digit PIN</label>' +
       '<input class="f-in" id="pinNew" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" style="letter-spacing:.45em;font-size:20px;text-align:center" /></div>' +
       '<div class="mrow"><label class="f-label">Repeat PIN</label>' +
       '<input class="f-in" id="pinNew2" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" style="letter-spacing:.45em;font-size:20px;text-align:center" /></div>' +
       '<div class="merr" style="display:none;margin-top:8px"></div>',
-      '<button class="btn ghost" onclick="logout()">Log out</button><button class="btn" id="pinSave">Create PIN</button>');
+      '<button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn" id="pinSave">Create PIN</button>');
     setTimeout(function () { if ($("pinNew")) $("pinNew").focus(); }, 60);
     $("pinSave").addEventListener("click", function () {
       var a = ($("pinNew").value || "").trim(), b = ($("pinNew2").value || "").trim();
@@ -622,11 +643,15 @@ tr:last-child td{border-bottom:none}
       if (a !== b) return mErr("The two PINs do not match.");
       busy($("pinSave"), true);
       settingsApi("/pin", { method: "POST", body: { pin: a } }).then(function () {
-        sessionStorage.setItem(PIN_KEY, "1");
-        closeModal(); enterApp(); toast("PIN created — keep it safe");
+        S.pin = a;
+        busy($("pinSave"), false, "Create PIN");
+        closeModal();
+        toast("PIN created — keep it safe");
+        loadPinPanel();
       }).catch(function (e) { busy($("pinSave"), false, "Create PIN"); mErr(errText(e)); });
     });
   };
+
   window.pinChange = function () {
     openModal("Change admin PIN",
       '<div class="mrow"><label class="f-label">Current PIN</label><input class="f-in" id="pinOld" type="password" inputmode="numeric" maxlength="6" style="letter-spacing:.4em;text-align:center" /></div>' +
@@ -638,6 +663,7 @@ tr:last-child td{border-bottom:none}
       if (!/^\d{6}$/.test(nv)) return mErr("The new PIN must be exactly 6 digits.");
       busy($("pinChGo"), true);
       settingsApi("/pin/change", { method: "POST", body: { current_pin: oldv, new_pin: nv } }).then(function () {
+        S.pin = nv;
         busy($("pinChGo"), false, "Save PIN"); closeModal(); toast("PIN updated");
       }).catch(function (e) { busy($("pinChGo"), false, "Save PIN"); mErr(errText(e)); });
     });
@@ -649,6 +675,8 @@ tr:last-child td{border-bottom:none}
     $("sbSchool").textContent = (S.school && S.school.name) || (S.user && S.user.school_name) || "School";
     $("sbUser").textContent = (S.user && S.user.full_name) || "";
     $("uName").textContent = (S.user && S.user.full_name) || "Admin";
+    var roleName = String((S.user && S.user.role) || "").toLowerCase();
+    if ($("uRole")) $("uRole").textContent = roleName === "teacher" ? "Teacher" : "School Admin";
     $("uAvatar").textContent = ((S.user && S.user.full_name) || "A").charAt(0).toUpperCase();
     setLogo($("sbLogoWrap"), S.school && S.school.logo_url);
     $("nav").innerHTML = PAGES.map(function (p) {

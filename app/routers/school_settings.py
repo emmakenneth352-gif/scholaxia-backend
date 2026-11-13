@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import require_school_staff, require_teacher
 from app.core.security import hash_password, verify_password
+from app.core.school_pin import require_admin_pin
 from app.models.school_campus import SchoolCampus
 from app.models.school_feature_lock import SchoolFeatureLock
 
@@ -89,7 +90,11 @@ async def set_pin(
     """Create or change the 6-digit PIN. Changing one needs the old PIN."""
     if not PIN_RE.match((payload.pin or "").strip()):
         raise HTTPException(status_code=422, detail="PIN must be exactly 6 digits")
+    if str(current_user.get("role") or "").lower().replace("userrole.", "") not in ("school_admin", "admin"):
+        raise HTTPException(status_code=403, detail="Only the school admin can set the PIN")
     school = await _school(db, current_user, school_id)
+    if school.admin_pin_hash:
+        raise HTTPException(status_code=409, detail="This school already has a PIN - use Change PIN")
     school.admin_pin_hash = hash_password(payload.pin.strip())
     await db.commit()
     return {"ok": True, "has_pin": True}
@@ -109,6 +114,8 @@ async def change_pin(
 ):
     if not PIN_RE.match((payload.new_pin or "").strip()):
         raise HTTPException(status_code=422, detail="PIN must be exactly 6 digits")
+    if str(current_user.get("role") or "").lower().replace("userrole.", "") not in ("school_admin", "admin"):
+        raise HTTPException(status_code=403, detail="Only the school admin can change the PIN")
     school = await _school(db, current_user, school_id)
     if school.admin_pin_hash and not verify_password((payload.current_pin or "").strip(), school.admin_pin_hash):
         raise HTTPException(status_code=403, detail="Current PIN is wrong")
@@ -167,12 +174,14 @@ async def list_features(
 @router.put("/features")
 async def set_feature_lock(
     payload: FeatureLockIn,
+    request: Request,
     school_id: Optional[str] = Query(None),
     current_user: dict = Depends(require_school_staff),
     db: AsyncSession = Depends(get_db),
 ):
     """Lock or unlock one teacher feature for this school."""
     school = await _school(db, current_user, school_id)
+    await require_admin_pin(request, school, current_user)
     known = {f["key"] for f in TEACHER_FEATURES}
     if payload.key not in known:
         raise HTTPException(status_code=404, detail="Unknown teacher feature")

@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import delete, func, or_, select, text
 from sqlalchemy.orm.attributes import flag_modified
@@ -11,7 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import require_school_staff
-from app.core.security import hash_password
+from app.core.security import hash_password, verify_password
+from app.core.school_pin import require_admin_pin
 from app.models.cbt import CBTExam, CBTQuestion, CBTSession, ExamProctorLog
 from app.models.school_campus import SchoolCampus
 from app.models.school_office import SchoolExamCandidate
@@ -260,9 +261,10 @@ async def portal_add_subject(slug: str, payload: SubjectIn, current_user: dict =
 
 
 @portal_router.delete("/{slug}/subjects/{subject_id}")
-async def portal_delete_subject(slug: str, subject_id: str, current_user: dict = Depends(require_school_staff), db: AsyncSession = Depends(get_db)):
+async def portal_delete_subject(slug: str, subject_id: str, request: Request, current_user: dict = Depends(require_school_staff), db: AsyncSession = Depends(get_db)):
     info = await portal_public_info(slug, db)
     campus = await _campus(db, current_user, info["school_id"])
+    await require_admin_pin(request, campus, current_user)
     rows = [r for r in _subjects_of(campus) if r.get("id") != subject_id]
     campus.portal_subjects = rows
     flag_modified(campus, "portal_subjects")
@@ -308,9 +310,10 @@ async def portal_add_class(slug: str, payload: ClassIn, current_user: dict = Dep
 
 
 @portal_router.delete("/{slug}/classes/{class_id}")
-async def portal_delete_class(slug: str, class_id: str, current_user: dict = Depends(require_school_staff), db: AsyncSession = Depends(get_db)):
+async def portal_delete_class(slug: str, class_id: str, request: Request, current_user: dict = Depends(require_school_staff), db: AsyncSession = Depends(get_db)):
     info = await portal_public_info(slug, db)
     campus = await _campus(db, current_user, info["school_id"])
+    await require_admin_pin(request, campus, current_user)
     rows = [r for r in _classes_of(campus) if r.get("id") != class_id]
     campus.portal_classes = rows
     flag_modified(campus, "portal_classes")
@@ -459,9 +462,10 @@ class PortalSettingsIn(BaseModel):
 
 
 @portal_router.patch("/{slug}/settings")
-async def portal_update_settings(slug: str, payload: PortalSettingsIn, current_user: dict = Depends(require_school_staff), db: AsyncSession = Depends(get_db)):
+async def portal_update_settings(slug: str, payload: PortalSettingsIn, request: Request, current_user: dict = Depends(require_school_staff), db: AsyncSession = Depends(get_db)):
     info = await portal_public_info(slug, db)
     campus = await _campus(db, current_user, info["school_id"])
+    await require_admin_pin(request, campus, current_user)
     if payload.address is not None:
         campus.address = payload.address.strip() or None
     if payload.contact_email is not None:
@@ -1449,11 +1453,13 @@ async def portal_add_exam_questions(
 async def portal_delete_exam(
     slug: str,
     exam_id: str,
+    request: Request,
     current_user: dict = Depends(require_school_staff),
     db: AsyncSession = Depends(get_db),
 ):
     info = await portal_public_info(slug, db)
     campus = await _campus(db, current_user, info["school_id"])
+    await require_admin_pin(request, campus, current_user)
     exam = (await db.execute(select(CBTExam).where(CBTExam.id == exam_id, CBTExam.school_id == campus.id))).scalar_one_or_none()
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found in your school")
@@ -1468,11 +1474,13 @@ async def portal_delete_exam(
 async def portal_delete_fee(
     slug: str,
     fee_id: str,
+    request: Request,
     current_user: dict = Depends(require_school_staff),
     db: AsyncSession = Depends(get_db),
 ):
     info = await portal_public_info(slug, db)
     campus = await _campus(db, current_user, info["school_id"])
+    await require_admin_pin(request, campus, current_user)
     rows = [r for r in (getattr(campus, "portal_fees", None) or []) if r.get("id") != fee_id]
     campus.portal_fees = rows
     flag_modified(campus, "portal_fees")
@@ -1666,11 +1674,13 @@ async def portal_upload_results(
 async def portal_delete_result_sheet(
     slug: str,
     sheet_id: str,
+    request: Request,
     current_user: dict = Depends(require_school_staff),
     db: AsyncSession = Depends(get_db),
 ):
     info = await portal_public_info(slug, db)
     campus = await _campus(db, current_user, info["school_id"])
+    await require_admin_pin(request, campus, current_user)
     sheets = [s for s in (getattr(campus, "portal_results", None) or []) if s.get("id") != sheet_id]
     campus.portal_results = sheets
     flag_modified(campus, "portal_results")

@@ -201,14 +201,19 @@ async def require_admin(current_user: dict = Depends(get_current_user)):
 
 
 async def require_school_staff(current_user: dict = Depends(get_current_user)):
-    """Main admin (all schools) or a school admin (their campus only)."""
+    """Anyone who works in the school portal.
+
+    The school admin and the school's own teachers share the same portal; the
+    difference is the admin PIN, which destructive/admin-only routes ask for
+    (see app.core.school_pin).
+    """
     role = _norm_role(current_user.get("role"))
     if role == "admin":
         return current_user
-    if role != "school_admin":
+    if role not in ("school_admin", "teacher"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="School admin or main admin only",
+            detail="School staff only",
         )
     if not current_user.get("school_id"):
         raise HTTPException(
