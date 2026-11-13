@@ -59,6 +59,12 @@ textarea.f-in{resize:vertical;min-height:60px}
 .nav button:hover{background:rgba(255,255,255,.07);color:#fff}
 .nav button.on{background:var(--blue);color:#fff;font-weight:600}
 .nav .ico{width:20px;text-align:center;flex:none}
+.nav-sec{margin:16px 6px 3px;font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;color:#7f93b8;font-weight:700}
+.nav-sec:first-child{margin-top:2px}
+.step{display:flex;gap:13px;align-items:center;padding:12px 6px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:8px}
+.step:last-child{border-bottom:0}
+.step:hover{background:#f6f9ff}
+.step-n{width:27px;height:27px;border-radius:50%;background:#e8f0fe;color:#1d4ed8;font-weight:800;font-size:12.5px;display:flex;align-items:center;justify-content:center;flex:none}
 .side-foot{padding-top:14px;border-top:1px solid rgba(255,255,255,.09);font-size:12px;color:#8fa3c8;line-height:1.6}
 /* Quick Stats (reference sidebar) */
 .qstats{margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.09);display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -281,7 +287,8 @@ tr:last-child td{border-bottom:none}
         <button class="mob-menu-btn" onclick="toggleMobNav()" aria-label="Open menu">☰</button>
         <div class="search">🔍 <input id="gSearch" placeholder="Search students… (press Enter)" /></div>
         <div class="who"><div class="avatar" id="uAvatar">A</div><div><div class="nm" id="uName">—</div><div class="rl" id="uRole">School Admin</div></div>
-          <button class="btn sm ghost" onclick="logout()" style="margin-left:8px">Log out</button></div>
+          <button class="btn sm ghost" onclick="showHelp()" style="margin-left:8px" title="How this portal works">❓ Help</button>
+          <button class="btn sm ghost" onclick="logout()" style="margin-left:6px">Log out</button></div>
       </div>
       <div class="content" id="pages"></div>
     </div>
@@ -593,18 +600,30 @@ tr:last-child td{border-bottom:none}
     logout();
   }
 
-  /* ── APP SHELL ── */  var PAGES = [
-    ["dashboard", "🏠", "Dashboard"], ["exreg", "🧾", "Register Student"],
-    ["exstudents", "✅", "Approve Students"],
-    ["exsched", "🗓️", "Exam Schedule"],
-    ["students", "👥", "All Students"], ["teachers", "👨‍🏫", "Teachers"],
+  /* ── APP SHELL ──
+     Grouped by what you are trying to do, so the 18 pages read as five short
+     sections instead of one long list. */
+  var PAGES = [
+    ["dashboard", "🏠", "Dashboard"],
+    ["students", "👥", "Students"], ["teachers", "👨‍🏫", "Teachers"],
     ["classes", "🎓", "Classes"], ["subjects", "📚", "Subjects"],
-    ["exresults", "🏆", "Exam Results"],
-    ["exbank", "🏦", "Question Banks"], ["exretake", "🔄", "Grant Retake"],
-    ["exup", "📤", "Upload Results"], ["extpl", "🖨️", "Result Template"],
-    ["results", "📊", "Result Book"], ["attendance", "📋", "Attendance"], ["fees", "💳", "Fees & Finance"],
-    ["reports", "📈", "Reports"], ["settings", "⚙️", "Settings"],
+    ["attendance", "📋", "Attendance"], ["fees", "💳", "Fees & Payments"],
+    ["exreg", "🧾", "Register Student"], ["exstudents", "✅", "Approve Students"],
+    ["exsched", "🗓️", "Exam Schedule"], ["exbank", "🏦", "Question Banks"],
+    ["exresults", "🏆", "Exam Results"], ["exretake", "🔄", "Grant Retake"],
+    ["exup", "📤", "Upload Results"], ["extpl", "🖨️", "Report Card Design"],
+    ["results", "📊", "Result Book"], ["reports", "📈", "Reports"],
+    ["settings", "⚙️", "Settings"],
   ];
+  var NAV_SECTIONS = {
+    dashboard: "Overview",
+    students: "School", teachers: "School", classes: "School", subjects: "School",
+    attendance: "School", fees: "School",
+    exreg: "Exams", exstudents: "Exams", exsched: "Exams", exbank: "Exams",
+    exresults: "Exams", exretake: "Exams",
+    exup: "Results", extpl: "Results", results: "Results", reports: "Results",
+    settings: "Setup",
+  };
   /* ── ADMIN PIN ──
      Teachers and the school admin share this portal. Read screens are open to
      both; changing or deleting school data asks for the 6-digit admin PIN,
@@ -708,9 +727,13 @@ tr:last-child td{border-bottom:none}
     }
     $("uAvatar").textContent = ((S.user && S.user.full_name) || "A").charAt(0).toUpperCase();
     setLogo($("sbLogoWrap"), S.school && S.school.logo_url);
-    $("nav").innerHTML = PAGES.map(function (p) {
-      return '<button data-p="' + p[0] + '" onclick="showPage(\'' + p[0] + '\')"><span class="ico">' + p[1] + '</span>' + p[2] + '</button>';
-    }).join("");
+    var navHtml = "", curSec = "";
+    PAGES.forEach(function (p) {
+      var sec = NAV_SECTIONS[p[0]] || "";
+      if (sec && sec !== curSec) { curSec = sec; navHtml += '<div class="nav-sec">' + sec + '</div>'; }
+      navHtml += '<button data-p="' + p[0] + '" onclick="showPage(\'' + p[0] + '\')"><span class="ico">' + p[1] + '</span>' + p[2] + '</button>';
+    });
+    $("nav").innerHTML = navHtml;
     $("gSearch").addEventListener("keydown", function (e) {
       if (e.key === "Enter" && this.value.trim()) { showPage("students"); setTimeout(function () { var q = $("stQ"); if (q) { q.value = $("gSearch").value.trim(); loadStudents(); } }, 60); }
     });
@@ -741,6 +764,18 @@ tr:last-child td{border-bottom:none}
     var sb = $("sidebar");
     if (sb && sb.classList.contains("open")) { sb.classList.remove("open"); document.body.classList.remove("sidebar-open"); }
     if (R[p]) { try { R[p](); } catch (e) { $("pages").innerHTML = '<div class="panel"><div class="empty">' + esc(errText(e)) + '</div></div>'; } }
+  };
+  window.showHelp = function () {
+    openModal("❓ How this portal works",
+      '<p class="mhint" style="margin-bottom:10px">The left menu has five short sections — this is what each one is for.</p>' +
+      '<div style="font-size:14px;line-height:1.7">' +
+      '<p style="margin:0 0 8px"><strong>🏠 Overview</strong> — your dashboard: counts and the “Start here” steps.</p>' +
+      '<p style="margin:0 0 8px"><strong>🏫 School</strong> — students, teachers, classes, subjects, attendance and fees. This is the day-to-day running of the school.</p>' +
+      '<p style="margin:0 0 8px"><strong>📝 Exams</strong> — register a student for a CBT exam, approve them, schedule the exam, build question banks, see scores, grant a retake.</p>' +
+      '<p style="margin:0 0 8px"><strong>📊 Results</strong> — upload CA and exam scores, design the report card, print results, see reports.</p>' +
+      '<p style="margin:0"><strong>⚙️ Setup</strong> — school details and the admin PIN.</p></div>' +
+      '<div class="mnote" style="margin-top:14px">🔐 <strong>About the PIN:</strong> anything that saves, edits, clears or deletes asks for the 6-digit <strong>admin PIN</strong>. Teachers can open every page and read everything, but only the admin has the PIN. Create or change it in <strong>Setup → Settings → Admin PIN</strong>.</div>',
+      '<button class="btn" onclick="closeModal()">Got it</button>', true);
   };
   window.toggleMobNav = function () {
     var sb = $("sidebar");
@@ -774,10 +809,28 @@ tr:last-child td{border-bottom:none}
   R.dashboard = function () {
     $("pages").innerHTML = head("Dashboard", "Welcome back" + (S.user ? ", " + esc(S.user.full_name.split(" ")[0]) : "") + " — here's your school at a glance.") +
       '<div class="cards" id="dCards"><div class="panel"><div class="empty">Loading…</div></div></div>' +
-      '<div class="panel"><h3>Quick actions</h3><div class="radio-row">' +
-      '<label onclick="showPage(\'students\')">👥 Add / view students</label><label onclick="showPage(\'exams\')">📝 Create exam or CBT</label>' +
-      '<label onclick="showPage(\'results\')">📊 View results</label><label onclick="showPage(\'attendance\')">🗓️ Mark attendance</label>' +
-      '<label onclick="showPage(\'fees\')">💳 Record a payment</label><label onclick="showPage(\'settings\')">⚙️ School settings</label></div></div>';
+      '<div class="panel"><h3>Start here</h3>' +
+      '<p class="mhint" style="margin-bottom:6px">Set the school up once, in this order. Tap any step to open it.</p>' +
+      '<div id="dSteps"></div></div>';
+    var steps = [
+      ["classes", "Create your classes", "JSS1, JSS2, SS1… students and exams are grouped by class."],
+      ["subjects", "Add your subjects", "The subjects you teach and exam in."],
+      ["teachers", "Add your teachers", "They log in on this same link with the password you give them."],
+      ["students", "Add your students", "Each student gets a Student ID and a password to log in with."],
+      ["exbank", "Build question banks", "Upload a file or type questions — one bank per class and subject."],
+      ["exsched", "Schedule an exam", "Choose the class, subject, number of questions and the time window."],
+      ["exstudents", "Approve the students", "Approved students get their registration number and access code."],
+      ["exup", "Upload the results", "Enter CA and exam scores, then print the report cards."]
+    ];
+    $("dSteps").innerHTML = steps.map(function (s, i) {
+      return '<div class="step" data-go="' + s[0] + '">' +
+        '<div class="step-n">' + (i + 1) + '</div>' +
+        '<div style="flex:1"><strong>' + s[1] + '</strong><div class="muted" style="font-size:12.5px;margin-top:2px">' + s[2] + '</div></div>' +
+        '<span class="muted" style="font-size:18px">›</span></div>';
+    }).join("");
+    Array.prototype.forEach.call(document.querySelectorAll("#dSteps .step"), function (el) {
+      el.addEventListener("click", function () { showPage(el.getAttribute("data-go")); });
+    });
     api("/dashboard").then(function (d) {
       if (d.school) { $("sbSchool").textContent = d.school.name; }
       var st = d.stats || {};
@@ -1072,7 +1125,7 @@ tr:last-child td{border-bottom:none}
     ["exsched", "Exam Schedule", "Schedule the class exams — subjects, questions, duration, date", ""],
     ["exretake", "Grant Retake", "Fetch a student by reg number and grant their retake", ""],
     ["exup", "Upload Results", "Result sheets per class, term and subject", ""],
-    ["extpl", "Result Template", "Report card design — logo, colors, signatures, remarks, category percentages", ""],
+    ["extpl", "Report Card Design", "The printed report card — school logo, colours, signatures, remarks and how CA and exam are weighted", ""],
     ["exresults", "Exam Results", "Scores, grades, publish and Grant Retake", ""],
   ];
   function exShell(meta) {
@@ -3225,7 +3278,7 @@ tr:last-child td{border-bottom:none}
 
   /* ═══ FEES & FINANCE ═══ */
   R.fees = function () {
-    $("pages").innerHTML = head("Fees & Finance", "Track payments and outstanding fees.", '<button class="btn" onclick="addFee()">+ Record Payment</button>') +
+    $("pages").innerHTML = head("Fees & Payments", "What each student has paid and what is still owed.", '<button class="btn" onclick="addFee()">+ Record Payment</button>') +
       '<div class="cards" id="feeCards"></div><div class="panel"><div id="feeTbl"><div class="empty">Loading…</div></div></div>';
     Promise.all([api("/fees"), officeApi("/students")]).then(function (all) {
       var d = all[0];
@@ -3311,7 +3364,7 @@ tr:last-child td{border-bottom:none}
 
   /* ═══ SETTINGS ═══ */
   R.settings = function () {
-    $("pages").innerHTML = head("Settings", "Your school information.") + '<div class="panel" id="setBody"><div class="empty">Loading…</div></div>';
+    $("pages").innerHTML = head("Settings", "Your school details and the admin PIN that protects every change.") + '<div class="panel" id="setBody"><div class="empty">Loading…</div></div>';
     api("/settings").then(function (d) {
       var s = d.school || {};
       var scholaxiaUrl = s.slug ? "https://" + s.slug + ".scholaxia.com/" : "";
