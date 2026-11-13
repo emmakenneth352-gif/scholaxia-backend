@@ -816,7 +816,11 @@ tr:last-child td{border-bottom:none}
   /* ═══ TEACHERS ═══ */
   R.teachers = function () {
     $("pages").innerHTML = head("Teachers", "Teaching staff in your school.", '<button class="btn" onclick="addTeacher()">+ Add Teacher</button>') +
-      '<div class="panel"><div id="tTbl"><div class="empty">Loading…</div></div></div>';
+      '<div class="panel"><div id="tTbl"><div class="empty">Loading…</div></div></div>' +
+      '<div class="panel" style="margin-top:14px"><h3>🔒 What your teachers can use</h3>' +
+      '<p class="mhint">Switch anything off and your teachers see “Ask your school admin for access” when they tap it. Unlock it any time.</p>' +
+      '<div id="tLocksBody" class="empty">Loading…</div></div>';
+    loadTeacherLocks();
     officeApi("/teachers").then(function (d) {
       var rows = (d.teachers || []).map(function (t) {
         return '<tr><td><strong>' + esc(t.full_name) + '</strong></td><td>' + esc(t.email) + '</td><td>' + (t.subjects || []).map(function (s) { return '<span class="pill blue">' + esc(s) + '</span>'; }).join(" ") + '</td><td>' + esc((t.academic_classes || []).join(", ") || "—") + '</td></tr>';
@@ -3206,11 +3210,8 @@ tr:last-child td{border-bottom:none}
         '<div class="panel" style="margin-top:18px"><h3>🔐 Admin PIN</h3>' +
         '<p class="mhint">The 6-digit PIN asked before this control panel opens. Teachers never see it.</p>' +
         '<div id="pinPanelBody" class="muted" style="margin-top:10px">Loading…</div></div>' +
-        '<div class="panel" style="margin-top:14px"><h3>🔒 Teacher access</h3>' +
-        '<p class="mhint">Switch off any feature you do not want your teachers to use. A locked feature tells the teacher to ask you for access.</p>' +
-        '<div id="tLocksBody" class="empty">Loading…</div></div>';
+        '<p class="mhint" style="margin-top:10px">Teacher access is managed on the <strong>Teachers</strong> page.</p>';
       loadPinPanel();
-      loadTeacherLocks();
     }).catch(function (e) { $("setBody").innerHTML = '<div class="empty">' + esc(errText(e)) + '</div>'; });
   };
   function loadPinPanel() {
