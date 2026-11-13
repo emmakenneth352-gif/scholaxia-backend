@@ -1982,7 +1982,7 @@ async function endClass(id) {
     var frame = document.getElementById("affiliateFrame");
     if (!frame || e.source !== frame.contentWindow) return;
     var h = Number(e.data.height) || 0;
-    frame.style.height = Math.max(640, Math.min(6000, h)) + "px";
+    frame.style.height = Math.max(480, Math.min(6000, h)) + "px";
   });
 
   document.querySelectorAll(".nav-btn[data-page]").forEach(function (btn) {

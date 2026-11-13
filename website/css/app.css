@@ -1724,4 +1724,4 @@ button { font: inherit; cursor: pointer; border: 0; background: none; color: inh
 .quick.action.qa-games { background: linear-gradient(135deg, #fef3c7, #fde68a); }
 
 /* Refer & Earn embedded page */
-.aff-embed { display: block; width: 100%; border: 0; background: transparent; min-height: 560px; }
+.aff-embed { display: block; width: 100%; border: 0; background: transparent; min-height: 480px; }

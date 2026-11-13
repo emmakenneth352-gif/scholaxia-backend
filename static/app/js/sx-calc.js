@@ -4,7 +4,6 @@
 (function () {
   if (window.SxCalc) return;
   var OPEN_HTML =
-    '<div id="sxCalcBtn" title="Open calculator">🧮<span>Calculator</span></div>' +
     '<div id="sxCalcPop" hidden>' +
     '<div id="sxCalcHead"><b>🧮 Calculator</b><span><button id="sxCalcMin" title="Hide">—</button>' +
     '<button id="sxCalcClose" title="Close">✕</button></span></div>' +
@@ -15,10 +14,6 @@
       .join("") +
     "</div></div>";
   var CSS =
-    "#sxCalcBtn{position:fixed;right:14px;bottom:14px;z-index:99990;background:#7B61FF;color:#fff;" +
-    "border-radius:999px;padding:10px 16px;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.3);" +
-    "display:flex;gap:8px;align-items:center;font-size:15px;border:none}" +
-    "#sxCalcBtn:hover{background:#6449e0}" +
     "#sxCalcPop{position:fixed;right:14px;bottom:64px;z-index:99991;width:248px;background:#fff;border-radius:14px;" +
     "box-shadow:0 10px 30px rgba(0,0,0,.35);overflow:hidden;border:1px solid #d9d4f5}" +
     "#sxCalcHead{background:#7B61FF;color:#fff;padding:8px 10px;display:flex;justify-content:space-between;align-items:center;cursor:move}" +
@@ -83,7 +78,7 @@
   }
 
   function mount() {
-    if (document.getElementById("sxCalcBtn")) return;
+    if (document.getElementById("sxCalcPop")) return;
     var st = document.createElement("style");
     st.textContent = CSS;
     document.head.appendChild(st);
@@ -94,9 +89,6 @@
     var pop = document.getElementById("sxCalcPop"),
       disp = document.getElementById("sxCalcDisp");
     function show(v) { disp.value = v; }
-    document.getElementById("sxCalcBtn").onclick = function () {
-      pop.hidden = !pop.hidden;
-    };
     document.getElementById("sxCalcClose").onclick = function () { pop.hidden = true; };
     document.getElementById("sxCalcMin").onclick = function () { pop.hidden = true; };
     document.getElementById("sxCalcKeys").addEventListener("click", function (e) {
