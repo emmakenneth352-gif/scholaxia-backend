@@ -1451,26 +1451,26 @@ tr:last-child td{border-bottom:none}
         return (!window.__bankCls || b.class_name === window.__bankCls) &&
           (!window.__bankSubj || b.subject === window.__bankSubj);
       });
-      var chipRow = '<div class="radio-row" style="margin-bottom:14px">' +
-        '<label class="' + (!window.__bankCls ? "on" : "") + '" onclick="bankClsFilter(\'\')" style="cursor:pointer' + (!window.__bankCls ? ";border-color:var(--blue);color:var(--blue)" : "") + '">All classes</label>' +
-        classes.map(function (c) {
-          return '<label onclick="bankClsFilter(\'' + esc(c) + '\')" style="cursor:pointer' + (window.__bankCls === c ? ";border-color:var(--blue);color:var(--blue);background:var(--sky)" : "") + '">' + esc(c) + '</label>';
-        }).join("") + '</div>';
-      var subjRow = '<div class="radio-row" style="margin-bottom:10px">' +
-        '<label class="' + (!window.__bankSubj ? "on" : "") + '" onclick="bankSubjFilter(\'\')" style="cursor:pointer' + (!window.__bankSubj ? ";border-color:var(--blue);color:var(--blue)" : "") + '">All subjects</label>' +
-        subjects.map(function (s) {
-          return '<label onclick="bankSubjFilter(\'' + esc(s).replace(/'/g, "") + '\')" style="cursor:pointer' + (window.__bankSubj === s ? ";border-color:var(--blue);color:var(--blue);background:var(--sky)" : "") + '">' + esc(s) + '</label>';
-        }).join("") + '</div>';
+      /* Two dropdowns — pick a class and a subject to narrow the bank list. */
+      var chipRow = '<div class="form-grid" style="margin-bottom:10px">' +
+        '<div><label class="f-label">🏫 Class</label><select class="f-in" id="bankClsSel" onchange="bankClsFilter(this.value)">' +
+        '<option value="">All classes</option>' +
+        classes.map(function (c) { return '<option value="' + esc(c) + '"' + (window.__bankCls === c ? " selected" : "") + '>' + esc(c) + '</option>'; }).join("") +
+        '</select></div>' +
+        '<div><label class="f-label">📚 Subject</label><select class="f-in" id="bankSubjSel" onchange="bankSubjFilter(this.value)">' +
+        '<option value="">All subjects</option>' +
+        subjects.map(function (s) { return '<option value="' + esc(s) + '"' + (window.__bankSubj === s ? " selected" : "") + '>' + esc(s) + '</option>'; }).join("") +
+        '</select></div></div>';
       $("exBody").innerHTML =
-        (isQbanks ? '<div class="panel" style="border-left:4px solid var(--blue)"><h3>🗂️ Question Banks</h3><p class="mhint">Select class + subject below to find a bank — open 📂 Questions to Edit or Clear questions, ➕ Add to add more, 🧹 Clear to remove all questions, Delete (password) to remove the bank.</p></div>' : '') +
+        (isQbanks ? '<div class="panel" style="border-left:4px solid var(--blue)"><h3>🗂️ Question Banks</h3><p class="mhint">Select class + subject below to find a bank — open 📂 Questions to Edit or Clear questions, ➕ Add question to add more, 🧹 Clear to remove all questions, Delete (password) to remove the bank.</p></div>' : '') +
         '<div class="stat-mini"><span class="chip">Banks: ' + banks.length + '</span><span class="chip g">Questions: ' + banks.reduce(function (a, b) { return a + (b.question_count || 0); }, 0) + '</span>' +
         '<button class="btn sm" onclick="uploadQuestionsModal()">⬆ Upload Questions</button>' +
         '<button class="btn sm ghost" onclick="addBank()">+ New Question Bank</button>' +
-        '<button class="btn sm ghost" onclick="subjectCatalogueModal()">⚙ Subject catalogue</button></div>' +
-        ((classes.length || subjects.length) ? '<div class="panel"><h3>Question Banks by Class &amp; Subject</h3><p class="mhint" style="margin-bottom:10px">Pick a class and a subject to find its bank — open it to edit or clear questions.</p>' + chipRow + subjRow + '</div>' : '') +
+        '</div>' +
+        ((classes.length || subjects.length) ? '<div class="panel"><h3>Question Banks by Class &amp; Subject</h3><p class="mhint" style="margin-bottom:10px">Pick a class and a subject to find its bank — open it to edit or clear questions.</p>' + chipRow + '</div>' : '') +
         '<div class="panel">' + tbl(["Bank", "Subject", "Class", "Questions", "Status", ""], show.map(function (b) {
           return '<tr><td><strong>' + esc(b.name) + '</strong></td><td><span class="pill blue">' + esc(b.subject) + '</span></td><td><span class="pill violet">' + esc(b.class_name) + '</span></td><td>' + b.question_count + '</td><td><span class="pill ' + (b.status === "active" ? "ok" : "gray") + '">' + esc(b.status) + '</span></td>' +
-            '<td style="white-space:nowrap"><button class="btn sm ghost" onclick="openBank(\'' + b.id + '\')">📂 Questions</button> <button class="btn sm ghost" onclick="addBankQ(\'' + b.id + '\',\'' + esc(b.name).replace(/'/g, "") + '\')">➕ Add</button> <button class="btn sm ghost" onclick="clearBankQs(\'' + b.id + '\',\'' + esc(b.name).replace(/'/g, "") + '\')">🧹 Clear</button> <button class="btn sm red" onclick="delBankPw(\'' + b.id + '\',\'' + esc(b.name).replace(/'/g, "") + '\')">Delete</button></td></tr>';
+            '<td style="white-space:nowrap"><button class="btn sm ghost" onclick="openBank(\'' + b.id + '\')">📂 Questions</button> <button class="btn sm ghost" onclick="addBankQ(\'' + b.id + '\',\'' + esc(b.name).replace(/'/g, "") + '\')">➕ Add question</button> <button class="btn sm ghost" onclick="clearBankQs(\'' + b.id + '\',\'' + esc(b.name).replace(/'/g, "") + '\')">🧹 Clear</button> <button class="btn sm red" onclick="delBankPw(\'' + b.id + '\',\'' + esc(b.name).replace(/'/g, "") + '\')">Delete</button></td></tr>';
         })) + '</div>';
     }).catch(function (e) { $("exBody").innerHTML = '<div class="panel"><div class="empty">' + esc(errText(e)) + '</div></div>'; });
   }
@@ -1967,8 +1967,17 @@ tr:last-child td{border-bottom:none}
     });
   };
   window.addBankQ = function (bankId) {
-    __qn = 0;
-    openModal("Add questions to bank", '<div id="qList">' + qRowHTML() + qRowHTML() + '</div><button class="btn sm ghost" onclick="addQRow()">+ Add question</button>' +
+    /* Keep counting from where the bank stopped: a bank that ends at 20
+       continues at 21, so numbers never start over. */
+    cbtApi("/banks/" + bankId + "/questions").then(function (d) {
+      openBankQForm(bankId, (d.questions || []).length);
+    }).catch(function () { openBankQForm(bankId, 0); });
+  };
+  function openBankQForm(bankId, startAt) {
+    __qn = startAt;
+    openModal("Add questions to bank" + (startAt ? " — from " + (startAt + 1) : ""),
+      (startAt ? '<p class="mhint" style="margin-bottom:10px">This bank already holds ' + startAt + ' question' + (startAt === 1 ? "" : "s") + ', so these are numbered from <strong>' + (startAt + 1) + '</strong>.</p>' : '') +
+      '<div id="qList">' + qRowHTML() + qRowHTML() + '</div><button class="btn sm ghost" onclick="addQRow()">+ Add question</button>' +
       '<div class="form-grid" style="margin-top:12px"><div><label class="f-label">Topic (optional)</label><input class="f-in" id="bqTopic" placeholder="e.g. Algebra" /></div>' +
       '<div><label class="f-label">Marks each</label><input class="f-in" id="bqMarks" type="number" min="1" value="1" /></div></div><div class="merr"></div>', null, true);
     var bar = document.createElement("div"); bar.className = "mb-foot";
@@ -1984,10 +1993,11 @@ tr:last-child td{border-bottom:none}
       if (!qs.length) return mErr("Write at least one complete question.");
       busy($("bqGo"), true);
       cbtApi("/banks/" + bankId + "/questions", { method: "POST", body: qs }).then(function (d) {
-        closeModal(); toast(d.added + " questions added to bank"); renderExTab();
+        closeModal(); toast(d.added + " question(s) added — now numbered up to " + (startAt + (d.added || qs.length)));
+        renderExTab(); bankList();
       }).catch(function (e) { busy($("bqGo"), false, "Add to bank"); mErr(errText(e)); });
     });
-  };
+  }
 
   /* — Reference-style registration slip for ONE student (Pass 7) — prints
      the school header, student info, credentials box, subjects and the
