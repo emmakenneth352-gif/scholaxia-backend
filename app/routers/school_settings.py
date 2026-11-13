@@ -19,11 +19,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import require_school_staff, require_teacher
 from app.core.security import hash_password, verify_password
-from app.core.school_pin import require_admin_pin
+from app.core.school_pin import require_admin_pin, require_write_pin
 from app.models.school_campus import SchoolCampus
 from app.models.school_feature_lock import SchoolFeatureLock
 
-router = APIRouter(prefix="/school-settings", tags=["School settings"])
+router = APIRouter(
+    prefix="/school-settings",
+    tags=["School settings"],
+    dependencies=[Depends(require_write_pin)],
+)
 
 PIN_RE = re.compile(r"^\d{6}$")
 DEFAULT_LOCK_MESSAGE = "Ask your school admin for access."

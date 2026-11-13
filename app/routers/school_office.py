@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import require_school_staff
 from app.core.security import hash_password, verify_password
-from app.core.school_pin import require_admin_pin
+from app.core.school_pin import require_admin_pin, require_write_pin
 from app.models.cbt import CBTExam, CBTQuestion, CBTSession, ExamProctorLog
 from app.models.school_campus import SchoolCampus
 from app.models.school_office import SchoolExamCandidate
@@ -20,12 +20,20 @@ from app.models.user import StudentProfile, TeacherProfile, User, UserRole
 from app.models.live_class import LiveClass
 from app.core.datetime_utils import naive_utc_now
 
-router = APIRouter(prefix="/admin/school-office", tags=["School office"])
+router = APIRouter(
+    prefix="/admin/school-office",
+    tags=["School office"],
+    dependencies=[Depends(require_write_pin)],
+)
 
 # ── School portal (branded admin dashboard on <slug>.scholaxia.com) ───────
 # New public router so school links can bootstrap + authenticate without
 # touching the admin-only router above.
-portal_router = APIRouter(prefix="/school-portal", tags=["School portal"])
+portal_router = APIRouter(
+    prefix="/school-portal",
+    tags=["School portal"],
+    dependencies=[Depends(require_write_pin)],
+)
 
 
 _schema_ensured = False

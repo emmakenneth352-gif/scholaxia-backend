@@ -595,14 +595,14 @@ tr:last-child td{border-bottom:none}
 
   /* ── APP SHELL ── */  var PAGES = [
     ["dashboard", "🏠", "Dashboard"], ["exreg", "🧾", "Register Student"],
-    ["exstudents", "✅", "Confirm Registration"],
+    ["exstudents", "✅", "Approve Students"],
     ["exsched", "🗓️", "Exam Schedule"],
-    ["students", "👥", "Students per class"], ["teachers", "👨‍🏫", "Teachers"],
+    ["students", "👥", "All Students"], ["teachers", "👨‍🏫", "Teachers"],
     ["classes", "🎓", "Classes"], ["subjects", "📚", "Subjects"],
     ["exresults", "🏆", "Exam Results"],
-    ["exbank", "🏦", "Upload CBT Exams"], ["exqbanks", "🗂️", "Question Banks"], ["exretake", "🔄", "Grant Retake"],
+    ["exbank", "🏦", "Question Banks"], ["exretake", "🔄", "Grant Retake"],
     ["exup", "📤", "Upload Results"], ["extpl", "🖨️", "Result Template"],
-    ["results", "📊", "Results"], ["attendance", "🗓️", "Attendance"], ["fees", "💳", "Fees & Finance"],
+    ["results", "📊", "Result Book"], ["attendance", "📋", "Attendance"], ["fees", "💳", "Fees & Finance"],
     ["reports", "📈", "Reports"], ["settings", "⚙️", "Settings"],
   ];
   /* ── ADMIN PIN ──
@@ -698,6 +698,14 @@ tr:last-child td{border-bottom:none}
     $("uName").textContent = (S.user && S.user.full_name) || "Admin";
     var roleName = String((S.user && S.user.role) || "").toLowerCase();
     if ($("uRole")) $("uRole").textContent = roleName === "teacher" ? "Teacher" : "School Admin";
+    if (roleName === "teacher" && !$("teacherNote")) {
+      var note = document.createElement("div");
+      note.id = "teacherNote";
+      note.style.cssText = "margin:0 0 16px;padding:11px 14px;border-radius:12px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-size:13.5px;line-height:1.5";
+      note.innerHTML = "👩‍🏫 <strong>You are signed in as a teacher.</strong> You can open every page and read everything. Saving, editing or deleting school data asks for the school admin PIN — if you do not have it, ask your school admin for access.";
+      var host = $("pages");
+      if (host && host.parentNode) host.parentNode.insertBefore(note, host);
+    }
     $("uAvatar").textContent = ((S.user && S.user.full_name) || "A").charAt(0).toUpperCase();
     setLogo($("sbLogoWrap"), S.school && S.school.logo_url);
     $("nav").innerHTML = PAGES.map(function (p) {
@@ -1035,11 +1043,17 @@ tr:last-child td{border-bottom:none}
     opts = opts || {};
     var sid = (S.user && S.user.school_id) || null;
     var sep = path.indexOf("?") >= 0 ? "&" : "?";
-    return sxFetch(API + "/school-cbt" + path + (sid ? sep + "school_id=" + sid : ""), {
-      method: opts.method || "GET",
-      headers: _headers(!opts.form),
-      body: opts.form ? opts.form : (opts.body ? JSON.stringify(opts.body) : undefined),
-    }).then(_handle);
+    var method = String(opts.method || "GET").toUpperCase();
+    var run = function () {
+      return sxFetch(API + "/school-cbt" + path + (sid ? sep + "school_id=" + sid : ""), {
+        method: method,
+        headers: _headers(!opts.form),
+        body: opts.form ? opts.form : (opts.body ? JSON.stringify(opts.body) : undefined),
+      }).then(_handle);
+    };
+    // Deleting, clearing or restricting anything asks for the admin PIN first.
+    var destructive = PIN_METHODS.indexOf(method) >= 0 || (method === "POST" && /(delete|clear|restrict|remove)/i.test(path));
+    return destructive ? withAdminPin(run) : run();
   }
   /* ═══ EXAMS & CBT — each function is its OWN tab in the MAIN sidebar,
      exactly like the reference dashboard (Register Student, Exam Students,
@@ -1052,10 +1066,9 @@ tr:last-child td{border-bottom:none}
   }
   var EX_PAGE = "exsched";
   var EX_PAGES = [
-    ["exbank", "Upload CBT Exams", "Upload questions and build CBT exams per class — JS1 to SS3", "<button class=\"btn\" onclick=\"uploadQuestionsModal()\">⬆ Upload Questions</button>"],
-    ["exqbanks", "Question Banks", "Banks by class & subject — open one to edit or clear its questions", ""],
-    ["exreg", "Register Student", "Register students for exams — reg number + access code", ""],
-    ["exstudents", "Confirm Registration", "Registered students per class — approve, restrict, edit or delete", ""],
+    ["exbank", "Question Banks", "Upload questions or add them by hand — one class and subject at a time", ""],
+    ["exreg", "Register Student", "Add a student to the exam register — they get a registration number and an access code", ""],
+    ["exstudents", "Approve Students", "Approve registered students, issue their codes, restrict or delete them — changes need the admin PIN", ""],
     ["exsched", "Exam Schedule", "Schedule the class exams — subjects, questions, duration, date", ""],
     ["exretake", "Grant Retake", "Fetch a student by reg number and grant their retake", ""],
     ["exup", "Upload Results", "Result sheets per class, term and subject", ""],
@@ -1071,7 +1084,6 @@ tr:last-child td{border-bottom:none}
   EX_PAGES.forEach(function (p) { R[p[0]] = function () { exShell(p); }; });
   function renderExPage() {
     if (EX_PAGE === "exbank") return bankList();
-    if (EX_PAGE === "exqbanks") return bankList();
     if (EX_PAGE === "exreg") return exRegList();
     if (EX_PAGE === "exstudents") return confirmList();
     if (EX_PAGE === "exsched") return scheduleList();
@@ -1454,7 +1466,6 @@ tr:last-child td{border-bottom:none}
   };
   function isoOrNull(v) { try { return v ? new Date(v).toISOString() : null; } catch (e) { return null; } }
   function bankList() {
-    var isQbanks = (typeof EX_PAGE !== "undefined" && EX_PAGE === "exqbanks");
     cbtApi("/banks").then(function (d) {
       var banks = d.banks || [];
       window.__banks = banks;
@@ -1479,7 +1490,6 @@ tr:last-child td{border-bottom:none}
         subjects.map(function (s) { return '<option value="' + esc(s) + '"' + (window.__bankSubj === s ? " selected" : "") + '>' + esc(s) + '</option>'; }).join("") +
         '</select></div></div>';
       $("exBody").innerHTML =
-        (isQbanks ? '<div class="panel" style="border-left:4px solid var(--blue)"><h3>🗂️ Question Banks</h3><p class="mhint">Select class + subject below to find a bank — open 📂 Questions to Edit or Clear questions, ➕ Add question to add more, 🧹 Clear to remove all questions, Delete (password) to remove the bank.</p></div>' : '') +
         '<div class="stat-mini"><span class="chip">Banks: ' + banks.length + '</span><span class="chip g">Questions: ' + banks.reduce(function (a, b) { return a + (b.question_count || 0); }, 0) + '</span>' +
         '<button class="btn sm" onclick="uploadQuestionsModal()">⬆ Upload Questions</button>' +
         '<button class="btn sm ghost" onclick="addBank()">+ New Question Bank</button>' +
@@ -1892,9 +1902,11 @@ tr:last-child td{border-bottom:none}
     }, "Delete", true);
   };
   window.delBankPw = function (id, name) {
-    askStaffPassword("Delete bank " + name, "Delete bank", function () {
-      cbtApi("/banks/" + id, { method: "DELETE" }).then(function () { toast("Bank deleted"); renderExTab(); }).catch(toastErr);
-    });
+    confirmModal("Delete question bank", 'Delete <strong>' + esc(name) + "</strong> and every question inside it? This cannot be undone — the admin PIN is asked next.", function (b) {
+      busy(b, true);
+      cbtApi("/banks/" + id, { method: "DELETE" }).then(function () { closeModal(); toast("Bank deleted"); bankList(); })
+        .catch(function (e) { busy(b, false, "Delete"); mErr(errText(e)); });
+    }, "Delete", true);
   };
   window.openBank = function (id) {
     cbtApi("/banks/" + id + "/questions").then(function (d) {
@@ -1927,17 +1939,17 @@ tr:last-child td{border-bottom:none}
         .catch(function (e) { busy($("pwGo"), false, actionLabel); mErr(errText(e)); });
     });
   };
+  /* Clearing a question or a whole bank needs the admin PIN (asked once, by the
+     API layer) — no second password prompt on top of it. */
   window.delBankQ = function (bankId, qid) {
-    askStaffPassword("Clear this question", "Clear question", function () {
-      cbtApi("/banks/" + bankId + "/questions/" + qid, { method: "DELETE" }).then(function () { toast("Question cleared"); closeModal(); openBank(bankId); renderExTab(); }).catch(toastErr);
-    });
+    cbtApi("/banks/" + bankId + "/questions/" + qid, { method: "DELETE" })
+      .then(function () { toast("Question cleared"); closeModal(); openBank(bankId); }
+      ).catch(function (e) { closeModal(); toastErr(e); });
   };
   window.clearBankQs = function (bankId, name) {
-    askStaffPassword("Clear all questions in " + name, "Clear all", function () {
-      cbtApi("/banks/" + bankId + "/questions", { method: "DELETE" }).then(function (d) {
-        toast("Cleared " + (d.cleared || 0) + " question(s) — bank kept"); openBank(bankId); renderExTab();
-      }).catch(toastErr);
-    });
+    cbtApi("/banks/" + bankId + "/questions", { method: "DELETE" }).then(function (d) {
+      toast("Cleared " + (d.cleared || 0) + " question(s) — bank kept"); closeModal(); openBank(bankId);
+    }).catch(function (e) { closeModal(); toastErr(e); });
   };
   window.editBankQ = function (bankId, qid) {
     confirmModal("Edit this question?", "Are you sure you want to edit this question?", function (btn) {
@@ -3147,7 +3159,7 @@ tr:last-child td{border-bottom:none}
 
   /* ═══ RESULTS (legacy CBT practice results) ═══ */
   R.results = function () {
-    $("pages").innerHTML = head("Results", "Submitted exam results (hidden from students until you publish).") +
+    $("pages").innerHTML = head("Result Book", "Every result that has been submitted — students only see the ones you publish.") +
       '<div class="panel"><div class="form-grid"><div><select class="f-in" id="rSubj" onchange="loadResults()"><option value="">All subjects</option></select></div></div>' +
       '<div id="rTbl"><div class="empty">Loading…</div></div></div>';
     loadResults();
@@ -3326,6 +3338,10 @@ tr:last-child td{border-bottom:none}
   function loadPinPanel() {
     var box = $("pinPanelBody");
     if (!box) return;
+    if (String((S.user && S.user.role) || "").toLowerCase() === "teacher") {
+      box.innerHTML = '<span class="pill gray">Admin only</span> <span class="mhint">Only the school admin can create or change the PIN.</span>';
+      return;
+    }
     settingsApi("/pin").then(function (d) {
       box.innerHTML = d && d.has_pin
         ? '<span class="pill ok">PIN is set</span> <button class="btn sm ghost" onclick="pinChange()">Change PIN</button>'

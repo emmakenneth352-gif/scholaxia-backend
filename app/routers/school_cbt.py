@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import require_school_staff
 from app.core.purge import purge_user
+from app.core.school_pin import require_write_pin
 from app.core.datetime_utils import naive_utc_now, to_naive_utc
 from app.core.security import decode_token, hash_password
 from app.models.school_cbt import (
@@ -51,7 +52,12 @@ from app.models.user import User, UserRole, StudentProfile
 from app.models.school_campus import SchoolCampus
 from app.models.school_subjects import normalize_class_name
 
-router = APIRouter(prefix="/school-cbt", tags=["School CBT"])
+router = APIRouter(
+    prefix="/school-cbt",
+    tags=["School CBT"],
+    # Every change/delete needs the school admin PIN; reads stay open.
+    dependencies=[Depends(require_write_pin)],
+)
 
 STUDENT_TOKEN_TTL_HOURS = 18
 
