@@ -257,6 +257,10 @@ class SchoolExamAccessCode(Base):
     locked_until: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     # School can restrict a student (or all) from accessing their exams
     is_restricted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Confirm Registration workflow: True only once the school admin approves
+    # the student. False (and NULL, for rows issued before this column) means
+    # the registration is still waiting in Pending Approvals.
+    is_approved: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     __table_args__ = (

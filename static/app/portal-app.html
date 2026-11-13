@@ -1935,9 +1935,11 @@ tr:last-child td{border-bottom:none}
   }
   function regRow(s) {
     var id = s.student_id, st = (s.status || "pending").toLowerCase();
+    var subs = (s.subjects && s.subjects.length) ? s.subjects
+      : (s.requested_subjects || []).filter(function (x) { return String(x).toUpperCase() !== "ALL"; });
     var name = '<strong>' + esc(s.full_name) + '</strong>' +
       (s.email ? '<div class="muted" style="font-size:12px">' + esc(s.email) + '</div>' : "") +
-      '<div style="margin-top:4px">' + regPills(s.subjects) + '</div>';
+      '<div style="margin-top:4px">' + regPills(subs) + '</div>';
     var acts = "";
     if (st === "pending") acts += '<button class="btn sm" onclick="regApprove(\'' + id + '\',this)">✅ Approve</button> ';
     else acts += '<button class="btn sm ' + (st === "restricted" ? "" : "ghost") + '" onclick="regRestrictOne(\'' + id + '\',' + (st === "restricted" ? "false" : "true") + ',this)">' + (st === "restricted" ? "🔓 Unrestrict" : "🚫 Restrict") + '</button> ';
@@ -1984,8 +1986,9 @@ tr:last-child td{border-bottom:none}
         (rows.length ? '<div style="overflow-x:auto"><table><thead><tr><th></th><th>Reg Number</th><th>Student &amp; Subjects</th><th>Class</th><th>Access Code</th><th>Status</th><th>Actions</th></tr></thead><tbody>' + rows.join("") + '</tbody></table></div>' : '<div class="empty">None here.</div>') + '</div>';
     }
     var parts = [];
-    if (f.status === "all" || f.status === "pending") parts.push(sec("🟡 Pending Approvals", "pending"));
+    // Approved students come first; approvals waiting on the school follow.
     if (f.status === "all" || f.status === "approved") parts.push(sec("🟢 Approved Students", "approved"));
+    if (f.status === "all" || f.status === "pending") parts.push(sec("🟡 Pending Approvals", "pending"));
     if (f.status === "all" || f.status === "restricted") parts.push(sec("🔴 Restricted Students", "restricted"));
     var body = $("rgBody");
     if (body) body.innerHTML = parts.join("") || '<div class="empty">Nothing in this view.</div>';

@@ -1534,6 +1534,9 @@ async def register_exam_student(
         cred.requested_subjects = json.dumps(["ALL"] if any(s.upper() == "ALL" for s in _sel0) else sorted(set(_sel0)))
     except Exception:
         pass
+    # A freshly registered student waits in Pending until the school admin
+    # approves them in Confirm Registration.
+    cred.is_approved = False
 
     # Pass 8 — multi-select subjects: any number, or ALL. Falls back to the
     # legacy single `subject` field when `subjects` is not sent.
@@ -2522,10 +2525,13 @@ async def registrations_list(
     exams = (
         await db.execute(select(SchoolExam).where(SchoolExam.school_id == sid))
     ).scalars().all()
-    published_by_class: set[str] = {(e.class_name or "").upper() for e in exams if e.is_published}
     code_by_student: dict[str, SchoolExamAccessCode] = {}
+    reg_by_student: dict[str, SchoolExamAccessCode] = {}
     for c in codes:
         code_by_student.setdefault(str(c.student_id), c)  # newest first wins
+        if c.exam_id is None:
+            # The registration credential is the one the admin approves.
+            reg_by_student.setdefault(str(c.student_id), c)
     subj_by_exam = {str(e.id): e.subject for e in exams}
     assigns = (
         await db.execute(
@@ -2544,7 +2550,12 @@ async def registrations_list(
     out = []
     for u, p in stu:
         cred = code_by_student.get(str(u.id))
-        subjects = sorted(subj_by_student.get(str(u.id), set()))
+        try:
+            _requested = json.loads(cred.requested_subjects) if cred and cred.requested_subjects else []
+        except Exception:
+            _requested = []
+        _picked = {s for s in _requested if s and s.upper() != "ALL"}
+        subjects = sorted(subj_by_student.get(str(u.id), set()) | _picked)
         cls = (p.education_level or "").upper() if p else ""
         if cls_filter and cls_filter != "ALL" and cls != cls_filter:
             continue
@@ -2553,17 +2564,12 @@ async def registrations_list(
         if needle and needle not in (u.full_name or "").lower() and needle not in ((cred.reg_number if cred else "") or "").lower():
             continue
         restricted = bool(cred.is_restricted if cred else False)
-        try:
-            _requested = json.loads(cred.requested_subjects) if cred and cred.requested_subjects else []
-        except Exception:
-            _requested = []
-        # "Pending" only makes sense when the class has published exams the
-        # student is not attached to yet — with nothing scheduled there is
-        # nothing to approve, so a registered student counts as approved.
-        # Requested subjects (picked at registration) also count as approved:
-        # the school explicitly chose them, even before scheduling attaches
-        # the matching exams.
-        st = "restricted" if restricted else ("approved" if (subjects or _requested or cls not in published_by_class) else "pending")
+        # Approval is explicit: a registered student stays Pending until the
+        # school admin approves them (credentials from before this switch have
+        # is_approved NULL, which also reads as pending).
+        state_cred = reg_by_student.get(str(u.id)) or cred
+        approved = bool(state_cred.is_approved) if state_cred is not None else False
+        st = "restricted" if restricted else ("approved" if approved else "pending")
         if status and status != "all" and st != status:
             continue
         out.append(
@@ -2697,6 +2703,7 @@ async def registration_approve(
         await _ensure_access_codes(db, e)
     if cred.is_restricted:
         cred.is_restricted = False
+    cred.is_approved = True
     await db.flush()
     return {"approved": True, "attached": attached, "reg_number": cred.reg_number, "access_code": cred.access_code}
 
@@ -2754,6 +2761,7 @@ async def registrations_approve_all(
                 attached_total += 1
         if cred.is_restricted:
             cred.is_restricted = False
+        cred.is_approved = True
         approved += 1
     for e in (
         await db.execute(select(SchoolExam).where(SchoolExam.school_id == sid, SchoolExam.is_published == True))  # noqa: E712

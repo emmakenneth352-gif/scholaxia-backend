@@ -76,6 +76,9 @@ _SCHEMA_STATEMENTS = (
     # registration (printed on the slip), attached to an exam when scheduled
     "ALTER TABLE school_exam_access_codes ALTER COLUMN exam_id DROP NOT NULL",
     "ALTER TABLE school_exam_access_codes ADD COLUMN IF NOT EXISTS requested_subjects TEXT NULL",
+    # Confirm Registration: TRUE once the school admin approves a registration;
+    # FALSE/NULL (older rows) stays in Pending Approvals.
+    "ALTER TABLE school_exam_access_codes ADD COLUMN IF NOT EXISTS is_approved BOOLEAN NULL",
     # student_profiles
     "ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS jamb_subjects VARCHAR[] NULL",
     "ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS ssce_subjects VARCHAR[] NULL",
