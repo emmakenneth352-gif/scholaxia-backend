@@ -79,6 +79,20 @@ _SCHEMA_STATEMENTS = (
     # Confirm Registration: TRUE once the school admin approves a registration;
     # FALSE/NULL (older rows) stays in Pending Approvals.
     "ALTER TABLE school_exam_access_codes ADD COLUMN IF NOT EXISTS is_approved BOOLEAN NULL",
+    # School admin PIN that opens the control panel (hash only).
+    "ALTER TABLE school_campuses ADD COLUMN IF NOT EXISTS admin_pin_hash VARCHAR(255) NULL",
+    # Teacher features a school switches off for its own staff.
+    """
+    CREATE TABLE IF NOT EXISTS school_feature_locks (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        school_id UUID NOT NULL REFERENCES school_campuses(id),
+        feature_key VARCHAR(80) NOT NULL,
+        is_locked BOOLEAN NOT NULL DEFAULT TRUE,
+        message VARCHAR(300) NULL,
+        updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
+    )
+    """,
+    "CREATE UNIQUE INDEX IF NOT EXISTS ux_school_feature_locks ON school_feature_locks (school_id, feature_key)",
     # student_profiles
     "ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS jamb_subjects VARCHAR[] NULL",
     "ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS ssce_subjects VARCHAR[] NULL",

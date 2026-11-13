@@ -97,11 +97,14 @@ async def portal_login(slug: str, payload: PortalLoginIn, db: AsyncSession = Dep
         raise HTTPException(status_code=403, detail="This school is not active yet")
 
     ident = payload.identifier.strip().lower()
+    # The school link signs in the school admin AND the school's own teachers
+    # (with the details the admin created for them).
+    staff_roles = [UserRole.school_admin, UserRole.teacher]
     row = (
         await db.execute(
             select(User).where(
                 User.school_id == UUID(info["school_id"]),
-                User.role == UserRole.school_admin,
+                User.role.in_(staff_roles),
                 func.lower(User.email) == ident,
             )
         )
@@ -111,7 +114,7 @@ async def portal_login(slug: str, payload: PortalLoginIn, db: AsyncSession = Dep
             await db.execute(
                 select(User).where(
                     User.school_id == UUID(info["school_id"]),
-                    User.role == UserRole.school_admin,
+                    User.role.in_(staff_roles),
                     func.replace(User.phone, " ", "") == ident,
                 )
             )
@@ -124,14 +127,16 @@ async def portal_login(slug: str, payload: PortalLoginIn, db: AsyncSession = Dep
     # sv must match the user's current token_version or every authenticated
     # call 401s ("logged in on another device") — the logout loop.
     token = create_access_token(str(row.id), row.role, session_version=int(getattr(row, "token_version", 0) or 0))
+    role_name = str(getattr(row.role, "value", row.role) or "").lower().replace("userrole.", "")
     return {
         "access_token": token,
         "token_type": "bearer",
-        "role": "school_admin",
+        "role": role_name,
         "user": {
             "id": str(row.id),
             "full_name": row.full_name,
             "email": row.email,
+            "role": role_name,
             "school_id": str(row.school_id),
             "school_name": info["name"],
             "school_slug": info["slug"],
@@ -795,16 +800,34 @@ async def list_school_students(
             .order_by(User.full_name)
         )
     ).all()
+    # Exam-registered students have no school_student_id: show the registration
+    # number they were issued, so the ID column is never blank.
+    from app.models.school_cbt import SchoolExamAccessCode
+
+    reg_by_student: dict[str, str] = {}
+    for code in (
+        await db.execute(
+            select(SchoolExamAccessCode)
+            .where(SchoolExamAccessCode.school_id == campus.id)
+            .order_by(SchoolExamAccessCode.created_at.desc())
+        )
+    ).scalars().all():
+        reg_by_student.setdefault(str(code.student_id), code.reg_number)
     needle = (q or "").strip().lower()
     cls = (class_name or "").strip().upper()
     out = []
     for user, profile in rows:
         if cls and (profile.education_level if profile else "") != cls:
             continue
-        blob = " ".join([user.full_name, user.email, getattr(profile, "school_student_id", None) or ""]).lower()
+        reg = reg_by_student.get(str(user.id)) or ""
+        blob = " ".join([user.full_name, user.email, getattr(profile, "school_student_id", None) or "", reg]).lower()
         if needle and needle not in blob:
             continue
-        out.append(_student_row(user, profile, campus))
+        data = _student_row(user, profile, campus)
+        if not data.get("student_id") and reg:
+            data["student_id"] = reg
+            data["student_id_source"] = "registration"
+        out.append(data)
     return {
         "students": out,
         "subscription_active": bool(getattr(campus, "subscription_active", False)),

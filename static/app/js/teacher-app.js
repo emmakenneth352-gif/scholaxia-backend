@@ -98,6 +98,12 @@
   function showPage(id, opts) {
     id = String(id || "").trim();
     if (!TITLES[id]) return;
+    // A feature the school switched off stays shut until the school admin
+    // unlocks it for this teacher.
+    if (window.ScholaxiaFeatures && window.ScholaxiaFeatures.isLocked("teacher." + id)) {
+      window.ScholaxiaFeatures.showLocked("teacher." + id);
+      return;
+    }
     opts = opts || {};
     if (!opts.replace && currentPage !== id) {
       pageHistory.push(id);
@@ -1967,6 +1973,19 @@ async function endClass(id) {
     });
   });
   onVisibilityChange();
+
+  // Features this teacher's own SCHOOL switched off (school admin settings).
+  function loadSchoolLocks() {
+    if (!api || !window.ScholaxiaFeatures) return;
+    api.api("/api/v1/school-settings/teacher-locks", { preferXhr: true, timeout: 20000 })
+      .then(function (d) {
+        if (!d) return;
+        window.ScholaxiaFeatures.setLocalLocks(d.locks || {}, { message: d.message });
+      })
+      .catch(function () { /* a network blip must never lock a teacher out */ });
+  }
+  loadSchoolLocks();
+  setInterval(loadSchoolLocks, 60000);
 
   // Refer & Earn opens inside the studio so the session is never lost.
   function ensureAffiliateFrame() {

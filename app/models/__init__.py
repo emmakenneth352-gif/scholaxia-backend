@@ -36,6 +36,7 @@ from app.models.affiliate import (
 from app.models.platform_setting import PlatformSetting
 from app.models.student_analytics import StudentLearningProfile, LessonSession
 from app.models.school_campus import SchoolCampus
+from app.models.school_feature_lock import SchoolFeatureLock
 from app.models.cbt_coupon import CbtCoupon, CbtCouponRedemption
 from app.models.study_coupon import StudyCoupon, StudyCouponRedemption
 from app.models.school_office import SchoolExamCandidate

@@ -16,6 +16,7 @@
 
   var state = {
     locks: {},
+    localLocks: {},
     labels: {},
     defaultMessage: DEFAULT_MESSAGE,
     loaded: false,
@@ -160,12 +161,31 @@
   }
 
   function isLocked(key) {
-    return !!(key && state.locks[key]);
+    return !!(key && (state.locks[key] || state.localLocks[key]));
   }
 
   function messageFor(key) {
-    var item = key && state.locks[key];
+    var item = key && (state.locks[key] || state.localLocks[key]);
     return (item && item.message) || state.defaultMessage;
+  }
+
+  // Locks this teacher's own SCHOOL switched off (school admin settings).
+  // They sit on top of the platform locks and use their own message.
+  function setLocalLocks(locks, opts) {
+    opts = opts || {};
+    var fallback = String(opts.message || "").trim() || "Ask your school admin for access.";
+    var clean = {};
+    Object.keys(locks || {}).forEach(function (key) {
+      var item = locks[key] || {};
+      clean[key] = {
+        message: String(item.message || "").trim() || fallback,
+        updated_at: null,
+      };
+    });
+    state.localLocks = clean;
+    decorateNavigation();
+    checkCurrentPage();
+    return state;
   }
 
   function currentFeature() {
@@ -289,7 +309,14 @@
     var overlay = ensureOverlay();
     var title = overlay.querySelector("#sx-fg-title");
     var text = overlay.querySelector("#sx-fg-text");
-    if (title) title.textContent = label ? label + " is under maintenance" : "We\u2019ll be right back";
+    var kicker = overlay.querySelector(".sx-fg-kicker");
+    var schoolLocked = !!(key && state.localLocks[key]);
+    if (kicker) kicker.textContent = schoolLocked ? "Locked by your school" : "Scheduled maintenance";
+    if (title) {
+      title.textContent = schoolLocked
+        ? (label ? label + " is locked" : "This feature is locked")
+        : (label ? label + " is under maintenance" : "We\u2019ll be right back");
+    }
     if (text) text.textContent = message;
     overlay.hidden = false;
     if (opts.persistent) document.body.classList.add("sx-feature-blocked");
@@ -361,6 +388,7 @@
     refresh: function () { return load(true); },
     isLocked: isLocked,
     messageFor: messageFor,
+    setLocalLocks: setLocalLocks,
     showLocked: showLocked,
     blockPage: blockPage,
     label: function (key) {

@@ -26,6 +26,9 @@ class SchoolCampus(Base):
     # Owner spec §7: per-school feature toggles (Super Admin). Merged over the
     # plan's feature set at runtime: {"attendance": true, "fees": false, ...}
     feature_overrides: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # 6-digit PIN the school admin sets to open/manage the control panel.
+    # Teachers never see it, and only the hash is stored.
+    admin_pin_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     contact_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     contact_phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
     address: Mapped[str | None] = mapped_column(String(500), nullable=True)

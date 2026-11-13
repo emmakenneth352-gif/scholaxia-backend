@@ -409,6 +409,17 @@ tr:last-child td{border-bottom:none}
 
   /* ── MODAL SYSTEM (replaces every prompt/alert/confirm) ── */
   window.closeModal = function () { var b = $("mb"); if (b) b.remove(); };
+  function settingsApi(path, opts) {
+    opts = opts || {};
+    var sid = (S.user && S.user.school_id) || null;
+    var sep = path.indexOf("?") >= 0 ? "&" : "?";
+    return fetch(API + "/school-settings" + path + (sid ? sep + "school_id=" + sid : ""), {
+      method: opts.method || "GET",
+      headers: _headers(!opts.form),
+      body: opts.form ? opts.form : (opts.body ? JSON.stringify(opts.body) : undefined),
+    }).then(_handle);
+  }
+
   function openModal(title, bodyHTML, footHTML, wide) {
     closeModal();
     var b = document.createElement("div"); b.id = "mb"; b.className = "mb-back";
@@ -462,6 +473,17 @@ tr:last-child td{border-bottom:none}
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ identifier: $("lgId").value.trim(), password: $("lgPw").value }),
     }).then(_handle).then(function (d) {
+      var role = String((d.user && d.user.role) || d.role || "").toLowerCase();
+      if (role === "teacher") {
+        // A SCHOOL teacher: straight into the teacher studio, never the admin
+        // panel — the PIN and the school settings are not theirs to see.
+        localStorage.setItem("sia_teacher_token", d.access_token);
+        localStorage.setItem("sia_role", "teacher");
+        if (d.user && d.user.full_name) localStorage.setItem("sia_teacher_name", d.user.full_name);
+        if (d.user && d.user.email) localStorage.setItem("sia_teacher_email", d.user.email);
+        location.href = "teacher.html";
+        return;
+      }
       S.token = d.access_token; S.user = d.user; S.school = d.school;
       localStorage.setItem("sx_portal_token_" + slug, S.token);
       localStorage.setItem("sx_portal_user_" + slug, JSON.stringify(d.user));
@@ -549,7 +571,79 @@ tr:last-child td{border-bottom:none}
     ["results", "📊", "Results"], ["attendance", "🗓️", "Attendance"], ["fees", "💳", "Fees & Finance"],
     ["reports", "📈", "Reports"], ["settings", "⚙️", "Settings"],
   ];
+  /* ── ADMIN PIN GATE ──
+     The control panel is opened with a 6-digit PIN the school admin sets.
+     Teachers never see or need it. */
+  var PIN_KEY = "sx_portal_pin_ok_" + slug;
   function enter() {
+    if (sessionStorage.getItem(PIN_KEY) === "1") return enterApp();
+    settingsApi("/pin").then(function (d) {
+      if (!d || !d.has_pin) return pinCreate();
+      pinAsk();
+    }).catch(function () {
+      // Settings service unreachable: never lock the admin out of the school.
+      enterApp();
+    });
+  }
+  window.pinAsk = function () {
+    openModal("Enter your admin PIN",
+      '<p class="mhint">This 6-digit PIN opens the school control panel. Only the school admin (and staff the admin trusts with it) should know it — teachers are never asked for it.</p>' +
+      '<div class="mrow" style="margin-top:14px"><label class="f-label">PIN</label>' +
+      '<input class="f-in" id="pinInput" type="password" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="••••••" style="letter-spacing:.45em;font-size:20px;text-align:center" /></div>' +
+      '<div class="merr" style="display:none;margin-top:8px"></div>',
+      '<button class="btn ghost" onclick="logout()">Log out</button><button class="btn" id="pinGo">Unlock</button>');
+    var inp = $("pinInput");
+    setTimeout(function () { if (inp) inp.focus(); }, 60);
+    inp.addEventListener("keydown", function (e) { if (e.key === "Enter") $("pinGo").click(); });
+    $("pinGo").addEventListener("click", function () {
+      var v = (inp.value || "").trim();
+      if (!/^\d{6}$/.test(v)) return mErr("Enter the 6-digit PIN.");
+      busy($("pinGo"), true);
+      settingsApi("/pin/verify", { method: "POST", body: { pin: v } }).then(function (d) {
+        if (!d || !d.ok) { busy($("pinGo"), false, "Unlock"); return mErr("Wrong PIN. Try again."); }
+        sessionStorage.setItem(PIN_KEY, "1");
+        closeModal(); enterApp(); toast("Welcome back");
+      }).catch(function (e) { busy($("pinGo"), false, "Unlock"); mErr(errText(e)); });
+    });
+  };
+  window.pinCreate = function () {
+    openModal("Create your admin PIN",
+      '<p class="mhint">Choose a 6-digit PIN. It is asked once per session before the control panel opens, so students and teachers can never change school settings. Keep it private.</p>' +
+      '<div class="mrow" style="margin-top:14px"><label class="f-label">New 6-digit PIN</label>' +
+      '<input class="f-in" id="pinNew" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" style="letter-spacing:.45em;font-size:20px;text-align:center" /></div>' +
+      '<div class="mrow"><label class="f-label">Repeat PIN</label>' +
+      '<input class="f-in" id="pinNew2" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" style="letter-spacing:.45em;font-size:20px;text-align:center" /></div>' +
+      '<div class="merr" style="display:none;margin-top:8px"></div>',
+      '<button class="btn ghost" onclick="logout()">Log out</button><button class="btn" id="pinSave">Create PIN</button>');
+    setTimeout(function () { if ($("pinNew")) $("pinNew").focus(); }, 60);
+    $("pinSave").addEventListener("click", function () {
+      var a = ($("pinNew").value || "").trim(), b = ($("pinNew2").value || "").trim();
+      if (!/^\d{6}$/.test(a)) return mErr("The PIN must be exactly 6 digits.");
+      if (a !== b) return mErr("The two PINs do not match.");
+      busy($("pinSave"), true);
+      settingsApi("/pin", { method: "POST", body: { pin: a } }).then(function () {
+        sessionStorage.setItem(PIN_KEY, "1");
+        closeModal(); enterApp(); toast("PIN created — keep it safe");
+      }).catch(function (e) { busy($("pinSave"), false, "Create PIN"); mErr(errText(e)); });
+    });
+  };
+  window.pinChange = function () {
+    openModal("Change admin PIN",
+      '<div class="mrow"><label class="f-label">Current PIN</label><input class="f-in" id="pinOld" type="password" inputmode="numeric" maxlength="6" style="letter-spacing:.4em;text-align:center" /></div>' +
+      '<div class="mrow"><label class="f-label">New 6-digit PIN</label><input class="f-in" id="pinChNew" type="password" inputmode="numeric" maxlength="6" style="letter-spacing:.4em;text-align:center" /></div>' +
+      '<div class="merr" style="display:none;margin-top:8px"></div>',
+      '<button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn" id="pinChGo">Save PIN</button>');
+    $("pinChGo").addEventListener("click", function () {
+      var oldv = ($("pinOld").value || "").trim(), nv = ($("pinChNew").value || "").trim();
+      if (!/^\d{6}$/.test(nv)) return mErr("The new PIN must be exactly 6 digits.");
+      busy($("pinChGo"), true);
+      settingsApi("/pin/change", { method: "POST", body: { current_pin: oldv, new_pin: nv } }).then(function () {
+        busy($("pinChGo"), false, "Save PIN"); closeModal(); toast("PIN updated");
+      }).catch(function (e) { busy($("pinChGo"), false, "Save PIN"); mErr(errText(e)); });
+    });
+  };
+
+  function enterApp() {
     $("login").style.display = "none";
     $("app").style.display = "block";
     $("sbSchool").textContent = (S.school && S.school.name) || (S.user && S.user.school_name) || "School";
@@ -3108,8 +3202,45 @@ tr:last-child td{border-bottom:none}
         '<div><label class="f-label">Contact phone</label><input class="f-in" id="setPhone" value="' + esc(s.contact_phone || "") + '" /></div>' +
         '<div class="full"><label class="f-label">Address</label><input class="f-in" id="setAddr" value="' + esc(s.address || "") + '" /></div>' +
         '</div><button class="btn" onclick="saveSettings(this)">💾 Save changes</button>' +
-        '<p class="muted" style="margin-top:12px">Both links open this same school portal. Your Scholaxia link is ready by default; a custom domain can be connected later by the Scholaxia team.</p>';
+        '<p class="muted" style="margin-top:12px">Both links open this same school portal. Your Scholaxia link is ready by default; a custom domain can be connected later by the Scholaxia team.</p>' +
+        '<div class="panel" style="margin-top:18px"><h3>🔐 Admin PIN</h3>' +
+        '<p class="mhint">The 6-digit PIN asked before this control panel opens. Teachers never see it.</p>' +
+        '<div id="pinPanelBody" class="muted" style="margin-top:10px">Loading…</div></div>' +
+        '<div class="panel" style="margin-top:14px"><h3>🔒 Teacher access</h3>' +
+        '<p class="mhint">Switch off any feature you do not want your teachers to use. A locked feature tells the teacher to ask you for access.</p>' +
+        '<div id="tLocksBody" class="empty">Loading…</div></div>';
+      loadPinPanel();
+      loadTeacherLocks();
     }).catch(function (e) { $("setBody").innerHTML = '<div class="empty">' + esc(errText(e)) + '</div>'; });
+  };
+  function loadPinPanel() {
+    var box = $("pinPanelBody");
+    if (!box) return;
+    settingsApi("/pin").then(function (d) {
+      box.innerHTML = d && d.has_pin
+        ? '<span class="pill ok">PIN is set</span> <button class="btn sm ghost" onclick="pinChange()">Change PIN</button>'
+        : '<span class="pill warn">No PIN yet</span> <button class="btn sm" onclick="pinCreate()">Create 6-digit PIN</button>';
+    }).catch(function (e) { box.textContent = errText(e); });
+  }
+  function loadTeacherLocks() {
+    var box = $("tLocksBody");
+    if (!box) return;
+    settingsApi("/features").then(function (d) {
+      var rows = (d.features || []).map(function (f) {
+        return '<tr><td><strong>' + esc(f.label) + '</strong><div class="muted" style="font-size:12px">' + esc(f.description) + '</div></td>' +
+          '<td>' + (f.locked ? '<span class="pill bad">Locked</span>' : '<span class="pill ok">Open</span>') + '</td>' +
+          '<td style="white-space:nowrap"><button class="btn sm ' + (f.locked ? "" : "ghost") + '" onclick="toggleTeacherFeature(\'' + esc(f.key) + '\',' + (f.locked ? 'false' : 'true') + ',this)">' + (f.locked ? '🔓 Unlock' : '🔒 Lock') + '</button></td></tr>';
+      });
+      box.className = "";
+      box.innerHTML = (d.locked_count ? '<p class="mhint">' + d.locked_count + ' feature' + (d.locked_count === 1 ? '' : 's') + ' locked for teachers.</p>' : '') + tbl(["Feature", "For teachers", ""], rows);
+    }).catch(function (e) { box.innerHTML = '<div class="empty">' + esc(errText(e)) + '</div>'; });
+  }
+  window.toggleTeacherFeature = function (key, locked, btn) {
+    busy(btn, true);
+    settingsApi("/features", { method: "PUT", body: { key: key, locked: !!locked } }).then(function () {
+      toast(locked ? "Locked for teachers" : "Unlocked for teachers");
+      loadTeacherLocks();
+    }).catch(function (e) { busy(btn, false); toastErr(e); });
   };
   window.saveSettings = function (btn) {
     busy(btn, true);
