@@ -886,7 +886,10 @@ tr:last-child td{border-bottom:none}
       '<div class="panel"><div id="cTbl"><div class="empty">Loading…</div></div></div>';
     api("/classes").then(function (d) {
       var rows = (d.classes || []).map(function (c) {
-        return '<tr><td><strong>' + esc(c.name) + '</strong></td><td><span class="pill blue">' + esc(c.level || "—") + '</span></td><td><span class="pill ok">' + (c.student_count || 0) + ' students</span></td><td><button class="btn sm red" onclick="delClass(\'' + c.id + '\',\'' + esc(c.name) + '\')">Delete</button></td></tr>';
+        return '<tr><td><strong>' + esc(c.name) + '</strong></td><td><span class="pill blue">' + esc(c.level || "—") + '</span></td><td><span class="pill ok">' + (c.student_count || 0) + ' students</span></td><td style="white-space:nowrap;text-align:right">' +
+          '<button class="btn sm" onclick="addStudentToClass(\'' + c.id + '\',\'' + esc(c.name) + '\')">+ Add student</button> ' +
+          '<button class="btn sm ghost" onclick="printClassStudents(\'' + c.id + '\',\'' + esc(c.name) + '\')" style="margin-left:6px">🖨 Print</button> ' +
+          '<button class="btn sm red" onclick="delClass(\'' + c.id + '\',\'' + esc(c.name) + '\')" style="margin-left:6px">Delete</button></td></tr>';
       });
       $("cTbl").innerHTML = tbl(["Class", "Level", "Students", ""], rows);
     }).catch(function (e) { $("cTbl").innerHTML = '<div class="empty">' + esc(errText(e)) + '</div>'; });
@@ -906,6 +909,57 @@ tr:last-child td{border-bottom:none}
       }).catch(function (e) { busy($("clSave"), false, "Add class"); mErr(errText(e)); });
     });
   };
+  /* Add a student straight into a class, from the Classes page. */
+  window.addStudentToClass = function (id, name) {
+    openModal("Add student to " + esc(name),
+      '<div class="mnote" style="margin-bottom:12px">The student is created in <strong>' + esc(name) + '</strong> right away.</div>' +
+      '<div class="mrow"><label class="f-label">Full name *</label><input class="f-in" id="csName" placeholder="e.g. Amara Okafor" /></div>' +
+      '<div class="mrow"><label class="f-label">Email (optional)</label><input class="f-in" id="csEmail" type="email" placeholder="student@email.com" /><div class="mhint">Leave empty — the student logs in with their Student ID.</div></div>' +
+      '<div class="mrow"><label class="f-label">Password (min 8 characters) *</label><div style="display:flex;gap:8px"><input class="f-in" id="csPw" style="flex:1" /><button class="btn sm ghost" type="button" onclick="$(&#39;csPw&#39;).value=genPw()">🎲 Generate</button></div></div>' +
+      '<div class="mrow"><label class="f-label">Class</label><input class="f-in" id="csCls" value="' + esc(name) + '" readonly style="background:#f5f7fb" /></div>' +
+      '<div class="merr"></div>',
+      '<button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn" id="csSave">Add student</button>');
+    $("csPw").value = genPw();
+    setTimeout(function () { if ($("csName")) $("csName").focus(); }, 60);
+    $("csSave").addEventListener("click", function () {
+      var nm = $("csName").value.trim(), em = $("csEmail").value.trim(), pw = $("csPw").value;
+      if (!nm) return mErr("Enter the student's full name.");
+      if (!pw || pw.length < 8) return mErr("Password must be at least 8 characters.");
+      busy($("csSave"), true);
+      officeApi("/students", { method: "POST", body: { full_name: nm, class_name: name, password: pw, email: em || null } }).then(function (d) {
+        showPage("classes");
+        openModal("✅ Student added to " + esc(name),
+          '<div class="mnote">Share these login details with the student:<br/><br/>Student ID: <code>' + esc(d.student_id || d.id || "—") + '</code><br/>Password: <code>' + esc(d.password || pw) + '</code><br/>Class: <code>' + esc(name) + '</code></div>' +
+          '<p class="mhint" style="margin-top:10px">The student logs in on your school link with this Student ID + password.</p>',
+          '<button class="btn ghost" onclick="closeModal()">Done</button><button class="btn" id="csMore">+ Add another</button>');
+        if ($("csMore")) $("csMore").addEventListener("click", function () { closeModal(); addStudentToClass(id, name); });
+      }).catch(function (e) { busy($("csSave"), false, "Add student"); mErr(errText(e)); });
+    });
+  };
+
+  /* Print every student in one class. */
+  window.printClassStudents = function (id, name) {
+    officeApi("/students?class_name=" + encodeURIComponent(name)).then(function (d) {
+      var list = (d.students || []).slice().sort(function (a, b) { return String(a.full_name || "").localeCompare(String(b.full_name || "")); });
+      if (!list.length) return toastErr("No students in " + name + " yet.");
+      var schoolName = (S.school && (S.school.name || S.school.school_name)) || "Scholaxia";
+      var css = 'body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:24px}' +
+        'h1{font-size:20px;margin:0 0 3px}p{color:#555;font-size:12.5px;margin:0 0 14px}' +
+        'table{width:100%;border-collapse:collapse;font-size:12.5px}th,td{border:1px solid #bbb;padding:7px 9px;text-align:left}' +
+        'th{background:#eef3ff}tr:nth-child(even) td{background:#fafbff}' +
+        'tfoot td{font-weight:700;background:#f2f5fb}@media print{thead{display:table-header-group}}';
+      var inner = '<h1>' + esc(schoolName) + ' — ' + esc(name) + ' Class List</h1>' +
+        '<p>' + list.length + ' student' + (list.length === 1 ? "" : "s") + ' · printed ' + esc(new Date().toLocaleDateString()) + '</p>' +
+        '<table><thead><tr><th style="width:36px">#</th><th>Full Name</th><th>Student ID</th><th>Email</th><th style="width:80px">Status</th></tr></thead><tbody>' +
+        list.map(function (s, i) {
+          return '<tr><td>' + (i + 1) + '</td><td>' + esc(s.full_name || "—") + '</td><td>' + esc(s.student_id || "—") + '</td><td>' + esc(s.email || "—") + '</td><td>' + (s.is_active ? "Active" : "Disabled") + '</td></tr>';
+        }).join("") +
+        '</tbody><tfoot><tr><td colspan="4">Total</td><td>' + list.length + '</td></tr></tfoot></table>' +
+        '<p style="margin-top:26px">____________________________<br/>Class teacher / School admin</p>';
+      printPreviewModal(name + " students", inner, css);
+    }).catch(toastErr);
+  };
+
   window.delClass = function (id, name) {
     confirmModal("Delete class", 'Delete <strong>' + esc(name) + '</strong>? Students keep their accounts; only this class group is removed.', function (btn) {
       busy(btn, true);
