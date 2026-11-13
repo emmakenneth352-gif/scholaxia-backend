@@ -524,7 +524,7 @@ async function saveFeatureLockMessage() {
 }
 
 async function unlockAllFeatures() {
-  if (!confirm("Unlock every student and kids feature now?")) return;
+  if (!confirm("Unlock every student, teacher and kids feature now?")) return;
   try {
     await adminApi("/api/v1/admin/feature-access/unlock-all", { method: "POST" });
     await loadFeatureAccess();

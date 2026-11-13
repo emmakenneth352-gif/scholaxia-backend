@@ -147,6 +147,10 @@ function teacherLogout() {
 }
 
 function showTeacherPage(page) {
+  // Admin can take any teacher screen offline (Admin -> Feature Access).
+  if (window.SxFeatures && typeof SxFeatures.guard === "function" && !SxFeatures.guard(page)) {
+    return;
+  }
   currentTeacherPage = page;
   updateTeacherTopbar(page);
   document.querySelectorAll(".teacher-page").forEach(function (p) { p.classList.remove("active"); });

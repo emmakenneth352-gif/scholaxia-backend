@@ -1491,6 +1491,10 @@ function showPage(page, opts) {
     goToLogin(page);
     return;
   }
+  // Admin can take any screen offline (Admin -> Feature Access).
+  if (window.SxFeatures && typeof SxFeatures.guard === "function" && !SxFeatures.guard(page)) {
+    return;
+  }
   currentPage = page;
   // Navigating away from a finished exam clears the result card
   if (!isCbtExamActive()) {

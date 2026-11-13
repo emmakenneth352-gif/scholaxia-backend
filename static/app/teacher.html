@@ -29,15 +29,15 @@
             <button type="button" class="side-close-btn" id="sidebarCloseBtn" aria-label="Close menu">✕</button>
           </div>
           <nav class="teacher-nav">
-            <button type="button" class="nav-btn is-active" data-page="live"><span class="ico">📹</span>Live Classes</button>
-            <button type="button" class="nav-btn" data-page="materials"><span class="ico">📚</span>Materials</button>
-            <button type="button" class="nav-btn" data-page="exams"><span class="ico">📝</span>Exams</button>
-            <button type="button" class="nav-btn" data-page="students"><span class="ico">👥</span>Students</button>
+            <button type="button" class="nav-btn is-active" data-page="live" data-feature-lock="teacher.live"><span class="ico">📹</span>Live Classes</button>
+            <button type="button" class="nav-btn" data-page="materials" data-feature-lock="teacher.materials"><span class="ico">📚</span>Materials</button>
+            <button type="button" class="nav-btn" data-page="exams" data-feature-lock="teacher.exams"><span class="ico">📝</span>Exams</button>
+            <button type="button" class="nav-btn" data-page="students" data-feature-lock="teacher.students"><span class="ico">👥</span>Students</button>
             <button type="button" class="nav-btn" data-page="grading"><span class="ico">✅</span>Grading</button>
-            <button type="button" class="nav-btn" data-page="community"><span class="ico">📣</span>Community</button>
-            <button type="button" class="nav-btn" data-page="ai"><span class="ico">✦</span>Teacher AI</button>
+            <button type="button" class="nav-btn" data-page="community" data-feature-lock="teacher.community"><span class="ico">📣</span>Community</button>
+            <button type="button" class="nav-btn" data-page="ai" data-feature-lock="teacher.ai"><span class="ico">✦</span>Teacher AI</button>
             <button type="button" class="nav-btn" data-page="profile"><span class="ico">👤</span>Profile</button>
-            <a type="button" class="nav-btn" href="affiliate.html"><span class="ico">💜</span>Refer &amp; Earn</a>
+            <a type="button" class="nav-btn" href="affiliate.html" data-feature-lock="teacher.affiliate"><span class="ico">💜</span>Refer &amp; Earn</a>
           </nav>
           <div class="side-foot">
             <strong>Teacher studio</strong>
@@ -477,6 +477,7 @@
 
     <script src="js/i18n.js?v=20261024b"></script>
     <script src="js/api.js?v=20261024b"></script>
+    <script src="js/feature-lock.js?v=20261113a"></script>
     <script src="js/teacher-app.js?v=20261104c"></script>
     <script>
       document.addEventListener("DOMContentLoaded", function () {

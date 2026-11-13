@@ -138,6 +138,49 @@ FEATURE_CATALOG: tuple[dict, ...] = (
         "label": "Refer & Earn",
         "description": "Affiliate referral page and earnings link.",
     },
+    # ---------------------------------------------------------------- teacher
+    {
+        "key": "teacher.live",
+        "section": "teacher",
+        "label": "Live Classes",
+        "description": "Host, schedule and start live classes.",
+    },
+    {
+        "key": "teacher.materials",
+        "section": "teacher",
+        "label": "Materials",
+        "description": "Upload notes, worksheets and video links.",
+    },
+    {
+        "key": "teacher.exams",
+        "section": "teacher",
+        "label": "Exams",
+        "description": "Publish exams and review submissions.",
+    },
+    {
+        "key": "teacher.students",
+        "section": "teacher",
+        "label": "Students",
+        "description": "Assigned students, progress and messages.",
+    },
+    {
+        "key": "teacher.community",
+        "section": "teacher",
+        "label": "Community",
+        "description": "Teacher announcements to students.",
+    },
+    {
+        "key": "teacher.ai",
+        "section": "teacher",
+        "label": "Teacher AI",
+        "description": "AI lesson and question generation for teachers.",
+    },
+    {
+        "key": "teacher.affiliate",
+        "section": "teacher",
+        "label": "Refer & Earn",
+        "description": "Teacher affiliate page and earnings.",
+    },
     # ------------------------------------------------------------------- kind
     {
         "key": "kind.home",

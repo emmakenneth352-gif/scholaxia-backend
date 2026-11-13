@@ -311,11 +311,14 @@
     try {
       var kind = /(^|\/)kind\.html$/i.test(location.pathname) ||
         document.body.classList.contains("kind-body");
-      var prefix = kind ? "kind." : "student.";
+      var teacher = /(^|\/)teacher\.html$/i.test(location.pathname) ||
+        document.body.classList.contains("teacher-body");
+      var prefix = teacher ? "teacher." : kind ? "kind." : "student.";
       document.querySelectorAll("[data-page]").forEach(function (el) {
         var page = el.getAttribute("data-page");
         if (!page) return;
-        var key = prefix + page;
+        // An explicit data-feature-lock on the element always wins.
+        var key = el.getAttribute("data-feature-lock") || (prefix + page);
         el.classList.toggle("sx-locked", isLocked(key));
         if (isLocked(key)) {
           el.setAttribute("title", messageFor(key));

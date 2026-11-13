@@ -110,6 +110,7 @@ async def list_feature_access(
         "default_message": DEFAULT_MAINTENANCE_MESSAGE,
         "sections": [
             {"id": "student", "label": "Student app"},
+            {"id": "teacher", "label": "Teacher portal"},
             {"id": "kind", "label": "Kind (kids) app"},
         ],
     }
