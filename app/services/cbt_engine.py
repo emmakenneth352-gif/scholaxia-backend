@@ -7,7 +7,7 @@ import uuid
 from datetime import timedelta
 from typing import Any
 
-from sqlalchemy import select, text, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -362,6 +362,50 @@ async def _published_practice_exams(db: AsyncSession, exam_type: str) -> list[CB
     return out
 
 
+async def _sample_question_ids(
+    db: AsyncSession,
+    exam_ids: list,
+    cap: int,
+) -> list:
+    """Up to `cap` question ids spread across the WHOLE pool for these exams.
+
+    A bare `.limit(cap)` has no ORDER BY, so Postgres returns the oldest
+    inserted rows first. Once a subject grew past the cap, newly appended bank
+    questions sat outside that window and were never picked. Ordering by id and
+    starting at a random offset makes every row reachable instead.
+    """
+    if not exam_ids:
+        return []
+    base = (
+        select(CBTQuestion.id)
+        .where(CBTQuestion.exam_id.in_(exam_ids))
+        .order_by(CBTQuestion.id)
+    )
+    total = (
+        await db.execute(
+            select(func.count())
+            .select_from(CBTQuestion)
+            .where(CBTQuestion.exam_id.in_(exam_ids))
+        )
+    ).scalar() or 0
+    total = int(total)
+    if total <= 0:
+        return []
+    if total <= cap:
+        return list((await db.execute(base)).scalars().all())
+    # Circular window: start anywhere, wrap to the top when it runs past the
+    # end, so every row (oldest and newest) has the same chance of being drawn.
+    start = random.randint(0, total - 1)
+    ids = list((await db.execute(base.offset(start).limit(cap))).scalars().all())
+    if len(ids) < cap:
+        seen = set(ids)
+        extra = list(
+            (await db.execute(base.limit(cap - len(ids)))).scalars().all()
+        )
+        ids.extend([row for row in extra if row not in seen])
+    return ids
+
+
 async def _bank_questions_cross_board(
     db: AsyncSession,
     exam_type: str,
@@ -408,12 +452,7 @@ async def _bank_questions_cross_board(
     id_cap = 600
     if limit and limit > 0:
         id_cap = min(max(int(limit) * 8, 120), 600)
-    id_rows = (
-        await db.execute(
-            select(CBTQuestion.id).where(CBTQuestion.exam_id.in_(exam_ids)).limit(id_cap)
-        )
-    ).scalars().all()
-    ids = list(id_rows)
+    ids = await _sample_question_ids(db, exam_ids, id_cap)
     if not ids:
         return []
     if limit and len(ids) > limit:
@@ -442,12 +481,7 @@ async def _bank_questions_for(
     id_cap = 600
     if limit and limit > 0:
         id_cap = min(max(int(limit) * 8, 120), 600)
-    id_rows = (
-        await db.execute(
-            select(CBTQuestion.id).where(CBTQuestion.exam_id.in_(exam_ids)).limit(id_cap)
-        )
-    ).scalars().all()
-    ids = list(id_rows)
+    ids = await _sample_question_ids(db, exam_ids, id_cap)
     if not ids:
         return []
     if limit and len(ids) > limit:

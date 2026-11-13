@@ -819,6 +819,20 @@ async def _student_can_access_class(
     profile: StudentProfile | None,
 ) -> tuple[bool, str]:
     vis = _class_visibility(live_class)
+
+    from app.services.membership_service import audience_label, has_paid_access, normalize_audience
+
+    audience = normalize_audience(getattr(live_class, "audience", None))
+    if audience != "all":
+        if await has_paid_access(db, student_id, audience):
+            return True, ""
+        return (
+            False,
+            "This class is for paid "
+            + audience_label(audience)
+            + " members. Renew your monthly subscription to join.",
+        )
+
     if vis == LiveClassVisibility.public.value:
         return True, ""
     if vis == LiveClassVisibility.private.value:
@@ -868,6 +882,42 @@ async def _notify_for_class(
         "join_code": live_class.join_code,
         "visibility": vis,
     }
+
+    # Paid-audience class: only paying members of that group hear about it, and
+    # there is no access code at all — the membership is the ticket.
+    from app.services.membership_service import (
+        audience_label,
+        normalize_audience,
+        paid_member_ids,
+    )
+
+    audience = normalize_audience(getattr(live_class, "audience", None))
+    if audience != "all":
+        label = audience_label(audience)
+        paid_ids = await paid_member_ids(db, audience)
+        if live_now:
+            title = f"{label} class is live now"
+            body = (
+                f"\"{live_class.title}\" is live for paid {label} students. "
+                "Tap Join in Live Class — no code needed."
+            )
+        else:
+            title = f"Upcoming {label} class"
+            when = (start or live_class.start_time).strftime("%d %b %Y at %I:%M %p")
+            body = (
+                f"\"{live_class.title}\" is scheduled for {when}. "
+                "No code needed — just tap Join when it starts."
+            )
+        payload = {**data, "audience": audience, "no_code_required": True}
+        for sid in paid_ids:
+            try:
+                await send_user_notification(
+                    db, str(sid), title, body, "live_class", payload
+                )
+            except Exception:
+                pass
+        return
+
     try:
         teacher_res = await db.execute(select(User).where(User.id == live_class.teacher_id))
         teacher_user = teacher_res.scalar_one_or_none()
@@ -993,6 +1043,9 @@ class CreateClassRequest(BaseModel):
     invited_student_emails: Optional[list[str]] = None
     school_group_id: Optional[str] = None
     academic_class: Optional[str] = None
+    # Paid audience: "all" (everyone) or jamb / waec / neco / bece / coding.
+    # A paid-audience class needs no join code — paying IS the ticket.
+    audience: Optional[str] = None
 
 
 class ClassResponse(BaseModel):
@@ -1006,6 +1059,7 @@ class ClassResponse(BaseModel):
     visibility: str = "public"
     join_code: Optional[str] = None
     school_group_id: Optional[str] = None
+    audience: str = "all"
 
 
 @router.post("/", response_model=ClassResponse)
@@ -1023,6 +1077,15 @@ async def create_class(
     vis = (payload.visibility or LiveClassVisibility.public.value).lower()
     if vis not in {v.value for v in LiveClassVisibility}:
         vis = LiveClassVisibility.public.value
+
+    # Paid-audience classes are platform-public but only paid members may join,
+    # and they never need a code (the membership is the ticket).
+    from app.services.membership_service import normalize_audience
+
+    audience = normalize_audience(payload.audience)
+    if audience != "all":
+        vis = LiveClassVisibility.public.value
+        join_code = None
 
     # Resolve invited emails/ids (kids are invited by email — they never enter codes).
     invited_ids: list[str] = []
@@ -1086,6 +1149,7 @@ async def create_class(
         invited_student_ids=json.dumps(invited_ids) if (vis == LiveClassVisibility.private.value and invited_ids) else None,  # invited kids join straight from their list; others join by code
         school_group_id=school_group_uuid,
         academic_class=(payload.academic_class or "").strip().upper() or None,
+        audience=audience,
         is_live=is_live,
     )
     db.add(live_class)
@@ -1145,6 +1209,7 @@ async def create_class(
         visibility=live_class.visibility,
         join_code=live_class.join_code,
         school_group_id=str(live_class.school_group_id) if live_class.school_group_id else None,
+        audience=live_class.audience or "all",
     )
 
 
@@ -1293,6 +1358,7 @@ async def join_class(
         end_time_iso = live_class.end_time.isoformat() if live_class.end_time else None
         invited_raw = live_class.invited_student_ids
         school_group_id = str(live_class.school_group_id) if live_class.school_group_id else None
+        class_audience = str(getattr(live_class, "audience", None) or "all").strip().lower()
 
         if visibility == LiveClassVisibility.private.value:
             invited = _parse_id_list(invited_raw)
@@ -1327,6 +1393,28 @@ async def join_class(
                 raise
             except Exception as gexc:
                 log.warning("school group check skipped: %s", gexc)
+
+        # Paid-audience classes: the monthly subscription is the only ticket.
+        # No join code is ever asked for.
+        if class_audience not in ("", "all", "none"):
+            from app.services.membership_service import audience_label, has_paid_access
+
+            is_staff_caller = str(current_user.get("role", "")).lower() in (
+                "teacher",
+                "admin",
+            )
+            if not is_staff_caller:
+                paid_ok = await has_paid_access(db, sid, class_audience)
+                if not paid_ok:
+                    raise HTTPException(
+                        status_code=403,
+                        detail=(
+                            "This class is for paid "
+                            + audience_label(class_audience)
+                            + " members. Your monthly subscription is not active — "
+                            "pay to join. No code is needed."
+                        ),
+                    )
 
         # class_level / legacy subject classes: a student may join only when
         # their profile matches, OR they hold a delivered access code for this
@@ -2233,6 +2321,9 @@ async def list_live_classes(
             "is_free": is_free_live_class(c.visibility),
             "requires_payment": not is_free_live_class(c.visibility),
             "school_group_id": str(c.school_group_id) if c.school_group_id else None,
+            "audience": c.audience or "all",
+            "requires_paid_membership": (c.audience or "all") != "all",
+            "no_code_required": (c.audience or "all") != "all",
         })
     return out
 

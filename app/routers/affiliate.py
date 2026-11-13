@@ -27,6 +27,8 @@ from app.core.deps import get_current_user, require_admin
 from app.models.affiliate import AffiliateProfile, AffiliateReferral, AffiliatePayout, PayoutStatus
 from app.models.user import User
 from app.services.notification_service import send_user_notification
+from app.services.affiliate_commissions import earnings_list, earnings_total
+from app.services.platform_settings import get_values, set_values
 
 router = APIRouter(prefix="/affiliate", tags=["Affiliate"])
 
@@ -56,12 +58,14 @@ async def credit_referral(db: AsyncSession, ref_code: str | None, new_user) -> N
     ).scalar_one_or_none()
     if dup:
         return
+    rates = await get_values(db)
+    signup_commission = float(rates["affiliate_signup_commission"])
     db.add(
         AffiliateReferral(
             affiliate_id=profile.id,
             referred_user_id=new_user.id,
             referred_name=(new_user.full_name or new_user.email or "Student")[:255],
-            commission=float(settings.AFFILIATE_SIGNUP_COMMISSION),
+            commission=signup_commission,
         )
     )
     try:
@@ -71,7 +75,7 @@ async def credit_referral(db: AsyncSession, ref_code: str | None, new_user) -> N
             title="New referral signed up 🎉",
             body=(
                 f"{new_user.full_name or 'A student'} joined Scholaxia with your code "
-                f"{code} — ₦{float(settings.AFFILIATE_SIGNUP_COMMISSION):,.2f} added to your balance."
+                f"{code} — ₦{signup_commission:,.2f} added to your balance."
             ),
             notification_type="affiliate",
         )
@@ -150,7 +154,19 @@ async def affiliate_me(
 
 async def _profile_out(db: AsyncSession, profile: AffiliateProfile | None) -> dict:
     if not profile:
-        return {"joined": False, "code": None, "link": None, "commission_per_referral": float(settings.AFFILIATE_SIGNUP_COMMISSION)}
+        rates = await get_values(db)
+        return {
+            "joined": False,
+            "code": None,
+            "link": None,
+            "commission_per_referral": float(rates["affiliate_signup_commission"]),
+            "rates": {
+                "signup": float(rates["affiliate_signup_commission"]),
+                "subscription": float(rates["affiliate_subscription_commission"]),
+                "purchase_percent": float(rates["affiliate_purchase_percent"]),
+                "first_payment_bonus": float(rates["affiliate_first_payment_bonus"]),
+            },
+        }
 
     ref_res = await db.execute(
         select(
@@ -158,7 +174,9 @@ async def _profile_out(db: AsyncSession, profile: AffiliateProfile | None) -> di
             func.coalesce(func.sum(AffiliateReferral.commission), 0.0),
         ).where(AffiliateReferral.affiliate_id == profile.id)
     )
-    ref_count, total_earned = ref_res.one()
+    ref_count, signup_earned = ref_res.one()
+    extra_earned = await earnings_total(db, profile.id)
+    total_earned = float(signup_earned or 0.0) + float(extra_earned or 0.0)
     paid_res = await db.execute(
         select(func.coalesce(func.sum(AffiliatePayout.amount), 0.0)).where(
             AffiliatePayout.affiliate_id == profile.id,
@@ -167,6 +185,8 @@ async def _profile_out(db: AsyncSession, profile: AffiliateProfile | None) -> di
     )
     paid_out = paid_res.scalar() or 0.0
     balance = float(total_earned) - float(paid_out)
+    rates = await get_values(db)
+    earnings = await earnings_list(db, profile.id)
 
     payouts = (
         await db.execute(
@@ -191,7 +211,14 @@ async def _profile_out(db: AsyncSession, profile: AffiliateProfile | None) -> di
         "code": profile.code,
         "link": f"{AFFILIATE_LINK_ORIGIN}?ref={profile.code}",
         "currency": "NGN",
-        "commission_per_referral": float(settings.AFFILIATE_SIGNUP_COMMISSION),
+        "commission_per_referral": float(rates["affiliate_signup_commission"]),
+        "rates": {
+            "signup": float(rates["affiliate_signup_commission"]),
+            "subscription": float(rates["affiliate_subscription_commission"]),
+            "purchase_percent": float(rates["affiliate_purchase_percent"]),
+            "first_payment_bonus": float(rates["affiliate_first_payment_bonus"]),
+        },
+        "earnings": earnings,
         "referrals_count": int(ref_count),
         "total_earned": float(total_earned),
         "balance": float(balance),
@@ -221,6 +248,62 @@ async def _profile_out(db: AsyncSession, profile: AffiliateProfile | None) -> di
 
 
 # ── Payout request (manual — admin pays and marks it paid) ────────────────────
+
+
+class AffiliateSettingsRequest(BaseModel):
+    signup: float | None = None
+    subscription: float | None = None
+    purchase_percent: float | None = None
+    first_payment_bonus: float | None = None
+    membership_monthly_price: float | None = None
+    first_period_bonus_days: float | None = None
+
+
+@router.get("/admin/settings")
+async def get_affiliate_settings(
+    current_user: dict = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin: the amounts affiliates earn (applies to the next payment)."""
+    rates = await get_values(db)
+    return {
+        "signup": float(rates["affiliate_signup_commission"]),
+        "subscription": float(rates["affiliate_subscription_commission"]),
+        "purchase_percent": float(rates["affiliate_purchase_percent"]),
+        "first_payment_bonus": float(rates["affiliate_first_payment_bonus"]),
+        "membership_monthly_price": float(rates["membership_monthly_price"]),
+        "first_period_bonus_days": int(rates["first_period_bonus_days"] or 0),
+    }
+
+
+@router.put("/admin/settings")
+async def update_affiliate_settings(
+    payload: AffiliateSettingsRequest,
+    current_user: dict = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin sets how much affiliates earn on signup, subscription and purchases."""
+    updated = await set_values(
+        db,
+        {
+            "affiliate_signup_commission": payload.signup,
+            "affiliate_subscription_commission": payload.subscription,
+            "affiliate_purchase_percent": payload.purchase_percent,
+            "affiliate_first_payment_bonus": payload.first_payment_bonus,
+            "membership_monthly_price": payload.membership_monthly_price,
+            "first_period_bonus_days": payload.first_period_bonus_days,
+        },
+    )
+    await db.commit()
+    return {
+        "ok": True,
+        "signup": float(updated["affiliate_signup_commission"]),
+        "subscription": float(updated["affiliate_subscription_commission"]),
+        "purchase_percent": float(updated["affiliate_purchase_percent"]),
+        "first_payment_bonus": float(updated["affiliate_first_payment_bonus"]),
+        "membership_monthly_price": float(updated["membership_monthly_price"]),
+        "first_period_bonus_days": int(updated["first_period_bonus_days"] or 0),
+    }
 
 
 class PayoutRequest(BaseModel):

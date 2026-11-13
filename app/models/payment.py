@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Boolean, DateTime, ForeignKey, Float, Enum, JSON
+from sqlalchemy import String, Boolean, DateTime, ForeignKey, Float, Enum, JSON, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID
 from app.core.database import Base
@@ -35,6 +35,19 @@ class Subscription(Base):
     has_community_access: Mapped[bool] = mapped_column(Boolean, default=False)
     has_live_class_access: Mapped[bool] = mapped_column(Boolean, default=False)
     has_premium_cbt: Mapped[bool] = mapped_column(Boolean, default=False)
+    # ── Monthly paid membership ──────────────────────────────────────────────
+    # One payment covers one calendar month and expires on the same day next
+    # month (pay on the 22nd → expires on the 22nd). `audience` records which
+    # paid group the student joined under (jamb / waec / neco / bece / coding).
+    audience: Mapped[str] = mapped_column(String(20), default="all", server_default="all")
+    amount_paid: Mapped[float] = mapped_column(Float, default=0.0, server_default="0")
+    plan_label: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    period_start: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    payment_reference: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    is_first_period: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    renewal_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    last_renewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class Payment(Base):

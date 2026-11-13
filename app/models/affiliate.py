@@ -49,6 +49,32 @@ class AffiliateReferral(Base):
     referred_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), unique=True, index=True)
     referred_name: Mapped[str] = mapped_column(String(255), default="", nullable=True)
     commission: Mapped[float] = mapped_column(Float, default=0.0)
+    # One-time bonus paid on the referred user's FIRST payment only.
+    first_bonus_paid: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    first_paid_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class AffiliateEarning(Base):
+    """One money event credited to an affiliate.
+
+    `source` is signup | subscription | purchase | first_payment_bonus. Every row
+    is keyed by a reference (payment reference or account id) so a replayed
+    webhook can never pay the same commission twice.
+    """
+    __tablename__ = "affiliate_earnings"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    affiliate_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("affiliate_profiles.id"), index=True
+    )
+    referred_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True
+    )
+    source: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    amount: Mapped[float] = mapped_column(Float, default=0.0)
+    reference: Mapped[str] = mapped_column(String(160), nullable=False, unique=True, index=True)
+    note: Mapped[str] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

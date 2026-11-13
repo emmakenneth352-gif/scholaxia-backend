@@ -546,6 +546,14 @@ async def _fulfill(db: AsyncSession, payment: Payment, tx_data: dict) -> None:
 
     await db.flush()
 
+    # Monthly membership + affiliate commission for this payment.
+    try:
+        from app.services.monetization_hooks import on_payment_success
+
+        await on_payment_success(db, payment, first_success=not already_fulfilled)
+    except Exception:
+        pass
+
 
 def _validate_success(payment: Payment, tx_data: dict) -> None:
     """Reject fulfillment when status/currency/amount don't match the server record."""

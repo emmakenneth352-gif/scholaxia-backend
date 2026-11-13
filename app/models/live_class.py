@@ -42,6 +42,10 @@ class LiveClass(Base):
     invited_student_ids: Mapped[str] = mapped_column(Text, nullable=True)
     school_group_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("school_groups.id"), nullable=True)
     academic_class: Mapped[str] = mapped_column(String(40), nullable=True, index=True)
+    # Paid audience for this class: "all" = everyone, otherwise only paying
+    # members of that group (jamb / waec / neco / bece / coding). Such classes
+    # need no join code — the membership IS the ticket.
+    audience: Mapped[str] = mapped_column(String(20), default="all", server_default="all", nullable=False)
     school_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("school_campuses.id"), nullable=True, index=True
     )

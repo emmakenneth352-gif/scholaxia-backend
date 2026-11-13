@@ -41,6 +41,7 @@ from app.routers import school_core, school_results_router
 from app.routers import past_questions_shop
 from app.routers import ai_tokens
 from app.routers import affiliate
+from app.routers import membership
 from app.routers import feature_access
 from app.websockets.live_class_ws import live_class_endpoint
 
@@ -59,6 +60,18 @@ async def lifespan(app: FastAPI):
     if db_ok:
         from app.services.live_class_scheduler import start_live_class_scheduler
         start_live_class_scheduler()
+        # Lapsed monthly memberships must drop out of the paid table right away.
+        try:
+            from app.core.database import AsyncSessionLocal
+            from app.services.membership_service import sweep_expired
+
+            async with AsyncSessionLocal() as sweep_db:
+                lapsed = await sweep_expired(sweep_db)
+                await sweep_db.commit()
+                if lapsed:
+                    print(f"[membership] {lapsed} lapsed subscription(s) removed")
+        except Exception:
+            pass
     yield
     await close_redis()
     await engine.dispose()
@@ -131,6 +144,7 @@ app.include_router(materials.router, prefix="/api/v1")
 app.include_router(wallet.router, prefix="/api/v1")
 app.include_router(recommendations.router, prefix="/api/v1")
 app.include_router(affiliate.router, prefix="/api/v1")
+app.include_router(membership.router, prefix="/api/v1")
 app.include_router(home.router, prefix="/api/v1")
 app.include_router(kind.router, prefix="/api/v1")
 app.include_router(performance.router, prefix="/api/v1")

@@ -816,7 +816,14 @@ async def verify_flutterwave_payment(
         if tx_ref:
             payment.flutterwave_tx_ref = tx_ref
         activated = await activate_live_plan(db, current_user["sub"], plan.id)
+        payment.product_type = payment.product_type or "class_package"
         await db.flush()
+        try:
+            from app.services.monetization_hooks import on_payment_success
+
+            await on_payment_success(db, payment)
+        except Exception:
+            pass
         return {
             "paid": True,
             "plan_id": plan.id,
@@ -869,6 +876,12 @@ async def verify_flutterwave_payment(
             ))
             await db.flush()
 
+        try:
+            from app.services.monetization_hooks import on_payment_success
+
+            await on_payment_success(db, payment)
+        except Exception:
+            pass
         return {"paid": True, "material_id": payload.material_id, "has_access": True, "payment_id": str(payment.id)}
 
     if payload.book_id:
