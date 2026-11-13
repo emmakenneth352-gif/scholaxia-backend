@@ -47,6 +47,9 @@
     .how li{margin-bottom:.45rem;color:#3b2060}
     .hidden{display:none}
     .login-note a{color:#6d28d9;font-weight:700}
+    body.is-embed{background:transparent}
+    body.is-embed .page-nav{display:none}
+    body.is-embed .wrap{padding-top:.4rem}
   </style>
 </head>
 <body>
@@ -155,7 +158,37 @@
       return typeof d === "string" ? d : (e && e.message) || "Something went wrong";
     }
 
-    if (!api.requireAuth(null, "affiliate.html")) return;
+    var isEmbed = /[?&]embed=1\b/.test(window.location.search);
+    if (isEmbed) {
+      document.body.classList.add("is-embed");
+      var reportHeight = function () {
+        var h = Math.max(
+          document.body.scrollHeight,
+          document.documentElement.scrollHeight,
+          document.querySelector(".wrap") ? document.querySelector(".wrap").offsetHeight + 24 : 0
+        );
+        try { window.parent.postMessage({ type: "sx-affiliate-height", height: h }, window.location.origin); } catch (err) {}
+      };
+      window.addEventListener("load", reportHeight);
+      if (window.ResizeObserver) {
+        try { new ResizeObserver(reportHeight).observe(document.body); } catch (err) {}
+      }
+      setTimeout(reportHeight, 600);
+    }
+
+    if (isEmbed) {
+      if (!api.getToken()) {
+        // Inside the app shell the page stays put and asks for a sign-in that
+        // opens the portal in a full tab, instead of framing the login screen.
+        var gate = document.getElementById("need-login");
+        if (gate) {
+          gate.classList.remove("hidden");
+          var gateLink = gate.querySelector("a");
+          if (gateLink) gateLink.target = "_top";
+        }
+        return;
+      }
+    } else if (!api.requireAuth(null, "affiliate.html")) return;
 
     function fmt(n) {
       return "₦" + Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });

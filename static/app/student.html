@@ -15,7 +15,7 @@
     <link rel="dns-prefetch" href="https://edge.plugnmeet.cloud" />
     <link rel="dns-prefetch" href="wss://scholaxia-neyu04kd.livekit.cloud" />
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="css/app.css?v=20261112a" />
+    <link rel="stylesheet" href="css/app.css?v=20261113aff" />
     <link rel="stylesheet" href="css/student-pretty.css?v=20261112a" />
     <script src="js/site-guard.js?v=20261112a"></script>
     <script>
@@ -61,7 +61,7 @@
           <button class="side-link" data-page="about" type="button"><span class="ico">ℹ</span>About</button>
           <button class="side-link" data-page="contact" type="button"><span class="ico">✉</span>Contact</button>
           <button class="side-link" data-page="profile" type="button"><span class="ico">👤</span>Profile</button>
-          <a class="side-link" href="affiliate.html" data-feature-lock="student.affiliate"><span class="ico">💜</span>Refer &amp; Earn</a>
+          <button class="side-link" data-page="affiliate" type="button" data-feature-lock="student.affiliate"><span class="ico">💜</span>Refer &amp; Earn</button>
         </nav>
         <div class="side-promo">
           <strong>Subscription</strong>
@@ -640,6 +640,12 @@
           </section>
 
           <!-- ================= PROFILE ================= -->
+          <section class="page" id="page-affiliate">
+            <div class="panel">
+              <iframe class="aff-embed" id="affiliateFrame" data-src="affiliate.html?embed=1" title="Refer &amp; Earn"></iframe>
+            </div>
+          </section>
+
           <section class="page" id="page-profile">
             <div class="panel">
               <h2>Profile</h2>
@@ -853,6 +859,6 @@
     <script src="js/paystack.js?v=20261024b"></script>
     <script src="js/games.js?v=20261024b"></script>
     <script src="js/sx-calc.js?v=20261027c"></script>
-    <script src="js/student.js?v=20261112a"></script>
+    <script src="js/student.js?v=20261113aff"></script>
   </body>
 </html>

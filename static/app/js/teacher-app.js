@@ -21,6 +21,7 @@
     grading: "Grading",
     community: "Community",
     ai: "Teacher AI",
+    affiliate: "Refer & Earn",
     profile: "Profile",
   };
 
@@ -125,6 +126,7 @@
       else if (id === "grading") loadGrading();
       else if (id === "community") loadCommunity();
       else if (id === "ai") initAI();
+      else if (id === "affiliate") ensureAffiliateFrame();
       else if (id === "profile") loadProfile();
     } catch (err) {
       console.error(err);
@@ -1965,6 +1967,23 @@ async function endClass(id) {
     });
   });
   onVisibilityChange();
+
+  // Refer & Earn opens inside the studio so the session is never lost.
+  function ensureAffiliateFrame() {
+    var frame = document.getElementById("affiliateFrame");
+    if (!frame) return;
+    var src = frame.getAttribute("data-src");
+    if (src && !frame.getAttribute("src")) frame.setAttribute("src", src);
+  }
+
+  window.addEventListener("message", function (e) {
+    if (e.origin !== window.location.origin) return;
+    if (!e.data || e.data.type !== "sx-affiliate-height") return;
+    var frame = document.getElementById("affiliateFrame");
+    if (!frame || e.source !== frame.contentWindow) return;
+    var h = Number(e.data.height) || 0;
+    frame.style.height = Math.max(640, Math.min(6000, h)) + "px";
+  });
 
   document.querySelectorAll(".nav-btn[data-page]").forEach(function (btn) {
     btn.addEventListener("click", function (e) {

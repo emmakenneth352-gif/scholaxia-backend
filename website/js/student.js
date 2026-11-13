@@ -303,6 +303,7 @@
     groups: "Groups",
     about: "About",
     contact: "Contact",
+    affiliate: "Refer & Earn",
     profile: "Profile",
   };
 
@@ -327,8 +328,26 @@
     assignments: loadAssignments,
     community: loadCommunity,
     groups: loadGroups,
+    affiliate: ensureAffiliateFrame,
     profile: loadProfile,
   };
+
+  // Refer & Earn renders inside the shell so signing in is never lost.
+  function ensureAffiliateFrame() {
+    var frame = document.getElementById("affiliateFrame");
+    if (!frame) return;
+    var src = frame.getAttribute("data-src");
+    if (src && !frame.getAttribute("src")) frame.setAttribute("src", src);
+  }
+
+  window.addEventListener("message", function (e) {
+    if (e.origin !== window.location.origin) return;
+    if (!e.data || e.data.type !== "sx-affiliate-height") return;
+    var frame = document.getElementById("affiliateFrame");
+    if (!frame || e.source !== frame.contentWindow) return;
+    var h = Number(e.data.height) || 0;
+    frame.style.height = Math.max(640, Math.min(6000, h)) + "px";
+  });
 
   var pageHistory = [];
   var currentPageId = "home";
