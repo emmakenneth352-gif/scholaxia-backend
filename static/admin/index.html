@@ -97,6 +97,7 @@
       <button class="nav-btn" data-page="community" onclick="showAdminPage('community')">Community</button>
       <button class="nav-btn" data-page="marketplace" onclick="showAdminPage('marketplace')">Marketplace</button>
       <button class="nav-btn" data-page="affiliate-payouts" onclick="showAdminPage('affiliate-payouts')">Affiliate Payouts</button>
+      <button class="nav-btn" data-page="affiliate-settings" onclick="showAdminPage('affiliate-settings')">Affiliate &amp; Pricing</button>
     </nav>
     <div class="sidebar-foot">
       <div class="admin-user" id="admin-user-label">Admin</div>
@@ -1416,6 +1417,58 @@
         <button class="btn-sm" onclick="loadAffiliatePayouts('rejected')">Rejected</button>
       </div>
       <div id="affiliate-payouts-table"><div class="loading">Loading…</div></div>
+    </section>
+
+    <section id="page-affiliate-settings" class="admin-page">
+      <div class="page-head">
+        <h2>Affiliate &amp; Pricing</h2>
+        <button class="btn-sm" onclick="loadAffiliateSettingsAdmin()">Refresh</button>
+      </div>
+      <p class="cbt-hint small">Set exactly how much Scholaxia pays out. New amounts apply from the next payment — anything already credited keeps the old amount.</p>
+
+      <div class="panel">
+        <h3>What affiliates earn</h3>
+        <div class="form-grid">
+          <label><span>Signup bonus (&#8358;)</span><input id="aff-signup" type="number" min="0" step="50" /></label>
+          <label><span>Every monthly subscription (&#8358;)</span><input id="aff-sub" type="number" min="0" step="50" /></label>
+          <label><span>Anything else they buy (%)</span><input id="aff-pct" type="number" min="0" max="100" step="1" /></label>
+          <label><span>First payment bonus (&#8358;, once)</span><input id="aff-first" type="number" min="0" step="50" /></label>
+        </div>
+        <div class="form-row" style="margin-top:10px">
+          <button class="btn-primary" style="width:auto;padding:12px 22px" onclick="saveAffiliateSettingsAdmin()">Save affiliate amounts</button>
+        </div>
+        <p id="aff-settings-msg" class="cbt-hint small" style="margin-top:8px"></p>
+      </div>
+
+      <div class="panel">
+        <h3>Monthly membership</h3>
+        <div class="form-grid">
+          <label><span>Monthly price shown to students (&#8358;)</span><input id="aff-price" type="number" min="0" step="100" /></label>
+          <label><span>First-timer bonus days</span><input id="aff-days" type="number" min="0" max="60" step="1" /></label>
+        </div>
+        <p class="cbt-hint small" style="margin-top:8px">The amount students actually pay at checkout is the live-class plan price set in <strong>Plans &amp; Pricing</strong>. Subscription lasts one calendar month from the payment date and lapses if the student does not pay again.</p>
+        <div class="form-row" style="margin-top:10px">
+          <button class="btn-primary" style="width:auto;padding:12px 22px" onclick="saveAffiliateSettingsAdmin()">Save membership settings</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Paid members</h3>
+        <div class="form-row">
+          <label><span>Group</span>
+            <select id="aff-audience" onchange="loadPaidMembersAdmin()">
+              <option value="all">All paid students</option>
+              <option value="jamb">JAMB</option>
+              <option value="waec">WAEC</option>
+              <option value="neco">NECO</option>
+              <option value="bece">Junior WAEC (BECE)</option>
+              <option value="coding">Coding / Skills</option>
+            </select>
+          </label>
+        </div>
+        <p id="aff-paid-count" class="cbt-hint small"></p>
+      </div>
+      <div id="aff-paid-table"><div class="loading">Loading…</div></div>
     </section>
 
     <div class="panel" id="cbt-edit-panel" style="display:none;margin:16px 0 24px">
