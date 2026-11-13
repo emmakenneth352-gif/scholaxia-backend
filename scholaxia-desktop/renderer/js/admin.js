@@ -209,6 +209,7 @@ function showAdminPage(page) {
   else if (page === "requests") loadRequests();
   else if (page === "live-subs") loadLiveSubscriptions();
   else if (page === "affiliate") loadAffiliateAdmin();
+  else if (page === "feature-access") loadFeatureAccess();
   else if (page === "skills-enroll") loadSkillsEnrollments();
   else if (page === "cbt-settings") { loadCbtSettings(); setCbtSettingsBank(cbtSettingsBank || "JAMB"); }
   else if (page === "cbt") { cbtMode = "practice"; initCbtBuilder(); setCbtBank(cbtActiveBank || "JAMB"); }
@@ -232,6 +233,154 @@ function showAdminPage(page) {
 function _affSet(id, value) {
   var el = document.getElementById(id);
   if (el) el.value = value == null ? "" : value;
+}
+
+/* ── Feature Access / Maintenance ── */
+var featureAccessCache = null;
+
+function featureEsc(text) {
+  return String(text == null ? "" : text)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function featureAccessMessage() {
+  var input = document.getElementById("feature-lock-message");
+  return input ? String(input.value || "").trim() : "";
+}
+
+function flashFeatureAccess(text, isError) {
+  var el = document.getElementById("feature-lock-msg");
+  if (!el) return;
+  el.textContent = text || "";
+  el.style.color = isError ? "#b91c1c" : "#047857";
+  if (text) {
+    clearTimeout(flashFeatureAccess._t);
+    flashFeatureAccess._t = setTimeout(function () { el.textContent = ""; }, 4200);
+  }
+}
+
+async function loadFeatureAccess() {
+  var wrap = document.getElementById("feature-access-wrap");
+  if (!wrap) return;
+  wrap.innerHTML = '<div class="loading">Loading...</div>';
+  try {
+    var data = await adminApi("/api/v1/admin/feature-access");
+    if (!data) return;
+    featureAccessCache = data;
+    var msgInput = document.getElementById("feature-lock-message");
+    if (msgInput && !msgInput.value) msgInput.value = data.default_message || "";
+    renderFeatureAccess(data);
+  } catch (e) {
+    wrap.innerHTML = '<div class="empty-state">' + featureEsc(e.message || "Could not load feature access") + "</div>";
+  }
+}
+
+function renderFeatureAccess(data) {
+  var wrap = document.getElementById("feature-access-wrap");
+  if (!wrap) return;
+  var features = data.features || [];
+  var labels = {};
+  (data.sections || []).forEach(function (s) { labels[s.id] = s.label; });
+  var groups = {};
+  features.forEach(function (f) {
+    if (!groups[f.section]) groups[f.section] = [];
+    groups[f.section].push(f);
+  });
+  var order = (data.sections || []).map(function (s) { return s.id; });
+  Object.keys(groups).forEach(function (id) {
+    if (order.indexOf(id) === -1) order.push(id);
+  });
+
+  wrap.innerHTML = order.map(function (sectionId) {
+    var rows = groups[sectionId] || [];
+    if (!rows.length) return "";
+    var lockedCount = rows.filter(function (f) { return f.locked; }).length;
+    return (
+      '<div class="feature-section">' +
+      '<h3 class="feature-section-title">' +
+      featureEsc(labels[sectionId] || sectionId) +
+      " · " + lockedCount + " locked" +
+      "</h3>" +
+      '<div class="feature-lock-list">' +
+      rows.map(function (f) {
+        return (
+          '<div class="feature-lock-row' + (f.locked ? " is-locked" : "") + '">' +
+          '<div class="feature-lock-copy">' +
+          "<strong>" + featureEsc(f.label) + "</strong>" +
+          "<small>" + featureEsc(f.description) + "</small>" +
+          "<code>" + featureEsc(f.key) + "</code>" +
+          "</div>" +
+          '<span class="feature-lock-state' + (f.locked ? " is-locked" : "") + '">' +
+          (f.locked ? "Locked" : "Open") +
+          "</span>" +
+          '<button type="button" class="btn-sm ' + (f.locked ? "secondary" : "primary") + '" ' +
+          'onclick="toggleFeatureAccess(\'' + featureEsc(f.key) + "'," + (f.locked ? "false" : "true") + ')">' +
+          (f.locked ? "Unlock" : "Lock") +
+          "</button>" +
+          "</div>"
+        );
+      }).join("") +
+      "</div></div>"
+    );
+  }).join("") || '<div class="empty-state">No features found.</div>';
+}
+
+async function toggleFeatureAccess(key, locked) {
+  var msg = featureAccessMessage();
+  try {
+    await adminApi("/api/v1/admin/feature-access/" + encodeURIComponent(key), {
+      method: "PATCH",
+      body: JSON.stringify({ key: key, locked: !!locked, message: msg || null }),
+    });
+    await loadFeatureAccess();
+    flashFeatureAccess((locked ? "Locked: " : "Unlocked: ") + key, false);
+  } catch (e) {
+    flashFeatureAccess(e.message || "Could not update feature", true);
+  }
+}
+
+async function saveFeatureLockMessage() {
+  var msg = featureAccessMessage();
+  if (!msg) {
+    flashFeatureAccess("Type a message first.", true);
+    return;
+  }
+  var locked = ((featureAccessCache && featureAccessCache.features) || []).filter(function (f) {
+    return f.locked;
+  });
+  if (!locked.length) {
+    flashFeatureAccess("No locked features yet - the message is used next time you lock one.", false);
+    return;
+  }
+  try {
+    await adminApi("/api/v1/admin/feature-access", {
+      method: "PUT",
+      body: JSON.stringify({
+        updates: locked.map(function (f) {
+          return { key: f.key, locked: true, message: msg };
+        }),
+      }),
+    });
+    await loadFeatureAccess();
+    flashFeatureAccess("Message updated for all locked features.", false);
+  } catch (e) {
+    flashFeatureAccess(e.message || "Could not save the message", true);
+  }
+}
+
+async function unlockAllFeatures() {
+  if (!confirm("Unlock every student, teacher and kids feature now?")) return;
+  try {
+    await adminApi("/api/v1/admin/feature-access/unlock-all", { method: "POST" });
+    await loadFeatureAccess();
+    flashFeatureAccess("All features unlocked.", false);
+  } catch (e) {
+    flashFeatureAccess(e.message || "Could not unlock features", true);
+  }
 }
 
 async function loadAffiliateAdmin() {

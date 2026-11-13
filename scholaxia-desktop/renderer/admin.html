@@ -73,6 +73,7 @@
       <button class="nav-btn" data-page="requests" onclick="showAdminPage('requests')">Session Requests</button>
       <button class="nav-btn" data-page="live-subs" onclick="showAdminPage('live-subs')">Live Subscriptions</button>
       <button class="nav-btn" data-page="affiliate" onclick="showAdminPage('affiliate')">Affiliate &amp; Paid</button>
+      <button class="nav-btn" data-page="feature-access" onclick="showAdminPage('feature-access')">Feature Access</button>
       <button class="nav-btn" data-page="skills-enroll" onclick="showAdminPage('skills-enroll')">Skills Enrollments</button>
       <button class="nav-btn" data-page="cbt-settings" onclick="showAdminPage('cbt-settings')">CBT Settings</button>
       <button class="nav-btn" data-page="cbt" onclick="showAdminPage('cbt')">CBT Question Bank</button>
@@ -383,6 +384,37 @@
         <p id="aff-paid-count" class="cbt-hint small"></p>
       </div>
       <div id="aff-paid-table" class="data-table-wrap"><div class="loading">Loading…</div></div>
+    </section>
+
+    <section id="page-feature-access" class="admin-page">
+      <div class="page-head">
+        <h2>Feature Access &amp; Maintenance</h2>
+        <div class="form-row">
+          <button class="btn-sm" onclick="loadFeatureAccess()">Refresh</button>
+          <button class="btn-sm secondary" onclick="unlockAllFeatures()">Unlock all</button>
+        </div>
+      </div>
+      <p class="page-desc">
+        Lock any student, teacher or kids feature. When someone taps a locked feature, Scholaxia shows a friendly
+        maintenance message instead of the screen. Changes apply immediately in the app, website and desktop.
+      </p>
+
+      <div class="panel" style="margin-bottom:16px">
+        <h3>Maintenance message</h3>
+        <p class="cbt-hint small" style="margin-bottom:8px">
+          This message is shown for every locked feature. Save it once, then lock the features below.
+        </p>
+        <label style="display:block">
+          <span style="display:block;font-size:0.78rem;font-weight:700;margin-bottom:5px">Message users will see</span>
+          <input id="feature-lock-message" type="text" maxlength="1000" style="width:100%" placeholder="We are running an update - we will be open soon." />
+        </label>
+        <div class="form-row" style="margin-top:10px">
+          <button class="btn-sm primary" onclick="saveFeatureLockMessage()">Save message</button>
+          <span id="feature-lock-msg" class="cbt-hint small"></span>
+        </div>
+      </div>
+
+      <div id="feature-access-wrap"><div class="loading">Loading...</div></div>
     </section>
 
     <section id="page-skills-enroll" class="admin-page">
