@@ -1152,8 +1152,6 @@ body {
   100% { transform: translateX(240%) skewX(-16deg); opacity: 0; }
 }
 
-.btn-primary::after,
-.btn-sm.primary::after,
 .sidebar-mark::after,
 .auth-mark::after {
   content: "";
