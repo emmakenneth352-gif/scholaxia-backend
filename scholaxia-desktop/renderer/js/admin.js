@@ -208,6 +208,7 @@ function showAdminPage(page) {
   else if (page === "kind-videos") loadKindVideosAdmin();
   else if (page === "requests") loadRequests();
   else if (page === "live-subs") loadLiveSubscriptions();
+  else if (page === "affiliate") loadAffiliateAdmin();
   else if (page === "skills-enroll") loadSkillsEnrollments();
   else if (page === "cbt-settings") { loadCbtSettings(); setCbtSettingsBank(cbtSettingsBank || "JAMB"); }
   else if (page === "cbt") { cbtMode = "practice"; initCbtBuilder(); setCbtBank(cbtActiveBank || "JAMB"); }
@@ -225,6 +226,102 @@ function showAdminPage(page) {
   else if (page === "student-groups") loadStudentGroupsAdmin();
   else if (page === "community") loadCommunityPosts();
   else if (page === "marketplace") loadMarketplace();
+}
+
+/* ── Affiliate & paid members ── */
+function _affSet(id, value) {
+  var el = document.getElementById(id);
+  if (el) el.value = value == null ? "" : value;
+}
+
+async function loadAffiliateAdmin() {
+  var msg = document.getElementById("aff-settings-msg");
+  try {
+    var d = await adminApi("/api/v1/affiliate/admin/settings");
+    if (d) {
+      _affSet("aff-signup", d.signup);
+      _affSet("aff-sub", d.subscription);
+      _affSet("aff-pct", d.purchase_percent);
+      _affSet("aff-first", d.first_payment_bonus);
+      _affSet("aff-price", d.membership_monthly_price);
+      _affSet("aff-days", d.first_period_bonus_days);
+      if (msg) msg.textContent = "Amounts apply to the next payment.";
+    }
+  } catch (e) {
+    if (msg) msg.textContent = e.message || "Could not load settings.";
+  }
+  loadPaidMembers();
+}
+
+async function saveAffiliateSettings() {
+  var msg = document.getElementById("aff-settings-msg");
+  var num = function (id) {
+    var raw = ((document.getElementById(id) || {}).value || "").trim();
+    return raw === "" ? null : Number(raw);
+  };
+  if (msg) msg.textContent = "Saving…";
+  try {
+    var d = await adminApi("/api/v1/affiliate/admin/settings", {
+      method: "PUT",
+      body: JSON.stringify({
+        signup: num("aff-signup"),
+        subscription: num("aff-sub"),
+        purchase_percent: num("aff-pct"),
+        first_payment_bonus: num("aff-first"),
+        membership_monthly_price: num("aff-price"),
+        first_period_bonus_days: num("aff-days"),
+      }),
+    });
+    if (d) {
+      _affSet("aff-signup", d.signup);
+      _affSet("aff-sub", d.subscription);
+      _affSet("aff-pct", d.purchase_percent);
+      _affSet("aff-first", d.first_payment_bonus);
+      _affSet("aff-price", d.membership_monthly_price);
+      _affSet("aff-days", d.first_period_bonus_days);
+    }
+    if (msg) msg.textContent = "Saved. New amounts apply from the next payment.";
+  } catch (e) {
+    if (msg) msg.textContent = e.message || "Could not save.";
+  }
+}
+
+async function loadPaidMembers() {
+  var el = document.getElementById("aff-paid-table");
+  var countEl = document.getElementById("aff-paid-count");
+  var audEl = document.getElementById("aff-audience");
+  var aud = (audEl && audEl.value) || "all";
+  if (el) el.innerHTML = '<div class="loading">Loading…</div>';
+  try {
+    var d = await adminApi(
+      "/api/v1/memberships/paid?audience=" + encodeURIComponent(aud) + "&limit=500"
+    );
+    if (!d) return;
+    if (countEl) {
+      countEl.textContent =
+        (d.count || 0) + " paid " + (d.audience_label || "") + " member" + ((d.count || 0) === 1 ? "" : "s") + ".";
+    }
+    var rows = d.members || [];
+    if (!rows.length) {
+      if (el) el.innerHTML = '<div class="empty-state">No paid members in this group yet.</div>';
+      return;
+    }
+    if (el) {
+      el.innerHTML =
+        '<table class="data-table"><thead><tr><th>Student</th><th>Exam</th><th>Plan</th><th>Paid</th><th>Expires</th><th>Days left</th></tr></thead><tbody>' +
+        rows.map(function (r) {
+          return "<tr><td>" + escHtml(r.name || "") + "<br><small>" + escHtml(r.email || "") + "</small></td>" +
+            "<td>" + escHtml(r.exam_type || "—") + "</td>" +
+            "<td>" + escHtml(r.plan || "") + "</td>" +
+            "<td>&#8358;" + Number(r.amount_paid || 0).toLocaleString() + "</td>" +
+            "<td>" + escHtml(String(r.expires_at || "").slice(0, 10)) + "</td>" +
+            "<td>" + (r.days_left || 0) + "</td></tr>";
+        }).join("") +
+        "</tbody></table>";
+    }
+  } catch (e) {
+    if (el) el.innerHTML = '<div class="empty-state">' + escHtml(e.message || "Could not load paid members.") + "</div>";
+  }
 }
 
 function openAdminCbtBank(bank) {

@@ -32,6 +32,13 @@ contextBridge.exposeInMainWorld("scholaxiaDesktop", {
       console.error("openClassroomKeyboard failed", e);
     }
   },
+  setExamProtection: function (enabled) {
+    try {
+      ipcRenderer.send("scholaxia:set-exam-protection", enabled === true);
+    } catch (e) {
+      console.error("setExamProtection failed", e);
+    }
+  },
   openExternal: function (target) {
     try {
       ipcRenderer.send("scholaxia:open-external", String(target || ""));
@@ -51,6 +58,15 @@ contextBridge.exposeInMainWorld("scholaxiaDesktop", {
       ipcRenderer.send("scholaxia:run-installer", String(filePath || ""));
     } catch (e) {
       console.error("runInstaller failed", e);
+    }
+  },
+  onUpdateInstall: function (cb) {
+    try {
+      ipcRenderer.on("scholaxia:update-install-status", function (_ev, info) {
+        try { cb(info || {}); } catch (e) { console.error("update install handler failed", e); }
+      });
+    } catch (e) {
+      console.error("onUpdateInstall failed", e);
     }
   },
   onUpdateProgress: function (cb) {

@@ -86,6 +86,18 @@
                 <label class="vis-opt"><input type="radio" name="host-visibility" value="private" /> Private</label>
                 <label class="vis-opt"><input type="radio" name="host-visibility" value="school_group" /> School group</label>
               </div>
+              <div class="vis-row" style="margin-top:.7rem">
+                <label style="font-weight:700;font-size:.9rem;min-width:150px">Paid students only</label>
+                <select id="hostAudience" style="padding:.45rem .6rem;border-radius:8px;border:1px solid #ddd3f5">
+                  <option value="all">All students (free to join)</option>
+                  <option value="jamb">JAMB members only</option>
+                  <option value="waec">WAEC members only</option>
+                  <option value="neco">NECO members only</option>
+                  <option value="bece">Junior WAEC (BECE) members only</option>
+                  <option value="coding">Coding / Skills members only</option>
+                </select>
+              </div>
+              <p class="hint" id="hostAudienceHint">Everyone can join with the class code.</p>
               <div id="hostPrivateWrap" class="extra-panel" hidden>
                 <strong style="font-size:0.9rem">Private class — join with code</strong>
                 <p class="hint">After you create the class, Scholaxia generates a unique access code (e.g. SX-…). Copy or share that code with your students. They join with the code — no email-by-email invitations.</p>

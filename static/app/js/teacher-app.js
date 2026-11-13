@@ -169,6 +169,40 @@
     }
   }
 
+  var HOST_AUDIENCE_LABELS = {
+    all: "all students",
+    jamb: "JAMB",
+    waec: "WAEC",
+    neco: "NECO",
+    bece: "Junior WAEC (BECE)",
+    coding: "Coding / Skills",
+  };
+
+  function onAudienceChange() {
+    var el = $("hostAudience");
+    var hint = $("hostAudienceHint");
+    if (!el || !hint) return;
+    var key = el.value || "all";
+    if (key === "all") {
+      hint.textContent = "Everyone can join with the class code.";
+      return;
+    }
+    hint.textContent =
+      "Only paid " + (HOST_AUDIENCE_LABELS[key] || key) +
+      " students are notified and can join — no code needed.";
+    try {
+      api.api("/api/v1/memberships/paid?audience=" + encodeURIComponent(key) + "&limit=1")
+        .then(function (data) {
+          var count = data && typeof data.count === "number" ? data.count : 0;
+          hint.textContent =
+            "Only paid " + (HOST_AUDIENCE_LABELS[key] || key) +
+            " students are notified and can join — no code needed. " + count +
+            " paid member" + (count === 1 ? "" : "s") + " right now.";
+        })
+        .catch(function () {});
+    } catch (e) { /* count is optional */ }
+  }
+
   function onVisibilityChange() {
     var vis = (document.querySelector('input[name="host-visibility"]:checked') || {}).value || "public";
     var priv = $("hostPrivateWrap");
@@ -207,12 +241,15 @@
     if (!title || !subject) throw new Error("Title and subject are required.");
 
     var vis = (document.querySelector('input[name="host-visibility"]:checked') || {}).value || "public";
+    var audEl = $("hostAudience");
+    var audience = (audEl && audEl.value) || "all";
     var body = {
       title: title,
       subject: subject,
       duration_minutes: duration,
       go_live_now: !!goLiveNow,
       visibility: vis,
+      audience: audience,
     };
 
     if (vis === "private") {
@@ -281,6 +318,35 @@
     var hint = $("hostCodeHint");
     var openWrap = $("hostCodeOpenWrap");
     var code = created && created.join_code;
+    var audience = (created && created.audience) || (body && body.audience) || "all";
+    if (!code && audience !== "all" && box && value) {
+      // Paid-audience class: no code at all — the membership is the ticket.
+      var paidLabel = HOST_AUDIENCE_LABELS[audience] || audience;
+      value.textContent = "No code needed";
+      if (title) {
+        title.textContent = goLiveNow
+          ? "Live for paid members"
+          : "Scheduled for paid members";
+      }
+      if (hint) {
+        hint.textContent =
+          "Only paid " + paidLabel + " students were notified. They open Live Class and tap Join — no code is required.";
+      }
+      var copyBtn = $("hostCodeCopyBtn");
+      var shareBtn = $("hostCodeShareBtn");
+      if (copyBtn) copyBtn.style.display = "none";
+      if (shareBtn) shareBtn.style.display = "none";
+      if (openWrap) openWrap.hidden = !goLiveNow;
+      box.hidden = false;
+      try {
+        box.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      } catch (e) {}
+      return;
+    }
+    var resetCopy = $("hostCodeCopyBtn");
+    var resetShare = $("hostCodeShareBtn");
+    if (resetCopy) resetCopy.style.display = "";
+    if (resetShare) resetShare.style.display = "";
     if (!code || !box || !value) {
       if (goLiveNow && created && created.id) {
         if (confirm("Class is live!\n\nOpen classroom now?")) {
@@ -1889,6 +1955,10 @@ async function endClass(id) {
     r.addEventListener("change", onVisibilityChange);
     r.addEventListener("click", onVisibilityChange);
   });
+  if ($("hostAudience")) {
+    $("hostAudience").addEventListener("change", onAudienceChange);
+  }
+  onAudienceChange();
   document.querySelectorAll(".vis-opt").forEach(function (lab) {
     lab.addEventListener("click", function () {
       setTimeout(onVisibilityChange, 0);

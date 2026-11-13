@@ -85,6 +85,26 @@
       </div>
 
       <div class="card">
+        <h2>What you earn</h2>
+        <ul class="how" id="aff-rates">
+          <li>New signup — <strong id="rate-signup">—</strong></li>
+          <li>Every monthly subscription they pay — <strong id="rate-sub">—</strong></li>
+          <li>Anything else they buy — <strong id="rate-pct">—</strong></li>
+          <li>Their very first payment bonus (paid once) — <strong id="rate-first">—</strong></li>
+        </ul>
+        <p class="muted" style="margin-top:.6rem">Amounts are set by the admin and can change; your balance always shows what you really earned.</p>
+      </div>
+
+      <div class="card">
+        <h2>Earnings</h2>
+        <p class="muted" id="earn-empty" style="margin-bottom:.6rem">No earnings yet — share your link!</p>
+        <table id="earn-table" class="hidden">
+          <thead><tr><th>Type</th><th>Amount</th><th>Date</th></tr></thead>
+          <tbody id="earn-body"></tbody>
+        </table>
+      </div>
+
+      <div class="card">
         <h2>Withdraw your earnings (manual payout)</h2>
         <p class="muted" style="margin-bottom:.8rem">
           Payouts are processed <strong>manually</strong> by our team: submit the bank account details and
@@ -154,6 +174,25 @@
       $("ref-code").textContent = state.code || "—";
       $("ref-link").textContent = state.link || "—";
       $("po-amount-note").textContent = fmt(state.balance) + " available — the request takes the full balance.";
+
+      var rates = state.rates || {};
+      if ($("rate-signup")) $("rate-signup").textContent = fmt(rates.signup != null ? rates.signup : state.commission_per_referral);
+      if ($("rate-sub")) $("rate-sub").textContent = fmt(rates.subscription || 0);
+      if ($("rate-pct")) $("rate-pct").textContent = (rates.purchase_percent || 0) + "% of the price";
+      if ($("rate-first")) $("rate-first").textContent = fmt(rates.first_payment_bonus || 0);
+
+      var earn = state.earnings || [];
+      if ($("earn-empty")) $("earn-empty").style.display = earn.length ? "none" : "";
+      if ($("earn-table")) $("earn-table").classList.toggle("hidden", !earn.length);
+      if ($("earn-body")) {
+        $("earn-body").innerHTML = earn.map(function (e) {
+          var label = e.source === "subscription" ? "Subscription"
+            : e.source === "purchase" ? "Purchase"
+            : e.source === "first_payment_bonus" ? "First payment bonus"
+            : "Signup";
+          return "<tr><td>" + esc(label) + "</td><td>" + fmt(e.amount) + "</td><td>" + fmtDate(e.created_at) + "</td></tr>";
+        }).join("");
+      }
 
       var refs = state.referrals || [];
       $("refs-empty").style.display = refs.length ? "none" : "";

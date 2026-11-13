@@ -20,6 +20,8 @@
   <link rel="stylesheet" href="css/discord-community.css" />
   <link rel="stylesheet" href="css/responsive.css" />
   <link rel="stylesheet" href="css/dark-mode.css" />
+  <link rel="stylesheet" href="css/profile.css" />
+  <link rel="stylesheet" href="css/home.css" />
   <script src="js/theme.js"></script>
 
 </head>
@@ -74,6 +76,10 @@
         <button type="button" class="nav-item topnav-btn" data-page="subscription" onclick="showPage('subscription')">
           <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></span>
           <span class="nav-label">Subscription</span>
+        </button>
+        <button type="button" class="nav-item topnav-btn" data-page="affiliate" onclick="showPage('affiliate')">
+          <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-4.35-7-9.5A4.5 4.5 0 0 1 12 8a4.5 4.5 0 0 1 7 3.5C19 16.65 12 21 12 21z"/></svg></span>
+          <span class="nav-label">Refer &amp; Earn</span>
         </button>
         <button type="button" class="nav-item topnav-btn" data-page="skills" onclick="showPage('skills')">
           <span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 14l9-5-9-5-9 5 9 5z"/><path d="M12 14l6.16-3.422A12.083 12.083 0 0 1 21 13.5c0 2.5-4 4.5-9 4.5s-9-2-9-4.5c0-1.042.564-2.02 1.58-2.922L12 14z"/></svg></span>
@@ -175,10 +181,11 @@
     <!-- Global exam UI (shown above any tab during a test) -->
     <div id="exam-screen" class="exam-screen hidden">
       <div id="exam-lock-banner" class="exam-lock-banner hidden">
-        <span>&#128274; Exam in progress — all other tabs are locked until you submit.</span>
+        <span>&#128274; Exam in progress — other tabs stay locked until you submit.</span>
         <button type="button" id="exam-exit-practice-btn" class="btn-secondary btn-sm hidden" onclick="exitPracticeExam()">Exit practice</button>
         <button type="button" class="btn-submit-exam exam-lock-submit" onclick="submitExam()">Submit exam</button>
       </div>
+      <div id="exam-lock-notice" class="exam-lock-notice hidden" role="status" aria-live="polite"></div>
       <div class="exam-header">
         <div>
           <h2 id="exam-title">Exam</h2>
@@ -366,6 +373,16 @@
         <button type="button" class="btn-secondary" onclick="showPage('assignments')">Assignments</button>
       </div>
 
+      <div class="request-box" style="margin-bottom:20px">
+        <h3>Join a live class</h3>
+        <p>Paste the class code your teacher sent you, then tap Join.</p>
+        <div class="request-form">
+          <input type="text" id="live-join-code" placeholder="Class code (e.g. SX-AB12CD)" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();handleJoinCodeInput(this, document.getElementById('live-join-error'));}" />
+          <button type="button" class="btn-action" onclick="handleJoinCodeInput(document.getElementById('live-join-code'), document.getElementById('live-join-error'))">Join live class</button>
+        </div>
+        <p id="live-join-error" class="error-msg"></p>
+      </div>
+
       <div class="section-header">
         <h2>Live Now</h2>
         <span id="live-count" class="badge">0</span>
@@ -502,12 +519,24 @@
       </div>
 
       <div id="live-plan-status" class="live-plan-status-wrap"></div>
+      <div id="membership-status" class="membership-strip"></div>
+      <div class="aff-note-card">
+        <strong>You can earn from Scholaxia</strong>
+        <p>Invite friends with your personal link and earn on their signup, every monthly subscription and anything they buy. Open Refer &amp; Earn to get your link.</p>
+        <button type="button" class="btn-action btn-sm" onclick="showPage('affiliate')">Open Refer &amp; Earn &rarr;</button>
+      </div>
       <div id="live-plans-section" class="live-plans-section">
         <div class="section-header">
           <h2>Live Class Plans</h2>
         </div>
         <div id="live-plans-grid" class="live-plans-grid"><div class="loading">Loading plans…</div></div>
       </div>
+    </section>
+
+    <!-- Refer & Earn (affiliate) -->
+
+    <section id="page-affiliate" class="page">
+      <div id="affiliate-content" class="aff-wrap"><div class="loading">Loading…</div></div>
     </section>
 
     <!-- Scholaxia Skills Training -->
@@ -860,6 +889,10 @@
 
             <p id="profile-email">—</p>
             <p id="profile-photo-msg" class="profile-photo-msg"></p>
+            <div class="profile-hero-badges">
+              <span id="pf-exam-pill" class="profile-badge">Exam</span>
+              <span id="pf-sub-pill" class="profile-badge profile-badge-soft">Free plan</span>
+            </div>
 
           </div>
 
@@ -1109,6 +1142,7 @@
 <script src="js/skills.js"></script>
 
 <script src="js/live-plans.js"></script>
+<script src="js/affiliate-ui.js"></script>
 <script src="js/join-flow.js"></script>
 <script src="js/paystack-checkout.js"></script>
 <script src="js/pnm-launch.js"></script>

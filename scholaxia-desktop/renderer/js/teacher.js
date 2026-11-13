@@ -166,6 +166,9 @@ function showTeacherPage(page) {
   else if (page === "exams") loadTeacherExams();
   else if (page === "community") loadTeacherCommunity();
   else if (page === "ai") initTeacherAI();
+  else if (page === "affiliate") {
+    if (typeof loadAffiliatePage === "function") loadAffiliatePage();
+  }
 }
 
 function parseScheduleDateTime(date, time) {
@@ -187,12 +190,16 @@ function getSchedulePayload(goLiveNow) {
   var visEl = document.querySelector('input[name="host-visibility"]:checked');
   var visibility = visEl ? visEl.value : "public";
 
+  var audEl = document.getElementById("host-audience");
+  var audience = audEl ? audEl.value : "all";
+
   var body = {
     title: title,
     subject: subject,
     duration_minutes: duration,
     go_live_now: goLiveNow,
     visibility: visibility,
+    audience: audience || "all",
   };
 
   if (visibility === "private") {
@@ -260,7 +267,42 @@ var _pendingHostClass = null;
 
 function showTeacherHostCode(created, body, goLiveNow) {
   var code = (created && created.join_code) || "";
-  if (!code) return;
+  var audience = (created && created.audience) || (body && body.audience) || "all";
+  if (!code) {
+    // Paid-audience classes never carry a code — paying is the ticket.
+    if (audience && audience !== "all") {
+      var abox = document.getElementById("host-code-share");
+      var atitle = document.getElementById("host-code-title");
+      var ahint = document.getElementById("host-code-hint");
+      var avalue = document.getElementById("host-code-value");
+      var acab = document.getElementById("host-code-copy-btn");
+      var ashare = document.getElementById("host-code-share-btn");
+      var aopen = document.getElementById("host-code-open-wrap");
+      if (avalue) avalue.textContent = "No code needed";
+      if (atitle) {
+        atitle.textContent = goLiveNow
+          ? "Live for paid members"
+          : "Scheduled for paid members";
+      }
+      if (ahint) {
+        ahint.textContent =
+          "Only paid " + (HOST_AUDIENCE_LABELS[audience] || audience) +
+          " students were notified. They just tap Join — no code is required.";
+      }
+      if (acab) acab.hidden = true;
+      if (ashare) ashare.hidden = true;
+      if (aopen) aopen.hidden = !goLiveNow;
+      if (abox) {
+        abox.hidden = false;
+        try { abox.scrollIntoView({ behavior: "smooth", block: "nearest" }); } catch (e) { /* ignore */ }
+      }
+    }
+    return;
+  }
+  var normalCopy = document.getElementById("host-code-copy-btn");
+  var normalShare = document.getElementById("host-code-share-btn");
+  if (normalCopy) normalCopy.hidden = false;
+  if (normalShare) normalShare.hidden = false;
   _pendingHostClass = {
     id: created.id,
     title: body.title,
@@ -526,6 +568,38 @@ function visibilityLabel(v) {
   return "Subject";
 }
 
+var HOST_AUDIENCE_LABELS = {
+  all: "all students",
+  jamb: "JAMB",
+  waec: "WAEC",
+  neco: "NECO",
+  bece: "Junior WAEC (BECE)",
+  coding: "Coding / Skills",
+};
+
+function onHostAudienceChange() {
+  var el = document.getElementById("host-audience");
+  var hint = document.getElementById("host-audience-hint");
+  if (!el || !hint) return;
+  var key = el.value || "all";
+  if (key === "all") {
+    hint.textContent = "Everyone can join with the class code.";
+    return;
+  }
+  var label = HOST_AUDIENCE_LABELS[key] || key;
+  hint.textContent = "Only paid " + label + " students are notified and can join — no code needed.";
+  try {
+    teacherApi("/api/v1/memberships/paid?audience=" + encodeURIComponent(key) + "&limit=1")
+      .then(function (data) {
+        var count = data && typeof data.count === "number" ? data.count : 0;
+        hint.textContent =
+          "Only paid " + label + " students are notified and can join — no code needed. " +
+          count + " paid member" + (count === 1 ? "" : "s") + " right now.";
+      })
+      .catch(function () { /* count is optional */ });
+  } catch (e) { /* ignore */ }
+}
+
 function onHostVisibilityChange() {
   var visEl = document.querySelector('input[name="host-visibility"]:checked');
   var vis = visEl ? visEl.value : "public";
@@ -537,7 +611,10 @@ function onHostVisibilityChange() {
     var input = opt.querySelector('input[name="host-visibility"]');
     opt.classList.toggle("is-selected", !!(input && input.checked));
   });
+  onHostAudienceChange();
 }
+
+window.onHostAudienceChange = onHostAudienceChange;
 
 async function loadHostStudentPickers() {
   var privSel = document.getElementById("host-invited-students");

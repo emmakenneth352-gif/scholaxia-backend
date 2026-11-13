@@ -72,6 +72,7 @@
       <div class="nav-section">Learning</div>
       <button class="nav-btn" data-page="requests" onclick="showAdminPage('requests')">Session Requests</button>
       <button class="nav-btn" data-page="live-subs" onclick="showAdminPage('live-subs')">Live Subscriptions</button>
+      <button class="nav-btn" data-page="affiliate" onclick="showAdminPage('affiliate')">Affiliate &amp; Paid</button>
       <button class="nav-btn" data-page="skills-enroll" onclick="showAdminPage('skills-enroll')">Skills Enrollments</button>
       <button class="nav-btn" data-page="cbt-settings" onclick="showAdminPage('cbt-settings')">CBT Settings</button>
       <button class="nav-btn" data-page="cbt" onclick="showAdminPage('cbt')">CBT Question Bank</button>
@@ -343,6 +344,45 @@
       </div>
 
       <div id="live-subs-table" class="data-table-wrap"><div class="loading">Loading…</div></div>
+    </section>
+
+    <section id="page-affiliate" class="admin-page">
+      <div class="page-head"><h2>Affiliate &amp; Paid Members</h2><button class="btn-sm" onclick="loadAffiliateAdmin()">Refresh</button></div>
+      <p class="page-desc">Set what affiliates earn, and see every student whose monthly payment is still active. A student who does not pay again drops off this list when their month ends.</p>
+
+      <div class="panel">
+        <h3>Affiliate commission</h3>
+        <div class="form-grid">
+          <label><span>Signup bonus (&#8358;)</span><input id="aff-signup" type="number" min="0" step="50" /></label>
+          <label><span>Subscription commission (&#8358;)</span><input id="aff-sub" type="number" min="0" step="50" /></label>
+          <label><span>Purchase commission (%)</span><input id="aff-pct" type="number" min="0" max="100" step="1" /></label>
+          <label><span>First payment bonus (&#8358;)</span><input id="aff-first" type="number" min="0" step="50" /></label>
+          <label><span>Monthly membership price (&#8358;)</span><input id="aff-price" type="number" min="0" step="100" /></label>
+          <label><span>First-timer bonus days</span><input id="aff-days" type="number" min="0" max="60" step="1" /></label>
+        </div>
+        <div class="form-row" style="margin-top:8px">
+          <button class="btn-primary" style="width:auto;padding:12px 22px" onclick="saveAffiliateSettings()">Save amounts</button>
+        </div>
+        <p id="aff-settings-msg" class="cbt-hint small" style="margin-top:8px"></p>
+      </div>
+
+      <div class="panel">
+        <h3>Paid members</h3>
+        <div class="form-row">
+          <label><span>Group</span>
+            <select id="aff-audience" onchange="loadPaidMembers()">
+              <option value="all">All paid students</option>
+              <option value="jamb">JAMB</option>
+              <option value="waec">WAEC</option>
+              <option value="neco">NECO</option>
+              <option value="bece">Junior WAEC (BECE)</option>
+              <option value="coding">Coding / Skills</option>
+            </select>
+          </label>
+        </div>
+        <p id="aff-paid-count" class="cbt-hint small"></p>
+      </div>
+      <div id="aff-paid-table" class="data-table-wrap"><div class="loading">Loading…</div></div>
     </section>
 
     <section id="page-skills-enroll" class="admin-page">

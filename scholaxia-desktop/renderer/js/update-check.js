@@ -136,8 +136,20 @@
             go.onclick = function (ev2) {
               ev2.preventDefault();
               ev2.stopImmediatePropagation();
+              if (window.scholaxiaDesktop.onUpdateInstall) {
+                window.scholaxiaDesktop.onUpdateInstall(function (info) {
+                  if (!info || info.ok === false) {
+                    if (status) status.textContent = (info && info.error) || "Could not open the installer. Download it again.";
+                    go.textContent = "Install now";
+                    go.style.opacity = "1";
+                    go.style.pointerEvents = "auto";
+                    return;
+                  }
+                  if (status) status.textContent = "Scholaxia will close to finish installing. Reopen it from your desktop icon.";
+                });
+              }
               window.scholaxiaDesktop.runInstaller(res.path);
-              if (status) status.textContent = "Setup is opening — follow it, then reopen Scholaxia.";
+              if (status) status.textContent = "Opening Setup… Windows may ask for permission — allow it, then reopen Scholaxia.";
               go.textContent = "Opening Setup…";
               go.style.pointerEvents = "none";
             };

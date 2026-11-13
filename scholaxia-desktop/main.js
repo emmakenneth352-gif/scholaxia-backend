@@ -1,9 +1,31 @@
-const { app, BrowserWindow, shell, screen, session, desktopCapturer } = require("electron");
+const { app, BrowserWindow, shell, screen, session, desktopCapturer, globalShortcut } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { startDesktopServer, stopDesktopServer } = require("./desktop-server");
 let mainWindow;
 let appBaseUrl = "";
+let examCaptureProtection = false;
+
+// OS screenshot shortcuts grabbed while an exam is running. They are released
+// as soon as the exam ends so normal desktop use is unaffected.
+const EXAM_CAPTURE_SHORTCUTS = ["PrintScreen", "Alt+PrintScreen", "Super+Shift+S", "Super+PrintScreen"];
+
+function applyExamCaptureProtection(enabled) {
+  examCaptureProtection = !!enabled;
+  BrowserWindow.getAllWindows().forEach((win) => {
+    if (!win || win.isDestroyed()) return;
+    try { win.setContentProtection(examCaptureProtection); } catch (err) { /* ignore */ }
+  });
+  EXAM_CAPTURE_SHORTCUTS.forEach((accelerator) => {
+    try {
+      if (examCaptureProtection) {
+        if (!globalShortcut.isRegistered(accelerator)) globalShortcut.register(accelerator, () => {});
+      } else if (globalShortcut.isRegistered(accelerator)) {
+        globalShortcut.unregister(accelerator);
+      }
+    } catch (err) { /* some OS builds refuse certain keys */ }
+  });
+}
 
 // Desktop keeps its own design/UI (local renderer). Site features are ported
 // into this UI — we do NOT load the website inside the window.
@@ -86,6 +108,7 @@ function createWindow() {
     resizable: true,
     fullscreenable: true,
   });
+  mainWindow.setContentProtection(examCaptureProtection);
 
   const startUrl = appBaseUrl ? `${appBaseUrl}/index.html` : LOCAL_START_URL;
   if (appBaseUrl) mainWindow.loadURL(startUrl);
@@ -93,6 +116,16 @@ function createWindow() {
   if (size.width >= screen.getPrimaryDisplay().workAreaSize.width * 0.95) {
     mainWindow.maximize();
   }
+
+  mainWindow.webContents.on("before-input-event", (event, input) => {
+    if (!examCaptureProtection || input.type !== "keyDown") return;
+    const key = String(input.key || "").toLowerCase();
+    if ((input.control || input.meta) && ["c", "x", "v", "p"].includes(key)) {
+      event.preventDefault();
+    } else if (key === "printscreen") {
+      event.preventDefault();
+    }
+  });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (isLocalServerUrl(url)) {
@@ -201,6 +234,7 @@ function openPnmRoom(joinUrl) {
       },
     });
     pnmRoomWin = roomWin;
+    try { roomWin.setContentProtection(examCaptureProtection); } catch (err) { /* ignore */ }
     roomWin.loadURL(joinUrl);
     // After every load of the room, put the class keyboard inside the page.
     roomWin.webContents.on("did-finish-load", () => injectRoomKeyboard(roomWin));
@@ -256,6 +290,7 @@ function openClassroomKeyboard() {
         nodeIntegration: false,
       },
     });
+    try { keyboardWin.setContentProtection(examCaptureProtection); } catch (err) { /* ignore */ }
     keyboardWin.loadFile(path.join(__dirname, "renderer", "keyboard.html"));
     keyboardWin.on("closed", () => {
       keyboardWin = null;
@@ -274,6 +309,10 @@ function openClassroomKeyboard() {
     ipcMain.on("scholaxia:open-classroom-keyboard", () => {
       openClassroomKeyboard();
     });
+    ipcMain.on("scholaxia:set-exam-protection", (ev, enabled) => {
+      if (!mainWindow || ev.sender !== mainWindow.webContents) return;
+      applyExamCaptureProtection(enabled === true);
+    });
     ipcMain.on("scholaxia:open-external", (_ev, target) => {
       if (typeof target === "string" && /^https?:/i.test(target)) {
         try { shell.openExternal(target); } catch (e) { console.error(e); }
@@ -285,8 +324,8 @@ function openClassroomKeyboard() {
     ipcMain.handle("scholaxia:download-update", (ev, downloadUrl, versionHint) =>
       startUpdateDownload(downloadUrl, ev.sender, versionHint)
     );
-    ipcMain.on("scholaxia:run-installer", (_ev, filePath) => {
-      runInstallerFile(filePath);
+    ipcMain.on("scholaxia:run-installer", (ev, filePath) => {
+      runInstallerFile(filePath, ev.sender);
     });
   } catch (e) {
     console.error("Could not register desktop bridge", e);
@@ -383,19 +422,40 @@ function startUpdateDownload(downloadUrl, sender, versionHint) {
   });
 }
 
-function runInstallerFile(filePath) {
+async function runInstallerFile(filePath, sender) {
+  const notify = (payload) => {
+    try {
+      if (sender && !sender.isDestroyed()) sender.send("scholaxia:update-install-status", payload);
+    } catch (err) { /* window already closing */ }
+  };
   try {
     const p = String(filePath || "");
     const expectedDir = app.getPath("temp");
     const base = path.basename(p);
     // Only ever launch update files this app downloaded itself.
     if (!p || path.dirname(p) !== expectedDir || !base.startsWith(UPDATE_TMP_PREFIX) || !base.toLowerCase().endsWith(".exe")) {
+      notify({ ok: false, error: "That update file could not be verified. Please download it again." });
       return;
     }
-    const { shell: electronShell } = require("electron");
-    electronShell.openPath(p);
+    if (!fs.existsSync(p)) {
+      notify({ ok: false, error: "The downloaded update is missing. Please download it again." });
+      return;
+    }
+    const openError = await shell.openPath(p);
+    if (openError) {
+      notify({ ok: false, error: "Windows could not open the installer (" + openError + "). Try downloading again." });
+      return;
+    }
+    notify({ ok: true });
+    // Close the app so Setup can replace the running files. Windows will not
+    // overwrite Scholaxia while this process still holds them, which is why
+    // downloaded updates used to finish without anything actually changing.
+    setTimeout(() => {
+      try { app.quit(); } catch (err) { /* ignore */ }
+    }, 1500);
   } catch (err) {
     console.error("runInstallerFile failed", err);
+    notify({ ok: false, error: "Could not open the installer. Please try again." });
   }
 }
 
@@ -407,6 +467,7 @@ function watchForNewInstall() {
 }
 
 app.on("before-quit", () => {
+  try { globalShortcut.unregisterAll(); } catch (err) { /* ignore */ }
   stopDesktopServer();
 });
 

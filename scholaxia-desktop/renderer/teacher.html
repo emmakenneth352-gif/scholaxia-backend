@@ -65,6 +65,7 @@
         <button type="button" class="nav-item topnav-btn" data-page="students"><span class="nav-icon" aria-hidden="true">&#128101;</span><span class="nav-label">Students</span></button>
         <button type="button" class="nav-item topnav-btn" data-page="community"><span class="nav-icon" aria-hidden="true">&#128227;</span><span class="nav-label">Community</span></button>
         <button type="button" class="nav-item topnav-btn" data-page="ai"><span class="nav-icon" aria-hidden="true">&#10022;</span><span class="nav-label">Teacher AI</span></button>
+        <button type="button" class="nav-item topnav-btn" data-page="affiliate"><span class="nav-icon" aria-hidden="true">&#128156;</span><span class="nav-label">Refer &amp; Earn</span></button>
       </nav>
 
       <div class="side-foot" style="margin-top:auto;padding:16px;">
@@ -145,6 +146,21 @@
           </div>
         </div>
 
+        <div class="host-audience-block">
+          <div class="form-row">
+            <label for="host-audience">Paid students only</label>
+            <select id="host-audience" onchange="onHostAudienceChange()">
+              <option value="all">All students (free to join)</option>
+              <option value="jamb">JAMB members only</option>
+              <option value="waec">WAEC members only</option>
+              <option value="neco">NECO members only</option>
+              <option value="bece">Junior WAEC (BECE) members only</option>
+              <option value="coding">Coding / Skills members only</option>
+            </select>
+          </div>
+          <p class="host-audience-hint" id="host-audience-hint"></p>
+        </div>
+
         <div class="host-extra-panel hidden" id="host-private-wrap">
           <span class="sg-field-label">Invited students</span>
           <div class="student-chip-picker" id="host-invited-picker"></div>
@@ -167,6 +183,7 @@
         <div class="host-actions">
           <button type="button" id="host-schedule-btn" class="btn-secondary">Schedule class</button>
           <button type="button" id="host-live-btn" class="btn-action teacher-go-live">&#9654; Go live now</button>
+          <button type="button" id="host-keyboard-btn" class="btn-secondary" onclick="openTeacherKeyboard()" title="Maths, physics, chemistry, Igbo, Hausa &amp; Yoruba symbols">&#9000; Subject keyboard</button>
         </div>
 
         <div id="host-code-share" class="teacher-code-share" hidden>
@@ -418,6 +435,10 @@
         <div id="teacher-ai-result" class="teacher-ai-result"></div>
       </div>
     </section>
+
+    <section id="page-affiliate" class="teacher-page">
+      <div id="affiliate-content" class="aff-wrap"><div class="loading">Loading…</div></div>
+    </section>
   </main>
 
   <!-- Live students (mic permissions) modal -->
@@ -495,6 +516,18 @@
 <script src="js/teacher-notifications.js"></script>
 <script src="js/pnm-launch.js"></script>
 <script src="js/teacher.js"></script>
+<script src="js/affiliate-ui.js"></script>
 <script src="js/update-check.js"></script>
+<script>
+  // Subject & language keyboard (maths, physics, chemistry, Igbo, Hausa,
+  // Yoruba, Efik) — opens as a floating window that sits beside the
+  // plugNmeet room, so teachers can compose and paste symbols in class.
+  window.openTeacherKeyboard = function () {
+    if (window.scholaxiaDesktop && typeof window.scholaxiaDesktop.openClassroomKeyboard === "function") {
+      try { window.scholaxiaDesktop.openClassroomKeyboard(); return; } catch (e) { /* fall through */ }
+    }
+    window.open("keyboard.html", "sxClassKeyboard", "width=440,height=680");
+  };
+</script>
 </body>
 </html>

@@ -91,12 +91,12 @@
     var name = (err && err.name) || "";
     var msg = (err && err.message) || "";
     if (name === "AbortError" || /aborted|abort/i.test(msg)) {
-      return "Server took too long. Wait 30 seconds and try again (Render may be waking up).";
+      return "Scholaxia is taking too long to respond. Check your internet and try again.";
     }
-    if (/failed to fetch|networkerror|load failed/i.test(msg)) {
-      return "Cannot reach the Scholaxia API. Wait a minute if the server is restarting, then try again.";
+    if (/failed to fetch|networkerror|load failed|no internet/i.test(msg)) {
+      return "This feature requires internet access. Connect to the internet and try again.";
     }
-    return msg || "Request failed";
+    return msg || "Something went wrong. Please try again.";
   }
 
   function formPost(path, fields, timeout) {
@@ -222,11 +222,19 @@
   }
 
   function getUser() {
+    var subjects = [];
+    try {
+      var raw = JSON.parse(localStorage.getItem("sia_subjects") || "[]");
+      if (Array.isArray(raw)) subjects = raw;
+    } catch (e) { subjects = []; }
     return {
       name: localStorage.getItem("sia_name") || "User",
       email: localStorage.getItem("sia_email") || "",
       role: localStorage.getItem("sia_role") || "student",
       ageGroup: localStorage.getItem("sia_age_group") || "",
+      // Dashboard reads these — without them the subject count stayed at 0.
+      examType: localStorage.getItem("sia_exam_type") || "",
+      subjects: subjects,
     };
   }
 
@@ -761,14 +769,15 @@ function setOfflineBanner(offline) {
 }
 
 function networkErrorMessage(err) {
+  var noInternet = "This feature requires internet access. Connect to the internet and try again.";
   if (typeof navigator !== "undefined" && !navigator.onLine) {
-    return "There is no internet on your data.";
+    return noInternet;
   }
   var msg = (err && err.message) || "";
-  if (/failed to fetch|timed out|network error|no internet/i.test(msg)) {
-    return "There is no internet on your data.";
+  if (/failed to fetch|timed out|timeout|network ?error|no internet|offline|api error|request failed/i.test(msg)) {
+    return noInternet;
   }
-  return msg || "Something went wrong.";
+  return msg || "Something went wrong. Please try again.";
 }
 
 function firstName(name) {

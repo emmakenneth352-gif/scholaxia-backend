@@ -10,6 +10,7 @@ const PAGE_TITLES = {  dashboard: "Home",
   "holiday-packages": "Live Classes",
   skills: "Skills Training",
   subscription: "Subscription",
+  affiliate: "Refer & Earn",
   cbt: "CBT Practice",
   "study-materials": "Video Tutorials",
   coding: "Coding Tutorials",
@@ -44,6 +45,7 @@ let examLockBypass = false;
 let pendingSchoolExamId = null;
 let cameraStream = null;
 let activeSubjectTab = "";
+let examLockNoticeTimer = null;
 
 function cbtOfflineCacheKey(examId, year) {
   return `sia_cbt_pack_${examId}_${year || "any"}`;
@@ -819,15 +821,104 @@ function initUserUI() {
 
 function logout() {
   if (isCbtExamActive()) {
-    alert("Submit your exam first — you cannot sign out or open other tabs until you finish.");
+    showExamLockNotice("You’re in an exam. Submit it before signing out or opening another tab.");
     return;
   }
   clearSession();
   window.location.href = "app.html";
 }
 
+function showExamLockNotice(message) {
+  const notice = document.getElementById("exam-lock-notice");
+  if (!notice) return;
+  notice.textContent = message;
+  notice.classList.remove("hidden");
+  if (examLockNoticeTimer) clearTimeout(examLockNoticeTimer);
+  examLockNoticeTimer = setTimeout(() => {
+    notice.classList.add("hidden");
+    examLockNoticeTimer = null;
+  }, 3600);
+}
+
+function showExamConfirm(message, options) {
+  options = options || {};
+  return new Promise(function (resolve) {
+    var overlay = document.createElement("div");
+    overlay.className = "exam-confirm-overlay";
+    var card = document.createElement("div");
+    card.className = "exam-confirm-card";
+    card.setAttribute("role", "dialog");
+    card.setAttribute("aria-modal", "true");
+
+    var icon = document.createElement("div");
+    icon.className = "exam-confirm-icon";
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = "\u270E";
+
+    var title = document.createElement("h3");
+    title.className = "exam-confirm-title";
+    title.textContent = options.title || "Submit exam?";
+
+    var text = document.createElement("p");
+    text.className = "exam-confirm-text";
+    text.textContent = message;
+
+    var actions = document.createElement("div");
+    actions.className = "exam-confirm-actions";
+
+    var cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "exam-confirm-cancel";
+    cancel.textContent = options.cancelLabel || "Keep answering";
+
+    var ok = document.createElement("button");
+    ok.type = "button";
+    ok.className = "exam-confirm-ok";
+    ok.textContent = options.okLabel || "Submit exam";
+
+    function close(result) {
+      document.removeEventListener("keydown", onKey, true);
+      overlay.remove();
+      resolve(result);
+    }
+    function onKey(e) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        close(false);
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        e.stopPropagation();
+        close(true);
+      }
+    }
+
+    cancel.onclick = function () { close(false); };
+    ok.onclick = function () { close(true); };
+    overlay.addEventListener("click", function (e) {
+      if (e.target === overlay) close(false);
+    });
+    document.addEventListener("keydown", onKey, true);
+
+    actions.appendChild(cancel);
+    actions.appendChild(ok);
+    card.appendChild(icon);
+    card.appendChild(title);
+    card.appendChild(text);
+    card.appendChild(actions);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+    ok.focus();
+  });
+}
+
 function setExamLockMode(on) {
   document.body.classList.toggle("exam-lock-active", !!on);
+  const notice = document.getElementById("exam-lock-notice");
+  if (!on && notice) notice.classList.add("hidden");
+  if (window.scholaxiaDesktop && typeof window.scholaxiaDesktop.setExamProtection === "function") {
+    window.scholaxiaDesktop.setExamProtection(!!on);
+  }
   const topnav = document.getElementById("student-topnav");
   if (topnav) {
     topnav.querySelectorAll(".topnav-btn").forEach((btn) => {
@@ -864,6 +955,45 @@ function getGreeting() {
   return "Good evening";
 }
 
+async function loadMembershipStatus() {
+  var el = document.getElementById("membership-status");
+  if (!el) return;
+  try {
+    var data = await api("/api/v1/memberships/me");
+    if (!data) return;
+    if (data.active) {
+      var when = "";
+      if (data.expires_at) {
+        var d = new Date(data.expires_at);
+        if (!isNaN(d.getTime())) {
+          when = d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+        }
+      }
+      var days = Number(data.days_left || 0);
+      el.innerHTML =
+        '<div class="membership-card is-active">' +
+          '<div class="membership-card-text">' +
+            '<strong>Monthly membership active</strong>' +
+            '<p>' + escHtml(data.audience_label || "All students") +
+              (when ? " · renews/expires " + escHtml(when) : "") +
+              " · " + days + " day" + (days === 1 ? "" : "s") + " left</p>" +
+          '</div>' +
+          '<span class="membership-card-badge">Paid</span>' +
+        '</div>';
+    } else {
+      el.innerHTML =
+        '<div class="membership-card">' +
+          '<div class="membership-card-text">' +
+            '<strong>No monthly membership</strong>' +
+            '<p>Pay once a month to stay in the paid class list. If the month ends without a payment, your name leaves the list and paid classes lock again.</p>' +
+          '</div>' +
+        '</div>';
+    }
+  } catch (e) {
+    el.innerHTML = "";
+  }
+}
+
 async function loadDashboard(force) {
   const titleEl = document.getElementById("dash-greeting-title");
   const subEl = document.getElementById("dash-greeting-sub");
@@ -888,6 +1018,10 @@ async function loadDashboard(force) {
     if (progressText) progressText.textContent = "Sign in to track progress";
     if (typeof renderHomeSkillsPreview === "function") renderHomeSkillsPreview();
     return;
+  }
+  // Pull the freshest profile first so subjects picked on Profile show up.
+  if (force) {
+    try { await syncStudentProfile(); } catch (e) { /* offline — use saved values */ }
   }
   const user = getUser();
   const subjects = user.subjects || [];
@@ -924,9 +1058,6 @@ async function loadDashboard(force) {
   if (statSubs) statSubs.textContent = String(subCount);
 
   try {
-    if (force && isStudentLoggedIn()) {
-      await syncStudentProfile();
-    }
     const [liveRaw, examData] = await Promise.all([
       api("/api/v1/live-classes/?status=live&_=" + Date.now()).catch(function () { return []; }),
       api("/api/v1/cbt/exams/for-me").catch(function () { return null; }),
@@ -1313,15 +1444,33 @@ function bindExamLockListeners() {
     if (blocked) {
       e.preventDefault();
       e.stopImmediatePropagation();
-      alert("You are in an exam. Submit the exam first — other tabs (Sia, Community, Marketplace, etc.) stay locked until then.");
+      showExamLockNotice("Exam in progress — submit your exam before leaving this screen.");
     }
   }, true);
   document.addEventListener("keydown", (e) => {
     if (!isCbtExamActive() || examLockBypass) return;
     if ((e.altKey && e.key === "Tab") || (e.ctrlKey && e.key === "Tab")) {
       e.preventDefault();
+      return;
+    }
+    const examKey = String(e.key || "").toLowerCase();
+    if (((e.ctrlKey || e.metaKey) && ["c", "x", "v", "p"].includes(examKey)) ||
+        (e.ctrlKey && examKey === "insert") || (e.shiftKey && examKey === "insert")) {
+      e.preventDefault();
+      showExamLockNotice("Copying, pasting, and printing are disabled during the exam.");
+    }
+    if (e.key === "PrintScreen") {
+      e.preventDefault();
+      showExamLockNotice("Screen capture is restricted during the exam.");
     }
   }, true);
+  ["copy", "cut", "paste", "contextmenu", "selectstart"].forEach((type) => {
+    document.addEventListener(type, (e) => {
+      if (!isCbtExamActive() || examLockBypass) return;
+      e.preventDefault();
+      if (type !== "selectstart") showExamLockNotice("Copying and pasting are disabled during the exam.");
+    }, true);
+  });
 }
 
 var appPageHistory = [];
@@ -1329,7 +1478,7 @@ var appPageHistory = [];
 function showPage(page, opts) {
   opts = opts || {};
   if (isCbtExamActive() && !examLockBypass) {
-    alert("You are in an exam. Submit the exam to leave — other tabs (Sia, Community, etc.) are locked until then.");
+    showExamLockNotice("You’re in an exam. Submit it before opening another screen.");
     return;
   }
   if (page === "access-code") page = "live";
@@ -1444,6 +1593,7 @@ function refreshPage() {
     done();
   }
   else if (currentPage === "subscription") {
+    if (typeof loadMembershipStatus === "function") loadMembershipStatus();
     if (typeof loadLivePlans === "function") {
       var justPaid = false;
       try {
@@ -1454,6 +1604,10 @@ function refreshPage() {
       // After Paystack on this screen, always refresh so active_plan is visible.
       loadLivePlans(null, !justPaid);
     }
+    done();
+  }
+  else if (currentPage === "affiliate") {
+    if (typeof loadAffiliatePage === "function") loadAffiliatePage();
     done();
   }
   else if (currentPage === "skills") {
@@ -1625,7 +1779,7 @@ function renderLiveEmpty(el) {
     <div class="live-empty-state">
       <div class="live-empty-icon" aria-hidden="true">&#127909;</div>
       <h3>No live classes right now</h3>
-      <p>When your teacher hosts a class, copy your code from <strong>Access Code</strong>, then tap <strong>Join live</strong> and paste once.</p>
+      <p>When your teacher hosts a class, paste the class code in <strong>Join a live class</strong> above, then tap <strong>Join live class</strong>.</p>
       <button type="button" class="btn-action live-empty-refresh" onclick="refreshPage()">Check again</button>
     </div>`;
 }
@@ -2144,7 +2298,7 @@ async function onExamVisibilityChange() {
       }),
     });
   } catch (e) { /* ignore */ }
-  alert("Stay on the exam screen until you submit. Sia and other tabs are locked during the test.");
+  showExamLockNotice("Please stay on this exam screen. Your tab change has been recorded.");
 }
 
 function isCbtExamActive() {
@@ -2265,20 +2419,100 @@ function nextQuestion() {
   if (currentQ < currentExam.questions.length - 1) { currentQ++; renderQuestion(); }
 }
 
+async function loadSubmittedSchoolExamReview(submitResult) {
+  const sessionId = submitResult && (submitResult.session_id || submitResult.id) ||
+    currentSession && currentSession.session_id;
+  if (!sessionId) return buildAnsweredExamReview(currentExam.questions, answers);
+  try {
+    const response = await api("/api/v1/cbt/sessions/" + encodeURIComponent(sessionId) + "/review");
+    const rows = Array.isArray(response)
+      ? response
+      : response && Array.isArray(response.questions)
+      ? response.questions.map(function (question, index) {
+          const options = ["A", "B", "C", "D"].map(function (key) {
+            const text = question["option_" + key.toLowerCase()] ||
+              (question.options && (question.options[key] || question.options.find && question.options.find(function (option) { return String(option.key).toUpperCase() === key; })?.text)) || "";
+            return text ? { key: key, text: text } : null;
+          }).filter(Boolean);
+          const correctKey = String(question.correct_option || question.correct_key || "").toUpperCase();
+          const yourAnswer = question.student_answer || question.your_answer || null;
+          return {
+            id: String(question.id),
+            question_number: index + 1,
+            question_text: question.question_text || "",
+            subject: question.subject || question.topic || "",
+            options: options,
+            your_answer: yourAnswer,
+            correct_key: correctKey,
+            is_correct: question.is_correct != null ? !!question.is_correct : !!yourAnswer && String(yourAnswer).toUpperCase() === correctKey,
+            explanation: question.explanation || "",
+          };
+        })
+      : response && (response.full_review || response.review) || [];
+    const filtered = filterReviewToAnswered(rows, window._lastPracticeAnswers || {});
+    return filtered.length ? filtered : buildAnsweredExamReview(currentExam.questions, answers);
+  } catch (_error) {
+    return buildAnsweredExamReview(currentExam.questions, answers);
+  }
+}
+
+function buildAnsweredExamReview(questions, answerSheet) {
+  answerSheet = answerSheet || {};
+  return (questions || []).map(function (question, index) {
+    const chosen = String(answerSheet[index] || "").toUpperCase();
+    if (!question || !chosen) return null;
+    const options = ["A", "B", "C", "D"].map(function (key) {
+      const text = question[`option_${key.toLowerCase()}`] || (question.options && question.options[key]) || "";
+      return text ? { key: key, text: text } : null;
+    }).filter(Boolean);
+    const correctKey = String(question.correct_option || question.correct_key || "").toUpperCase();
+    return {
+      id: String(question.id),
+      question_number: index + 1,
+      question_text: question.question_text || "",
+      subject: question.subject || question.topic || "",
+      options: options,
+      your_answer: chosen,
+      correct_key: correctKey,
+      is_correct: !!correctKey && chosen === correctKey,
+      explanation: question.explanation || "",
+    };
+  }).filter(Boolean);
+}
+
+function filterReviewToAnswered(review, answerMap) {
+  const answeredIds = new Set(Object.keys(answerMap || {}).map(String));
+  const questionNumbers = new Map((currentExam && currentExam.questions || []).map(function (question, index) {
+    return [String(question && question.id), index + 1];
+  }));
+  return (Array.isArray(review) ? review : []).filter(function (item) {
+    return item && item.your_answer && answeredIds.has(String(item.id));
+  }).map(function (item) {
+    return Object.assign({}, item, { question_number: questionNumbers.get(String(item.id)) || null });
+  });
+}
+
 async function submitExam(force) {
   if (!currentExam || !currentExam.questions) {
     if (!force) alert("No exam loaded.");
     return;
   }
-  if (!force && !confirm("Submit your exam now? You cannot change answers after submitting.")) return;
+  if (!force) {
+    const confirmed = await showExamConfirm(
+      "You cannot change answers after submitting.",
+      { title: "Submit exam now?", okLabel: "Submit exam", cancelLabel: "Keep answering" }
+    );
+    if (!confirmed) return;
+  }
 
   stopCbtTimer();
   hideSubjectStartPicker();
 
   const answerMap = {};
   (currentExam.questions || []).forEach((q, i) => {
-    if (q && answers[i]) answerMap[q.id] = answers[i];
+    if (q && answers[i]) answerMap[String(q.id)] = answers[i];
   });
+  window._lastPracticeAnswers = { ...answerMap };
 
   if (currentSession && currentSession.practice_attempt_id) {
     if (typeof navigator !== "undefined" && !navigator.onLine) {
@@ -2311,30 +2545,11 @@ async function submitExam(force) {
       // immediately — questions are already on the device (downloaded while
       // online), so scoring needs no server. The attempt syncs when internet
       // returns.
-      window._lastPracticeReview = scoreReady ? qs.map(function (q, i) {
-        const choices = ["A", "B", "C", "D"];
-        const options = choices
-          .map(function (k) {
-            var text = q[`option_${k.toLowerCase()}`] || (q.options && q.options[k]) || "";
-            return text ? { key: k, text: text } : null;
-          })
-          .filter(Boolean);
-        const chosen = (answers[i] || "").toUpperCase();
-        const correctKey = String(q.correct_option || "").toUpperCase();
-        return {
-          question_text: q.question_text || "",
-          subject: q.subject || "",
-          options: options,
-          your_answer: chosen || null,
-          correct_key: correctKey,
-          is_correct: !!chosen && chosen === correctKey,
-          explanation: q.explanation || "",
-        };
-      }) : null;
+      window._lastPracticeReview = buildAnsweredExamReview(qs, answers);
       window._lastPracticeAttemptId = currentSession.practice_attempt_id;
       window._lastPracticeBoard = currentSession.exam_type || (currentExam && currentExam.exam_type) || "";
       showResult({
-        percentage: scoreReady ? Math.round((localCorrect / total) * 100) : null,
+        percentage: scoreReady && total ? Math.round((localCorrect / total) * 100) : null,
         correct: localCorrect,
         wrong: localWrong,
         total: total,
@@ -2358,7 +2573,10 @@ async function submitExam(force) {
         timeout: 6000,
         retries: 0,
       });
-      window._lastPracticeReview = result.full_review || null;
+      window._lastPracticeReview = filterReviewToAnswered(result.full_review, answerMap);
+      if (!window._lastPracticeReview.length && currentSession.is_practice) {
+        window._lastPracticeReview = buildAnsweredExamReview(currentExam.questions, answers);
+      }
       window._lastPracticeAttemptId = currentSession.practice_attempt_id;
       window._lastPracticeBoard = currentSession.exam_type || (currentExam && currentExam.exam_type) || "";
       if (typeof completeOfflinePracticeAttempt === "function") {
@@ -2391,31 +2609,12 @@ async function submitExam(force) {
       qs2.forEach((q, i) => {
         const chosen = answers[i];
         if (!chosen || !q) return;
-        if (q.correct_option && String(chosen).toUpperCase() === String(q.correct_option).toUpperCase()) c2++;
+        const correctKey = q.correct_option || q.correct_key;
+        if (correctKey && String(chosen).toUpperCase() === String(correctKey).toUpperCase()) c2++;
         else w2++;
       });
       const tot2 = qs2.length || 1;
-      window._lastPracticeReview = qs2.map(function (q, i) {
-        const choices = ["A", "B", "C", "D"];
-        const options = choices
-          .map(function (k) {
-            var text = q && (q[`option_${k.toLowerCase()}`] || q.options?.[k] || "");
-            return text ? { key: k, text: text } : null;
-          })
-          .filter(Boolean);
-        const chosen = (answers[i] || "").toUpperCase();
-        const correctKey = String((q && q.correct_option) || "").toUpperCase();
-        if (!correctKey && !chosen) return null;
-        return {
-          question_text: (q && q.question_text) || "",
-          subject: (q && q.subject) || "",
-          options: options,
-          your_answer: chosen || null,
-          correct_key: correctKey,
-          is_correct: !!chosen && chosen === correctKey,
-          explanation: (q && q.explanation) || "",
-        };
-      }).filter(function (r) { return r.correct_key; });
+      window._lastPracticeReview = buildAnsweredExamReview(qs2, answers);
       window._lastPracticeAttemptId = currentSession.practice_attempt_id;
       window._lastPracticeBoard = currentSession.exam_type || (currentExam && currentExam.exam_type) || "";
       showResult({
@@ -2432,11 +2631,36 @@ async function submitExam(force) {
   }
 
   if (currentSession && currentSession.is_portal && typeof scorePortalExam === "function") {
+    window._lastPracticeReview = (currentExam.questions || []).map(function (q, i) {
+      const chosen = String(answers[i] || "").toUpperCase();
+      if (!q || !chosen) return null;
+      const options = ["A", "B", "C", "D"].map(function (key) {
+        const text = q[`option_${key.toLowerCase()}`] || (q.options && q.options[key]) || "";
+        return text ? { key: key, text: text } : null;
+      }).filter(Boolean);
+      const correctKey = String(q.correct_option || q.correct_key || "").toUpperCase();
+      return {
+        id: String(q.id),
+        question_number: i + 1,
+        question_text: q.question_text || "",
+        subject: q.subject || q.topic || "",
+        options: options,
+        your_answer: chosen,
+        correct_key: correctKey,
+        is_correct: !!correctKey && chosen === correctKey,
+        explanation: q.explanation || "",
+      };
+    }).filter(Boolean);
+    window._lastPracticeAttemptId = null;
+    window._lastPracticeBoard = currentExam.exam_type || "CBT";
     showResult(scorePortalExam(currentExam, answers));
     return;
   }
 
   if (currentSession && currentSession.is_internal) {
+    window._lastPracticeReview = buildAnsweredExamReview(currentExam.questions, answers);
+    window._lastPracticeAttemptId = null;
+    window._lastPracticeBoard = currentExam.exam_type || "Scholaxia Exam";
     // OFFLINE SECURITY: the pack was started via startInternalExam, which
     // records the exact start time; the duration is enforced from it.
     const ieStart = (window.__ieStart && window.__ieStart.exam_id === currentSession.exam_id)
@@ -2475,12 +2699,14 @@ async function submitExam(force) {
           else localWrong++;
         });
         const localTotal = localCorrect + localWrong;
-        const localPct = localTotal ? Math.round((localCorrect / localTotal) * 100) : 0;
+        const localPct = currentExam.questions.length
+          ? Math.round((localCorrect / currentExam.questions.length) * 100)
+          : 0;
         showResult({
           percentage: localPct,
           correct: localCorrect,
           wrong: localWrong,
-          total: localTotal,
+          total: currentExam.questions.length,
           pending_sync: true,
         });
         document.getElementById("result-detail").innerHTML =
@@ -2499,15 +2725,20 @@ async function submitExam(force) {
     let wrong = 0;
     currentExam.questions.forEach((q, i) => {
       const chosen = answers[i];
-      if (chosen && String(chosen).toUpperCase() === String(q.correct_option || "").toUpperCase()) correct++;
+      if (!chosen) return;
+      if (String(chosen).toUpperCase() === String(q.correct_option || q.correct_key || "").toUpperCase()) correct++;
       else wrong++;
     });
     const total = correct + wrong;
+    const paperTotal = currentExam.questions.length;
+    window._lastPracticeReview = buildAnsweredExamReview(currentExam.questions, answers);
+    window._lastPracticeAttemptId = null;
+    window._lastPracticeBoard = currentExam.exam_type || "CBT";
     showResult({
-      percentage: total ? Math.round((correct / total) * 100) : 0,
+      percentage: paperTotal ? Math.round((correct / paperTotal) * 100) : 0,
       correct,
       wrong,
-      total,
+      total: paperTotal,
       offline: !!(currentSession && currentSession.is_local_replay),
       offline_note: currentSession && currentSession.is_local_replay
         ? "Offline retry scored on this device only; your original attempt will sync separately."
@@ -2527,12 +2758,10 @@ async function submitExam(force) {
     } catch (eQueue) { /* ignore */ }
     let localCorrect = 0;
     let localWrong = 0;
-    let localAttempted = 0;
     currentExam.questions.forEach((q, i) => {
       const chosen = answers[i];
       if (!chosen) return;
-      localAttempted++;
-      if (String(chosen).toUpperCase() === String(q.correct_option || "").toUpperCase()) localCorrect++;
+      if (String(chosen).toUpperCase() === String(q.correct_option || q.correct_key || "").toUpperCase()) localCorrect++;
       else localWrong++;
     });
     const localTotal = localCorrect + localWrong;
@@ -2546,25 +2775,29 @@ async function submitExam(force) {
         })
         .filter(Boolean);
       const chosen = (answers[i] || "").toUpperCase();
-      const correctKey = String(q.correct_option || "").toUpperCase();
-      if (!correctKey && !chosen) return null;
+      const correctKey = String(q.correct_option || q.correct_key || "").toUpperCase();
+      if (!chosen) return null;
       return {
+        id: String(q.id),
+        question_number: i + 1,
         question_text: q.question_text || "",
         subject: q.subject || "",
         options: options,
-        your_answer: chosen || null,
+        your_answer: chosen,
         correct_key: correctKey,
-        is_correct: !!chosen && chosen === correctKey,
+        is_correct: !!correctKey && chosen === correctKey,
         explanation: q.explanation || "",
       };
     }).filter(Boolean);
     window._lastPracticeAttemptId = null;
     window._lastPracticeBoard = currentExam.exam_type || (currentSession && currentSession.exam_type) || "CBT";
+    const paperTotal = currentExam.questions.length;
+    const paperPct = paperTotal ? Math.round((localCorrect / paperTotal) * 100) : 0;
     showResult({
-      percentage: localPct,
+      percentage: paperPct,
       correct: localCorrect,
       wrong: localWrong,
-      total: currentExam.questions.length,
+      total: paperTotal,
       score: localCorrect,
       max_score: currentExam.questions.length,
       offline: true,
@@ -2590,11 +2823,28 @@ async function submitExam(force) {
       timeout: 6000,
       retries: 0,
     });
+    if (currentSession.is_internal) {
+      window._lastPracticeReview = filterReviewToAnswered(
+        buildAnsweredExamReview(currentExam.questions, answers),
+        answerMap
+      );
+      window._lastPracticeAttemptId = null;
+      window._lastPracticeBoard = currentExam.exam_type || "Scholaxia Exam";
+    } else {
+      window._lastPracticeReview = await loadSubmittedSchoolExamReview(result);
+      window._lastPracticeAttemptId = null;
+      window._lastPracticeBoard = currentExam.exam_type || "CBT";
+    }
     showResult(result);
   } catch (e) {
     // SYNC FAILED (offline, timeout, server error): score locally, keep the
     // answers to sync later, and show the result — never leave the student
     // stuck on the exam screen.
+    if (currentSession.is_school_exam) {
+      window._lastPracticeReview = buildAnsweredExamReview(currentExam.questions, answers);
+      window._lastPracticeAttemptId = null;
+      window._lastPracticeBoard = currentExam.exam_type || "Scholaxia Exam";
+    }
     try {
       const queued = JSON.parse(localStorage.getItem("sia_cbt_pending_sessions") || "[]");
       queued.push({ session_id: currentSession.session_id, answers: answerMap, is_auto_submit: secondsLeft <= 0, queued_at: new Date().toISOString() });
@@ -2617,27 +2867,30 @@ async function submitExam(force) {
         })
         .filter(Boolean);
       const chosen = (answers[i] || "").toUpperCase();
-      const correctKey = String(q.correct_option || "").toUpperCase();
-      if (!correctKey && !chosen) return null;
+      const correctKey = String(q.correct_option || q.correct_key || "").toUpperCase();
+      if (!chosen) return null;
       return {
+        id: String(q.id),
+        question_number: i + 1,
         question_text: q.question_text || "",
         subject: q.subject || "",
         options: options,
-        your_answer: chosen || null,
+        your_answer: chosen,
         correct_key: correctKey,
-        is_correct: !!chosen && chosen === correctKey,
+        is_correct: !!correctKey && chosen === correctKey,
         explanation: q.explanation || "",
       };
     }).filter(Boolean);
     window._lastPracticeAttemptId = null;
     window._lastPracticeBoard = currentExam.exam_type || (currentSession && currentSession.exam_type) || "CBT";
     const localTotal = localCorrect + localWrong;
-    const localPct = localTotal ? Math.round((localCorrect / localTotal) * 100) : 0;
+    const paperTotal = currentExam.questions.length;
+    const localPct = paperTotal ? Math.round((localCorrect / paperTotal) * 100) : 0;
     showResult({
       percentage: localPct,
       correct: localCorrect,
       wrong: localWrong,
-      total: currentExam.questions.length,
+      total: paperTotal,
       score: localCorrect,
       max_score: currentExam.questions.length,
       offline: true,
@@ -2685,36 +2938,12 @@ function showResult(result) {
   const correct = result.correct ?? result.total_correct ?? 0;
   const wrong = result.wrong ?? result.total_wrong ?? 0;
   const total = result.total ?? (correct + wrong);
-  const resultSubjects = [...new Set((currentExam?.sections || [])
-    .map((section) => String(section.subject || "").trim())
-    .filter(Boolean))];
-  const scoredSubjects = result.per_subject_scores || result.by_subject;
-  if (resultSubjects.length <= 1 && scoredSubjects && typeof scoredSubjects === "object") {
-    const additionalSubjects = Object.keys(scoredSubjects).filter((subject) => subject && !resultSubjects.includes(subject));
-    if (additionalSubjects.length > 1) resultSubjects.push(...additionalSubjects);
-  }
+  // Result screen shows only the score. No subject breakdown and no rating
+  // line here — the motivation below is the single encouragement message.
   const lines = [result.score_pending
     ? "Score will be available after reconnecting."
     : (result.offline ? `${correct} correct · ${wrong} wrong · ${total} total (unsynced)` : `${correct} correct · ${wrong} wrong · ${total} total`)];
-  if (resultSubjects.length > 1) {
-    lines.unshift(`${escHtml(currentExam.exam_type || currentSession?.exam_type || "CBT")} · ${resultSubjects.map(escHtml).join(", ")} (${resultSubjects.length} subjects)`);
-  }
   if (result.offline_note) lines.push("📌 " + escHtml(result.offline_note));
-  if (result.score_display) lines.unshift("Score: " + escHtml(result.score_display));
-  if (result.rating) lines.push("Rating: " + escHtml(result.rating) + (result.rating_message ? " — " + escHtml(result.rating_message) : ""));
-  if (result.per_subject_scores && typeof result.per_subject_scores === "object") {
-    var ps = Object.keys(result.per_subject_scores).map(function (k) {
-      return escHtml(k) + ": " + result.per_subject_scores[k];
-    });
-    if (ps.length) lines.push(ps.join(" · "));
-  }
-  if (result.by_subject) {
-    const subs = Object.keys(result.by_subject).map((k) => {
-      const s = result.by_subject[k];
-      return `${escHtml(k)}: ${s.correct}/${s.total}`;
-    });
-    lines.push(subs.join(" · "));
-  }
   document.getElementById("result-detail").innerHTML = lines.join("<br>");
   const encouragementEl = document.getElementById("result-encouragement");
   if (encouragementEl) {
@@ -2752,7 +2981,12 @@ function showResult(result) {
 /* Answer review for board practice attempts — every question with the
    student's pick, the correct option and the explanation (top-down list). */
 function showPracticeReviewModal(review, boardLabel) {
-  var items = (review || []).map(function (q, i) {
+  var answeredItems = (review || []).filter(function (q) { return q && q.your_answer; });
+  if (!answeredItems.length) {
+    showExamLockNotice("No answered questions are available to review.");
+    return;
+  }
+  var items = answeredItems.map(function (q, i) {
     var opts = (q.options || []).map(function (o) {
       return { key: String(o.key || "").toUpperCase(), text: o.text || "" };
     });
@@ -2763,51 +2997,46 @@ function showPracticeReviewModal(review, boardLabel) {
     var your = textOf(q.your_answer);
     var correct = textOf(q.correct_key);
     var ok = !!q.is_correct;
-    var skipped = !q.your_answer;
-    var color = ok ? "#22c55e" : "#ef4444";
+    var stateClass = ok ? "correct" : "incorrect";
     var html =
-      '<div class="pr-item" style="border:1px solid ' + color + '55;border-radius:12px;padding:14px;margin-bottom:12px;">' +
-      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' +
-      '<span style="display:inline-flex;width:24px;height:24px;border-radius:50%;align-items:center;justify-content:center;background:' + color + '22;color:' + color + ';font-weight:800;font-size:13px;">' + (ok ? "✓" : "✗") + "</span>" +
-      '<strong style="color:#94a3b8;font-size:12px;">Q' + (i + 1) + (q.subject ? " · " + escHtml(q.subject) : "") + "</strong>" +
-      (skipped ? '<span style="margin-left:auto;color:#94a3b8;font-size:11px;font-style:italic;">Skipped</span>' : "") +
+      '<article class="pr-item ' + stateClass + '">' +
+      '<div class="pr-item-head">' +
+      '<span class="pr-item-mark" aria-hidden="true">' + (ok ? "✓" : "×") + "</span>" +
+      '<strong class="pr-item-label">Q' + (q.question_number || (i + 1)) + (q.subject ? " · " + escHtml(q.subject) : "") + "</strong>" +
       "</div>" +
-      '<div style="font-size:14px;line-height:1.5;margin-bottom:10px;">' + escHtml(q.question_text || "") + "</div>";
+      '<div class="pr-question">' + escHtml(q.question_text || "") + "</div>";
     opts.forEach(function (o) {
       var isCorrect = o.key === String(q.correct_key || "").toUpperCase();
       var isYours = o.key === String(q.your_answer || "").toUpperCase() && q.your_answer;
-      var c = isCorrect ? "#22c55e" : isYours ? "#ef4444" : "#94a3b8";
-      var bg = isCorrect ? "#22c55e14" : isYours ? "#ef444414" : "transparent";
+      var optionClass = isCorrect ? "correct" : isYours ? "your-wrong" : "";
       html +=
-        '<div style="background:' + bg + ";border-radius:8px;padding:8px 12px;margin-bottom:6px;color:" + c + ';font-size:13px;">' +
+        '<div class="pr-option ' + optionClass + '">' +
         "<strong>" + escHtml(o.key) + ".</strong> " + escHtml(o.text) +
-        (isCorrect ? ' <span style="font-size:12px;">✔ correct</span>' : "") +
-        (isYours && !isCorrect ? ' <span style="font-size:12px;">✘ your answer</span>' : "") +
+        (isCorrect ? ' <span>✓ correct answer</span>' : "") +
+        (isYours && !isCorrect ? ' <span>· your answer</span>' : "") +
         "</div>";
     });
     if (q.explanation) {
       html +=
-        '<div style="background:#f59e0b10;border:1px solid #f59e0b33;border-radius:8px;padding:10px 12px;margin-top:8px;font-size:13px;color:#eab308;">💡 ' +
+        '<div class="pr-explanation"><span aria-hidden="true">💡</span> ' +
         escHtml(q.explanation) +
         "</div>";
     }
-    html += "</div>";
+    html += "</article>";
     return html;
   }).join("");
 
   var overlay = document.createElement("div");
   overlay.id = "practice-review-overlay";
-  overlay.style.cssText =
-    "position:fixed;inset:0;background:rgba(2,6,23,.82);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:36px 18px;overflow-y:auto;";
+  overlay.className = "practice-review-overlay";
   var box = document.createElement("div");
-  box.style.cssText =
-    "background:#0f172a;color:#e2e8f0;border-radius:16px;max-width:760px;width:100%;padding:22px;box-shadow:0 24px 80px rgba(0,0,0,.6);";
+  box.className = "practice-review-card";
   box.innerHTML =
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">' +
-    '<h3 style="margin:0;font-size:18px;">Answer Review — ' + escHtml(boardLabel) + "</h3>" +
-    '<button id="pr-close" style="background:#1e293b;color:#e2e8f0;border:0;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:13px;">Close</button>' +
+    '<div class="practice-review-head">' +
+    '<h3>Answer review <span>· ' + escHtml(boardLabel) + "</span></h3>" +
+    '<button id="pr-close" class="practice-review-close" type="button">Close</button>' +
     "</div>" +
-    '<div style="font-size:12px;color:#94a3b8;margin-bottom:14px;">Green = correct · Red = your wrong pick · Yellow box = explanation</div>' +
+    '<div class="practice-review-legend">' + answeredItems.length + ' answered question' + (answeredItems.length === 1 ? '' : 's') + ' · Green = correct · Red = incorrect · Amber = explanation</div>' +
     items;
   overlay.appendChild(box);
   overlay.addEventListener("click", function (e) {
@@ -2875,6 +3104,13 @@ async function loadProfile() {
     document.getElementById("pf-level").textContent = p.education_level || "—";
     document.getElementById("pf-subjects").textContent = (p.selected_subjects || []).join(", ") || "—";
     document.getElementById("pf-sub").textContent = p.has_active_subscription ? "Active" : "Free";
+    const examPill = document.getElementById("pf-exam-pill");
+    if (examPill) examPill.textContent = formatExamType(p.exam_type) || "Exam not set";
+    const subPill = document.getElementById("pf-sub-pill");
+    if (subPill) {
+      subPill.textContent = p.has_active_subscription ? "Subscribed" : "Free plan";
+      subPill.classList.toggle("is-active", !!p.has_active_subscription);
+    }
     localStorage.setItem("sia_exam_type", formatExamType(p.exam_type) || "");
     localStorage.setItem("sia_subjects", JSON.stringify(p.selected_subjects || []));
     if (p.education_level) localStorage.setItem("sia_education_level", p.education_level);
@@ -2903,7 +3139,9 @@ async function loadProfile() {
     if (allSubjects.length) renderSubjectPicker();
     else loadSubjects().then(() => renderSubjectPicker());
   } catch (e) {
-    alert(e.message);
+    const errEl = document.getElementById("setup-error");
+    const msg = typeof networkErrorMessage === "function" ? networkErrorMessage(e) : (e && e.message) || "Something went wrong.";
+    if (errEl) errEl.textContent = msg;
   }
 }
 
@@ -2999,11 +3237,13 @@ async function saveSetup() {
     localStorage.setItem("sia_exam_type", examType);
     localStorage.setItem("sia_subjects", JSON.stringify(selectedSubjects));
     err.textContent = "";
+    // Keep the dashboard tiles in sync immediately (they read localStorage).
+    loadDashboard(false);
     alert("Exam profile saved! Your CBT practice will use " + formatExamType(examType) + " subjects.");
     loadProfile();
     refreshPage();
   } catch (e) {
-    err.textContent = e.message;
+    err.textContent = typeof networkErrorMessage === "function" ? networkErrorMessage(e) : (e && e.message) || "Something went wrong.";
   }
 }
 
