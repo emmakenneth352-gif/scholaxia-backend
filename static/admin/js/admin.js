@@ -202,7 +202,6 @@ function showAdminPage(page) {
   else if (page === "feature-access") loadFeatureAccess();
   else if (page === "students") loadStudents();
   else if (page === "teachers") loadTeachers();
-  else if (page === "tutor-hub") loadTutorHub();
   else if (page === "vendors") loadVendors();
   else if (page === "kind") loadKind();
   else if (page === "kind-games") loadKindGamesAdmin();

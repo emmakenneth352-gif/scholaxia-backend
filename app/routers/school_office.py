@@ -16,6 +16,7 @@ from app.core.school_pin import require_admin_pin, require_write_pin
 from app.models.cbt import CBTExam, CBTQuestion, CBTSession, ExamProctorLog
 from app.models.school_campus import SchoolCampus
 from app.models.school_office import SchoolExamCandidate
+from app.models.tutor_hub import TutorLessonNote, TutorMaterial
 from app.models.user import StudentProfile, TeacherProfile, User, UserRole
 from app.models.live_class import LiveClass
 from app.core.datetime_utils import naive_utc_now
@@ -1027,6 +1028,261 @@ async def list_school_teachers(
         ]
     }
 
+
+# ── Lesson hub (inside the school portal) ─────────────────────────────────
+# The school admin sends study material straight to one of their teachers
+# (or to all of them), and teachers send lesson notes back for review.
+
+
+def _school_scope(current_user: dict) -> UUID:
+    sid = current_user.get("school_id")
+    if not sid:
+        raise HTTPException(status_code=400, detail="This account is not attached to a school")
+    return UUID(str(sid))
+
+
+def _admin_role(current_user: dict) -> bool:
+    return str(current_user.get("role") or "").lower() == "school_admin"
+
+
+def _me_id(current_user: dict) -> UUID:
+    return UUID(str(current_user.get("sub")))
+
+
+def _material_row(m: TutorMaterial, tutor_name: Optional[str] = None) -> dict:
+    return {
+        "id": str(m.id),
+        "title": m.title,
+        "subject": m.subject,
+        "class_name": m.class_name,
+        "description": m.description,
+        "link_url": m.link_url,
+        "teacher_id": str(m.teacher_id) if m.teacher_id else None,
+        "tutor_name": tutor_name or ("Every teacher" if not m.teacher_id else None),
+        "created_at": m.created_at.isoformat() if m.created_at else None,
+    }
+
+
+def _note_row(n: TutorLessonNote, tutor_name: Optional[str] = None) -> dict:
+    return {
+        "id": str(n.id),
+        "teacher_id": str(n.teacher_id),
+        "tutor_name": tutor_name,
+        "title": n.title,
+        "subject": n.subject,
+        "class_name": n.class_name,
+        "week": n.week,
+        "term": n.term,
+        "content": n.content,
+        "attachment_url": n.attachment_url,
+        "status": n.status,
+        "admin_comment": n.admin_comment,
+        "created_at": n.created_at.isoformat() if n.created_at else None,
+        "reviewed_at": n.reviewed_at.isoformat() if n.reviewed_at else None,
+    }
+
+
+class LessonMaterialIn(BaseModel):
+    title: str = Field(min_length=2, max_length=200)
+    teacher_id: Optional[str] = None  # blank = every teacher in the school
+    subject: Optional[str] = Field(default=None, max_length=120)
+    class_name: Optional[str] = Field(default=None, max_length=60)
+    description: Optional[str] = Field(default=None, max_length=4000)
+    link_url: Optional[str] = Field(default=None, max_length=600)
+
+
+class LessonNoteIn(BaseModel):
+    title: str = Field(min_length=2, max_length=200)
+    content: str = Field(min_length=2, max_length=20000)
+    subject: Optional[str] = Field(default=None, max_length=120)
+    class_name: Optional[str] = Field(default=None, max_length=60)
+    week: Optional[str] = Field(default=None, max_length=40)
+    term: Optional[str] = Field(default=None, max_length=40)
+    attachment_url: Optional[str] = Field(default=None, max_length=600)
+
+
+class LessonNoteReviewIn(BaseModel):
+    status: str = Field(default="approved")
+    admin_comment: Optional[str] = Field(default=None, max_length=2000)
+
+
+@router.get("/lesson-hub/materials")
+async def lesson_hub_materials(
+    current_user: dict = Depends(require_school_staff),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin: everything sent in this school. Teacher: what was sent to them."""
+    sid = _school_scope(current_user)
+    q = (
+        select(TutorMaterial)
+        .where(TutorMaterial.school_id == sid)
+        .order_by(TutorMaterial.created_at.desc())
+    )
+    if not _admin_role(current_user):
+        me = _me_id(current_user)
+        q = q.where(or_(TutorMaterial.teacher_id == me, TutorMaterial.teacher_id.is_(None)))
+    rows = (await db.execute(q)).scalars().all()
+    names: dict[str, str] = {}
+    if _admin_role(current_user) and rows:
+        ids = {m.teacher_id for m in rows if m.teacher_id}
+        if ids:
+            users = (await db.execute(select(User).where(User.id.in_(ids)))).scalars().all()
+            names = {str(u.id): u.full_name for u in users}
+    return {"materials": [_material_row(m, names.get(str(m.teacher_id))) for m in rows]}
+
+
+@router.post("/lesson-hub/materials", status_code=201)
+async def lesson_hub_send_material(
+    payload: LessonMaterialIn,
+    current_user: dict = Depends(require_school_staff),
+    db: AsyncSession = Depends(get_db),
+):
+    """The school admin sends study material to one teacher, or to all of them."""
+    if not _admin_role(current_user):
+        raise HTTPException(status_code=403, detail="Only the school admin can send materials")
+    sid = _school_scope(current_user)
+    teacher_id = None
+    if payload.teacher_id:
+        try:
+            teacher_id = UUID(payload.teacher_id)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Pick a teacher from the list")
+        ok = (
+            await db.execute(
+                select(User).where(
+                    User.id == teacher_id,
+                    User.school_id == sid,
+                    User.role == UserRole.teacher,
+                )
+            )
+        ).scalar_one_or_none()
+        if not ok:
+            raise HTTPException(status_code=404, detail="That teacher is not in your school")
+    row = TutorMaterial(
+        school_id=sid,
+        admin_id=_me_id(current_user),
+        teacher_id=teacher_id,
+        title=payload.title.strip(),
+        subject=(payload.subject or "").strip() or None,
+        class_name=(payload.class_name or "").strip() or None,
+        description=(payload.description or "").strip() or None,
+        link_url=(payload.link_url or "").strip() or None,
+    )
+    db.add(row)
+    await db.commit()
+    await db.refresh(row)
+    return {"ok": True, "material": _material_row(row)}
+
+
+@router.delete("/lesson-hub/materials/{material_id}")
+async def lesson_hub_delete_material(
+    material_id: str,
+    current_user: dict = Depends(require_school_staff),
+    db: AsyncSession = Depends(get_db),
+):
+    if not _admin_role(current_user):
+        raise HTTPException(status_code=403, detail="Only the school admin can remove materials")
+    sid = _school_scope(current_user)
+    row = (
+        await db.execute(
+            select(TutorMaterial).where(
+                TutorMaterial.id == UUID(material_id), TutorMaterial.school_id == sid
+            )
+        )
+    ).scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Material not found")
+    await db.delete(row)
+    await db.commit()
+    return {"ok": True}
+
+
+@router.get("/lesson-hub/notes")
+async def lesson_hub_notes(
+    current_user: dict = Depends(require_school_staff),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin: every lesson note in the school. Teacher: their own notes."""
+    sid = _school_scope(current_user)
+    q = (
+        select(TutorLessonNote)
+        .where(TutorLessonNote.school_id == sid)
+        .order_by(TutorLessonNote.created_at.desc())
+    )
+    if not _admin_role(current_user):
+        q = q.where(TutorLessonNote.teacher_id == _me_id(current_user))
+    rows = (await db.execute(q)).scalars().all()
+    names: dict[str, str] = {}
+    if _admin_role(current_user) and rows:
+        ids = {n.teacher_id for n in rows}
+        users = (await db.execute(select(User).where(User.id.in_(ids)))).scalars().all()
+        names = {str(u.id): u.full_name for u in users}
+    return {"notes": [_note_row(n, names.get(str(n.teacher_id))) for n in rows]}
+
+
+@router.post("/lesson-hub/notes", status_code=201)
+async def lesson_hub_submit_note(
+    payload: LessonNoteIn,
+    current_user: dict = Depends(require_school_staff),
+    db: AsyncSession = Depends(get_db),
+):
+    """A teacher sends a lesson note to the school admin."""
+    if _admin_role(current_user):
+        raise HTTPException(status_code=403, detail="Lesson notes come from teachers")
+    sid = _school_scope(current_user)
+    row = TutorLessonNote(
+        school_id=sid,
+        teacher_id=_me_id(current_user),
+        title=payload.title.strip(),
+        content=payload.content.strip(),
+        subject=(payload.subject or "").strip() or None,
+        class_name=(payload.class_name or "").strip() or None,
+        week=(payload.week or "").strip() or None,
+        term=(payload.term or "").strip() or None,
+        attachment_url=(payload.attachment_url or "").strip() or None,
+        status="submitted",
+    )
+    db.add(row)
+    await db.commit()
+    await db.refresh(row)
+    return {"ok": True, "note": _note_row(row)}
+
+
+@router.patch("/lesson-hub/notes/{note_id}")
+async def lesson_hub_review_note(
+    note_id: str,
+    payload: LessonNoteReviewIn,
+    current_user: dict = Depends(require_school_staff),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin approves or returns a note. A teacher may edit their own note
+    until it has been approved."""
+    sid = _school_scope(current_user)
+    row = (
+        await db.execute(
+            select(TutorLessonNote).where(
+                TutorLessonNote.id == UUID(note_id), TutorLessonNote.school_id == sid
+            )
+        )
+    ).scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Lesson note not found")
+    if _admin_role(current_user):
+        if payload.status not in ("submitted", "approved", "needs_work"):
+            raise HTTPException(status_code=422, detail="status must be submitted, approved or needs_work")
+        row.status = payload.status
+        row.admin_comment = (payload.admin_comment or "").strip() or row.admin_comment
+        row.reviewed_at = naive_utc_now()
+    else:
+        if str(row.teacher_id) != str(_me_id(current_user)):
+            raise HTTPException(status_code=403, detail="This is not your lesson note")
+        if row.status == "approved":
+            raise HTTPException(status_code=409, detail="This note is already approved")
+        if payload.admin_comment is not None:
+            raise HTTPException(status_code=403, detail="Only the school admin can comment")
+    await db.commit()
+    await db.refresh(row)
+    return {"ok": True, "note": _note_row(row)}
 
 @router.get("/results")
 async def print_results(

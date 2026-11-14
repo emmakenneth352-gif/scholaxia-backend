@@ -617,6 +617,7 @@ tr:last-child td{border-bottom:none}
   var PAGES = [
     ["dashboard", "🏠", "Dashboard"],
     ["students", "👥", "Students"], ["teachers", "👨‍🏫", "Teachers"],
+    ["lessonhub", "🗒️", "Notes & Materials"],
     ["classes", "🎓", "Classes"],
     ["attendance", "📋", "Attendance"], ["fees", "💳", "Fees & Payments"],
     ["exreg", "🧾", "Register Student"], ["exstudents", "✅", "Approve Students"],
@@ -629,7 +630,7 @@ tr:last-child td{border-bottom:none}
   ];
   var NAV_SECTIONS = {
     dashboard: "Overview",
-    students: "School", teachers: "School", classes: "School",
+    students: "School", teachers: "School", lessonhub: "School", classes: "School",
     attendance: "School", fees: "School",
     exreg: "Exams", exstudents: "Exams", exsched: "Exams", exbank: "Exams",
     exresults: "Exams", exretake: "Exams",
@@ -936,13 +937,14 @@ tr:last-child td{border-bottom:none}
 
   /* ═══ TEACHERS ═══ */
   R.teachers = function () {
-    $("pages").innerHTML = head("Teachers", "Teaching staff in your school.", '<button class="btn" onclick="addTeacher()">+ Add Teacher</button>') +
+    $("pages").innerHTML = head("Teachers", "Teaching staff in your school — they sign in on this same school link.", '<button class="btn" onclick="addTeacher()">+ Add Teacher</button>') +
       '<div class="panel"><div id="tTbl"><div class="empty">Loading…</div></div></div>';
     officeApi("/teachers").then(function (d) {
       var rows = (d.teachers || []).map(function (t) {
         return '<tr><td><strong>' + esc(t.full_name) + '</strong></td><td>' + esc(t.email) + '</td><td>' + (t.subjects || []).map(function (s) { return '<span class="pill blue">' + esc(s) + '</span>'; }).join(" ") + '</td><td>' + esc((t.academic_classes || []).join(", ") || "—") + '</td></tr>';
       });
-      $("tTbl").innerHTML = tbl(["Name", "Email", "Subjects", "Classes"], rows);
+      $("tTbl").innerHTML = '<p class="mhint" style="margin:0 0 10px">Each teacher signs in on this same link with the email and password you gave them. Forgot it? Remove and re-add them, or ask them to use the password you set.</p>' +
+        tbl(["Name", "Email", "Subjects", "Classes"], rows);
     }).catch(function (e) { $("tTbl").innerHTML = '<div class="empty">' + esc(errText(e)) + '</div>'; });
   };
   window.addTeacher = function () {
@@ -964,10 +966,195 @@ tr:last-child td{border-bottom:none}
       officeApi("/teachers", { method: "POST", body: { full_name: name, email: email, password: pw,
         subjects: $("thSubs").value.split(",").map(function (s) { return s.trim(); }).filter(Boolean),
         academic_classes: $("thCls").value.split(",").map(function (s) { return s.trim(); }).filter(Boolean) } }).then(function () {
-        closeModal(); toast("Teacher added"); showPage("teachers");
+        closeModal();
+        showPage("teachers");
+        var link = location.origin + location.pathname;
+        openModal("✅ Teacher added",
+          '<div class="mnote">Share these login details with the teacher:<br/><br/>School link: <code>' + esc(link) + '</code><br/>Email: <code>' + esc(email) + '</code><br/>Password: <code>' + esc(pw) + '</code></div>' +
+          '<p class="mhint" style="margin-top:10px">They open this same school link, sign in with this email and password, and land in this portal as a teacher.</p>',
+          '<button class="btn" onclick="closeModal()">Done</button>');
       }).catch(function (e) { busy($("thSave"), false, "Add teacher"); mErr(errText(e)); });
     });
   };
+
+  /* ═══ NOTES & MATERIALS (school admin ↔ teachers) ═══
+     Lives inside the school portal: the admin sends study material straight to
+     a teacher (or to every teacher), and teachers send lesson notes back for
+     the admin to check. */
+  function lhIsAdmin() {
+    return String((S.user && S.user.role) || "").toLowerCase() === "school_admin";
+  }
+
+  function lhHubMeta() {
+    return lhIsAdmin()
+      ? "Send study material straight to a teacher, and check the lesson notes they send back."
+      : "Study material from your school admin, and the lesson notes you send back.";
+  }
+
+  R.lessonhub = function () {
+    var admin = lhIsAdmin();
+    var form = admin
+      ? ('<div class="panel"><h3>Send study material</h3>' +
+        '<div class="form-grid">' +
+        '<div><label class="f-label">Send to</label><select class="f-in" id="lhTeacher"><option value="">Every teacher</option></select></div>' +
+        '<div><label class="f-label">Title *</label><input class="f-in" id="lhTitle" placeholder="e.g. SS2 Biology — cell division" /></div>' +
+        '<div><label class="f-label">Subject</label><input class="f-in" id="lhSubject" placeholder="Biology" /></div>' +
+        '<div><label class="f-label">Class</label><input class="f-in" id="lhClass" placeholder="SS2" /></div>' +
+        '</div>' +
+        '<div class="mrow"><label class="f-label">Link to the file or video (optional)</label><input class="f-in" id="lhLink" placeholder="https://…" /></div>' +
+        '<div class="mrow"><label class="f-label">Short note for the teacher (optional)</label><input class="f-in" id="lhDesc" placeholder="e.g. Use this for week 4" /></div>' +
+        '<div class="head-actions" style="margin-top:10px"><button class="btn" onclick="lhSend()">Send material</button></div></div>')
+      : ('<div class="panel"><h3>Send a lesson note</h3>' +
+        '<div class="form-grid">' +
+        '<div><label class="f-label">Title *</label><input class="f-in" id="lhNTitle" placeholder="e.g. Week 4 — Photosynthesis" /></div>' +
+        '<div><label class="f-label">Subject</label><input class="f-in" id="lhNSubject" placeholder="Biology" /></div>' +
+        '<div><label class="f-label">Class</label><input class="f-in" id="lhNClass" placeholder="SS2" /></div>' +
+        '<div><label class="f-label">Week</label><input class="f-in" id="lhNWeek" placeholder="Week 4" /></div>' +
+        '<div><label class="f-label">Term</label><select class="f-in" id="lhNTerm"><option value="">—</option><option>First term</option><option>Second term</option><option>Third term</option></select></div>' +
+        '</div>' +
+        '<div class="mrow"><label class="f-label">Lesson note *</label><textarea class="f-in" id="lhNContent" rows="8" placeholder="Write the lesson note here…"></textarea></div>' +
+        '<div class="mrow"><label class="f-label">Attachment link (optional)</label><input class="f-in" id="lhNLink" placeholder="https://…" /></div>' +
+        '<div class="head-actions" style="margin-top:10px"><button class="btn" onclick="lhSubmitNote()">Send to admin</button></div></div>');
+
+    var materialsPanel = '<div class="panel"><h3>' + (admin ? "Materials sent" : "From your admin") + '</h3><div id="lhMaterials"><div class="empty">Loading…</div></div></div>';
+    var notesPanel = '<div class="panel"><h3>' + (admin ? "Lesson notes from teachers" : "Your lesson notes") + '</h3><div id="lhNotes"><div class="empty">Loading…</div></div></div>';
+
+    $("pages").innerHTML = head("Notes & Materials", lhHubMeta()) +
+      (admin ? form + materialsPanel + notesPanel : materialsPanel + form + notesPanel);
+    lhLoad();
+  };
+
+  function lhLoad() {
+    var admin = lhIsAdmin();
+    if (admin) {
+      officeApi("/teachers").then(function (d) {
+        var sel = $("lhTeacher");
+        if (!sel) return;
+        var list = (d && d.teachers) || [];
+        sel.innerHTML = '<option value="">Every teacher (' + list.length + ')</option>' +
+          list.map(function (t) {
+            return '<option value="' + esc(t.id) + '">' + esc(t.full_name) + (t.email ? " — " + esc(t.email) : "") + '</option>';
+          }).join("");
+      }).catch(function () {});
+    }
+
+    officeApi("/lesson-hub/materials").then(function (d) {
+      var box = $("lhMaterials");
+      if (!box) return;
+      var list = (d && d.materials) || [];
+      if (!list.length) { box.innerHTML = '<div class="empty">' + (admin ? "You have not sent any material yet." : "No material from your admin yet.") + '</div>'; return; }
+      box.innerHTML = '<div style="display:grid;gap:10px">' + list.map(function (m) {
+        var meta = [m.subject, m.class_name].filter(Boolean).join(" · ");
+        return '<div class="card" style="padding:14px">' +
+          '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">' +
+          '<div><strong>' + esc(m.title) + '</strong>' +
+          (meta ? '<div class="muted" style="font-size:12.5px;margin-top:2px">' + esc(meta) + '</div>' : "") +
+          (m.description ? '<div class="muted" style="font-size:13px;margin-top:4px">' + esc(m.description) + '</div>' : "") +
+          '</div><div style="display:flex;gap:8px;align-items:center">' +
+          (m.link_url ? '<a class="btn sm ghost" href="' + esc(m.link_url) + '" target="_blank" rel="noopener">Open</a>' : "") +
+          (admin ? '<button class="btn sm ghost" onclick="lhDeleteMaterial(\'' + m.id + '\')">Delete</button>' : "") +
+          '</div></div>' +
+          '<div class="muted" style="font-size:12px;margin-top:8px">' + (admin ? "To: " + esc(m.tutor_name || "Every teacher") + " · " : "") + dOnly(m.created_at) + '</div>' +
+          '</div>';
+      }).join("") + '</div>';
+    }).catch(function (e) {
+      var box = $("lhMaterials");
+      if (box) box.innerHTML = '<div class="empty">' + esc(errText(e)) + '</div>';
+    });
+
+    officeApi("/lesson-hub/notes").then(function (d) {
+      var box = $("lhNotes");
+      if (!box) return;
+      var list = (d && d.notes) || [];
+      if (!list.length) { box.innerHTML = '<div class="empty">' + (admin ? "No lesson notes from teachers yet." : "You have not sent a lesson note yet.") + '</div>'; return; }
+      var rows = list.map(function (n) {
+        var pill = n.status === "approved" ? "ok" : n.status === "needs_work" ? "bad" : "warn";
+        return '<tr><td>' + (admin ? '<strong>' + esc(n.tutor_name || "Teacher") + '</strong><br/><span class="muted" style="font-size:12.5px">' + esc(n.title) + '</span>' : '<strong>' + esc(n.title) + '</strong>') + '</td>' +
+          '<td>' + esc([n.subject, n.class_name, n.week].filter(Boolean).join(" · ") || "—") + '</td>' +
+          '<td><span class="pill ' + pill + '">' + esc(String(n.status || "").replace("_", " ")) + '</span></td>' +
+          '<td>' + esc(n.admin_comment || "—") + '</td>' +
+          '<td style="white-space:nowrap"><button class="btn sm ghost" onclick="lhReadNote(\'' + n.id + '\')">Read</button>' +
+          (admin ? ' <button class="btn sm" onclick="lhReview(\'' + n.id + '\',\'approved\')">Approve</button> <button class="btn sm ghost" onclick="lhReview(\'' + n.id + '\',\'needs_work\')">Needs work</button>' : "") +
+          '</td></tr>';
+      });
+      box.innerHTML = tbl(["Lesson note", "Class / week", "Status", "Admin comment", ""], rows);
+      lhNoteCache = list;
+    }).catch(function (e) {
+      var box = $("lhNotes");
+      if (box) box.innerHTML = '<div class="empty">' + esc(errText(e)) + '</div>';
+    });
+  }
+
+  var lhNoteCache = [];
+
+  window.lhSend = function () {
+    var title = ($("lhTitle").value || "").trim();
+    if (!title) return toast("Give the material a title first");
+    var body = {
+      title: title,
+      teacher_id: ($("lhTeacher") && $("lhTeacher").value) || null,
+      subject: ($("lhSubject").value || "").trim() || null,
+      class_name: ($("lhClass").value || "").trim() || null,
+      link_url: ($("lhLink").value || "").trim() || null,
+      description: ($("lhDesc").value || "").trim() || null
+    };
+    officeApi("/lesson-hub/materials", { method: "POST", body: body }).then(function () {
+      toast("Material sent");
+      showPage("lessonhub");
+    }).catch(function (e) { toast(errText(e)); });
+  };
+
+  window.lhDeleteMaterial = function (id) {
+    confirmModal("Remove material", "Remove this material for the teacher? The admin PIN is asked next.", function (b) {
+      officeApi("/lesson-hub/materials/" + id, { method: "DELETE" }).then(function () {
+        closeModal(); toast("Material removed"); showPage("lessonhub");
+      }).catch(function (e) { busy(b, false, "Remove"); toast(errText(e)); });
+    });
+  };
+
+  window.lhSubmitNote = function () {
+    var title = ($("lhNTitle").value || "").trim();
+    var content = ($("lhNContent").value || "").trim();
+    if (!title) return toast("Give the lesson note a title");
+    if (!content) return toast("Write the lesson note first");
+    var b = { title: title, content: content,
+      subject: ($("lhNSubject").value || "").trim() || null,
+      class_name: ($("lhNClass").value || "").trim() || null,
+      week: ($("lhNWeek").value || "").trim() || null,
+      term: ($("lhNTerm") && $("lhNTerm").value) || null,
+      attachment_url: ($("lhNLink").value || "").trim() || null };
+    officeApi("/lesson-hub/notes", { method: "POST", body: b }).then(function () {
+      toast("Lesson note sent to the admin");
+      showPage("lessonhub");
+    }).catch(function (e) { toast(errText(e)); });
+  };
+
+  window.lhReadNote = function (id) {
+    var n = lhNoteCache.filter(function (x) { return x.id === id; })[0];
+    if (!n) return;
+    openModal(n.title,
+      '<p class="mhint" style="margin-bottom:8px">' + esc([n.tutor_name, n.subject, n.class_name, n.week, n.term].filter(Boolean).join(" · ")) + '</p>' +
+      '<div style="white-space:pre-wrap;font-size:14px;line-height:1.65">' + esc(n.content) + '</div>' +
+      (n.attachment_url ? '<p style="margin-top:10px"><a href="' + esc(n.attachment_url) + '" target="_blank" rel="noopener">Attachment</a></p>' : "") +
+      (n.admin_comment ? '<div class="mnote" style="margin-top:12px"><strong>Admin comment:</strong><br/>' + esc(n.admin_comment) + '</div>' : ""),
+      '<button class="btn" onclick="closeModal()">Close</button>', true);
+  };
+
+  window.lhReview = function (id, status) {
+    openModal(status === "approved" ? "Approve lesson note" : "Send it back for more work",
+      '<div class="mrow"><label class="f-label">Comment for the teacher (optional)</label><input class="f-in" id="lhComment" placeholder="e.g. Add worked examples" /></div>',
+      '<button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn" id="lhReviewGo">' +
+        (status === "approved" ? "Approve" : "Send back") + '</button>');
+    $("lhReviewGo").addEventListener("click", function () {
+      officeApi("/lesson-hub/notes/" + id, { method: "PATCH",
+        body: { status: status, admin_comment: ($("lhComment").value || "").trim() || null } }).then(function () {
+        closeModal(); toast(status === "approved" ? "Lesson note approved" : "Sent back to the teacher");
+        loadPageAgain("lessonhub");
+      }).catch(function (e) { mErr(errText(e)); });
+    });
+  };
+
+  function loadPageAgain(p) { if (R[p]) R[p](); }
 
   /* ═══ CLASSES ═══ */
   R.classes = function () {

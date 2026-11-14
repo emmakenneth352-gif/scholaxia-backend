@@ -66,7 +66,6 @@
       <div class="nav-section">People</div>
       <button class="nav-btn" data-page="students" onclick="showAdminPage('students')">Students</button>
       <button class="nav-btn" data-page="teachers" onclick="showAdminPage('teachers')">Teachers</button>
-      <button class="nav-btn" data-page="tutor-hub" onclick="showAdminPage('tutor-hub')">Tutor Hub</button>
       <button class="nav-btn" data-page="vendors" onclick="showAdminPage('vendors')">Vendors</button>
       <button class="nav-btn" data-page="kind" onclick="showAdminPage('kind')">Kind (Kids)</button>
       <button class="nav-btn" data-page="kind-games" onclick="showAdminPage('kind-games')">Kids Games Qs</button>
@@ -193,43 +192,6 @@
       <div id="teachers-table" class="data-table-wrap"><div class="loading">Loading…</div></div>
     </section>
 
-    <section id="page-tutor-hub" class="admin-page">
-      <div class="page-head">
-        <h2>Tutor Hub</h2>
-        <button class="btn-sm" onclick="loadTutorHub()">Refresh</button>
-      </div>
-      <p class="cbt-hint small">Send study material straight to a tutor (or to every tutor), and check the lesson notes tutors submit. This is the platform channel — it does not touch any school portal.</p>
-
-      <div class="panel">
-        <h3>Send study material</h3>
-        <div class="form-row">
-          <select id="thTutor" style="min-width:260px"></select>
-          <input id="thTitle" placeholder="Title — e.g. SS2 Biology: cell division" style="min-width:280px" />
-        </div>
-        <div class="form-row">
-          <input id="thSubject" placeholder="Subject (optional)" />
-          <input id="thClass" placeholder="Class (optional)" />
-        </div>
-        <div class="form-row">
-          <input id="thLink" placeholder="Link to the file or video (optional)" style="min-width:320px" />
-        </div>
-        <textarea id="thDesc" rows="3" placeholder="Short note for the tutor (optional)" style="width:100%;padding:10px;border:1px solid #dce3ef;border-radius:10px"></textarea>
-        <div class="form-row" style="margin-top:10px">
-          <button class="btn-sm" id="thSend" onclick="sendTutorMaterial()">Send material</button>
-          <span id="thMsg" class="cbt-hint small"></span>
-        </div>
-      </div>
-
-      <div class="panel">
-        <h3>Materials sent</h3>
-        <div id="thMaterials" class="data-table-wrap"><div class="loading">Loading…</div></div>
-      </div>
-
-      <div class="panel">
-        <h3>Lesson notes from tutors</h3>
-        <div id="thNotes" class="data-table-wrap"><div class="loading">Loading…</div></div>
-      </div>
-    </section>
 
     <section id="page-vendors" class="admin-page">
       <div class="page-head">
@@ -1538,7 +1500,6 @@
 <script src="js/admin-api.js?v=20260903addq1"></script>
 <script src="js/admin-auth.js?v=20260902adminfix"></script>
 <script src="js/admin.js?v=20261112a"></script>
-<script src="js/tutor-hub.js?v=20261114a"></script>
 <script src="js/responsive.js?v=20260805e"></script>
 </body>
 </html>

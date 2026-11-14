@@ -16,7 +16,6 @@
   var TITLES = {
     live: "Live Classes",
     materials: "Materials",
-    lessons: "Lesson Notes",
     exams: "Exams",
     students: "Students",
     grading: "Grading",
@@ -140,113 +139,6 @@
     }
   }
 
-  /* ═══ LESSON NOTES (direct channel with the Scholaxia admin) ═══ */
-  function thApi(path, options) {
-    options = options || {};
-    return fetch(api.API_BASE + path, {
-      method: options.method || "GET",
-      headers: Object.assign(
-        { "Content-Type": "application/json", Authorization: "Bearer " + api.getToken() },
-        options.headers || {}
-      ),
-      body: options.body,
-    }).then(function (r) {
-      return r.text().then(function (t) {
-        var d = null;
-        try { d = t ? JSON.parse(t) : null; } catch (e) { d = null; }
-        if (!r.ok) {
-          var msg = d && (d.detail || d.message);
-          throw new Error(typeof msg === "string" ? msg : "Request failed (" + r.status + ")");
-        }
-        return d;
-      });
-    });
-  }
-
-  function thEsc(v) {
-    return String(v == null ? "" : v).replace(/[&<>"']/g, function (c) {
-      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
-    });
-  }
-
-  function loadLessonNotes() {
-    var matBox = $("tutorMaterialsBox");
-    var noteBox = $("tutorNotesBox");
-    if (matBox) matBox.innerHTML = '<div class="loading">Loading…</div>';
-    if (noteBox) noteBox.innerHTML = '<div class="loading">Loading…</div>';
-
-    thApi("/api/v1/tutor-hub/materials").then(function (d) {
-      if (!matBox) return;
-      var list = (d && d.materials) || [];
-      matBox.innerHTML = list.length ? list.map(function (m) {
-        var meta = [m.subject, m.class_name].filter(Boolean).join(" · ");
-        return '<article class="item-card">' +
-          '<span class="badge muted">From admin</span>' +
-          '<h4>' + thEsc(m.title) + '</h4>' +
-          (meta ? '<p class="meta">' + thEsc(meta) + '</p>' : "") +
-          (m.description ? '<p class="meta">' + thEsc(m.description) + '</p>' : "") +
-          (m.link_url ? '<div class="actions"><a class="btn btn-mini" href="' + thEsc(m.link_url) + '" target="_blank" rel="noopener">Open material</a></div>' : "") +
-          '</article>';
-      }).join("") : '<div class="empty">No material from the admin yet.</div>';
-    }).catch(function (e) {
-      if (matBox) matBox.innerHTML = '<div class="empty">' + thEsc(e.message) + '</div>';
-    });
-
-    thApi("/api/v1/tutor-hub/notes").then(function (d) {
-      if (!noteBox) return;
-      var notes = (d && d.notes) || [];
-      noteBox.innerHTML = notes.length ? '<div class="exam-results"><table><thead><tr><th>Lesson note</th><th>Class</th><th>Status</th><th>Admin comment</th></tr></thead><tbody>' +
-        notes.map(function (n) {
-          var badge = n.status === "approved" ? "badge" : "badge muted";
-          return '<tr><td><strong>' + thEsc(n.title) + '</strong></td><td>' + thEsc(n.class_name || "—") + '</td>' +
-            '<td><span class="' + badge + '">' + thEsc(n.status.replace("_", " ")) + '</span></td>' +
-            '<td>' + (n.admin_comment ? thEsc(n.admin_comment) : "—") + '</td></tr>';
-        }).join("") + '</tbody></table></div>' : '<div class="empty">You have not submitted a lesson note yet.</div>';
-    }).catch(function (e) {
-      if (noteBox) noteBox.innerHTML = '<div class="empty">' + thEsc(e.message) + '</div>';
-    });
-  }
-
-  function toggleNoteComposer(show) {
-    var box = $("noteComposer");
-    if (!box) return;
-    box.hidden = typeof show === "boolean" ? !show : !box.hidden;
-  }
-
-  function submitLessonNote() {
-    var msg = $("noteMsg");
-    var title = ($("noteTitle") || {}).value || "";
-    var content = ($("noteContent") || {}).value || "";
-    if (!title.trim()) { if (msg) msg.textContent = "Give the note a title."; return; }
-    if (!content.trim()) { if (msg) msg.textContent = "Write the lesson note."; return; }
-    var btn = $("noteSubmit");
-    if (btn) btn.disabled = true;
-    if (msg) msg.textContent = "Sending…";
-    thApi("/api/v1/tutor-hub/notes", {
-      method: "POST",
-      body: JSON.stringify({
-        title: title.trim(),
-        content: content,
-        subject: (($("noteSubject") || {}).value || "").trim() || null,
-        class_name: (($("noteClass") || {}).value || "").trim() || null,
-        week: (($("noteWeek") || {}).value || "").trim() || null,
-        term: (($("noteTerm") || {}).value || "").trim() || null,
-        attachment_url: (($("noteLink") || {}).value || "").trim() || null,
-      }),
-    }).then(function () {
-      if (msg) msg.textContent = "✓ Sent to the admin";
-      ["noteTitle", "noteContent", "noteSubject", "noteClass", "noteWeek", "noteTerm", "noteLink"].forEach(function (id) {
-        var el = $(id); if (el) el.value = "";
-      });
-      toggleNoteComposer(false);
-      loadLessonNotes();
-    }).catch(function (e) {
-      if (msg) msg.textContent = e.message;
-    }).then(function () { if (btn) btn.disabled = false; });
-  }
-
-  window.teacherLessonComposer = toggleNoteComposer;
-  window.teacherSubmitLessonNote = submitLessonNote;
   window.teacherShowPage = showPage;
 
   function goBack() {

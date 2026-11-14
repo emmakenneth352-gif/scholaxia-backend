@@ -1,8 +1,8 @@
-"""Direct channel between the Scholaxia admin and tutors (teachers).
+"""A school's own lesson hub.
 
-Not part of the school portal: this is the platform admin sending study
-material straight to a tutor, and the tutor sending lesson notes back for
-review.
+The school admin sends study material straight to one of their teachers (or
+to all of them), and teachers send lesson notes back for the admin to check.
+Lives inside the school portal.
 """
 
 import uuid
@@ -21,6 +21,9 @@ class TutorMaterial(Base):
     __tablename__ = "tutor_materials"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("school_campuses.id"), nullable=True, index=True
+    )
     admin_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True
     )
@@ -42,6 +45,9 @@ class TutorLessonNote(Base):
     __tablename__ = "tutor_lesson_notes"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("school_campuses.id"), nullable=True, index=True
+    )
     teacher_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
     )
