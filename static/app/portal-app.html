@@ -620,7 +620,7 @@ tr:last-child td{border-bottom:none}
     ["classes", "🎓", "Classes"],
     ["attendance", "📋", "Attendance"], ["fees", "💳", "Fees & Payments"],
     ["exreg", "🧾", "Register Student"], ["exstudents", "✅", "Approve Students"],
-    ["exsched", "🗓️", "Exam Schedule"], ["exbank", "🏦", "Question Banks"],
+    ["exsched", "🗓️", "Exam Schedule"], ["exbank", "🏦", "Upload Exams"],
     ["exresults", "🏆", "Exam Results"], ["exretake", "🔄", "Grant Retake"],
     ["exup", "📤", "Upload Results"], ["exreview", "🔍", "Result Review"],
     ["extpl", "🖨️", "Report Card Design"],
@@ -828,7 +828,7 @@ tr:last-child td{border-bottom:none}
       ["classes", "Create your classes", "JSS1, JSS2, SS1… students and exams are grouped by class."],
       ["teachers", "Add your teachers", "They log in on this same link with the password you give them."],
       ["students", "Add your students", "Each student gets a Student ID and a password to log in with."],
-      ["exbank", "Build question banks", "Upload a file or type questions — one bank per class and subject."],
+      ["exbank", "Upload your exam questions", "Upload a file or type them — one bank per class and subject."],
       ["exsched", "Schedule an exam", "Choose the class, subject, number of questions and the time window."],
       ["exstudents", "Approve the students", "Approved students get their registration number and access code."],
       ["exup", "Upload the results", "Enter CA and exam scores, then print the report cards."]
@@ -1130,7 +1130,7 @@ tr:last-child td{border-bottom:none}
   }
   var EX_PAGE = "exsched";
   var EX_PAGES = [
-    ["exbank", "Question Banks", "Upload questions or add them by hand — one class and subject at a time", ""],
+    ["exbank", "Upload Exams", "Upload questions or add them by hand — one class and subject at a time", ""],
     ["exreg", "Register Student", "Add a student to the exam register — they get a registration number and an access code", ""],
     ["exstudents", "Approve Students", "Approve registered students, issue their codes, restrict or delete them — changes need the admin PIN", ""],
     ["exsched", "Exam Schedule", "Schedule the class exams — subjects, questions, duration, date", ""],
@@ -1738,7 +1738,7 @@ tr:last-child td{border-bottom:none}
       if (UQ.step === 3) {
         body += '<div class="uq-sec"><span class="n">3</span>Subject — ' + esc(UQ.cls || "") + '</div>';
         body += '<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap"><input class="f-in" id="uqSearch" placeholder="🔍 Search subjects…" value="' + esc(UQ.f) + '" style="flex:1;min-width:180px" />' +
-          '<button class="btn sm ghost" id="uqCustomBtn">+ Add custom subject</button></div>';
+          '<button class="btn sm ghost" id="uqCustomBtn">+ Add Subject</button></div>';
         body += '<div id="uqCustomBox"' + (UQ.customOpen ? "" : ' hidden') + ' style="margin-bottom:10px"><div style="display:flex;gap:8px;flex-wrap:wrap"><input class="f-in" id="uqCustomName" placeholder="Enter subject name" style="flex:1;min-width:180px" /><button class="btn sm" id="uqCustomAdd">Add</button></div></div>';
         body += '<div class="uq-grid" id="uqSubs"><div class="empty">Loading subjects…</div></div>';
       }
@@ -1770,7 +1770,7 @@ tr:last-child td{border-bottom:none}
       var list = UQ.subs.filter(function (s) { return s.is_active !== false && (!f || s.name.toLowerCase().indexOf(f) >= 0); });
       box.innerHTML = list.length ? list.map(function (s) {
         return '<button class="uq-sub' + (UQ.subj && UQ.subj.id === s.id ? " on" : "") + '" data-sub="' + s.id + '" title="' + esc(s.name) + (s.scope === "school" ? " (your school)" : "") + '">' + esc(s.name) + (s.is_custom ? " ✎" : "") + '</button>';
-      }).join("") : '<div class="empty">No subjects match. Add it as a custom subject.</div>';
+      }).join("") : '<div class="empty">No subjects match. Use <strong>+ Add Subject</strong> to create it.</div>';
       Array.prototype.forEach.call(box.querySelectorAll("[data-sub]"), function (b) {
         b.addEventListener("click", function () {
           UQ.subj = UQ.subs.filter(function (s) { return s.id === b.getAttribute("data-sub"); })[0] || null;
@@ -1852,7 +1852,7 @@ tr:last-child td{border-bottom:none}
       if (nx) nx.addEventListener("click", function () {
         if (UQ.step === 1 && !UQ.level) return uqErr("Pick a school level first.");
         if (UQ.step === 2 && !UQ.cls) return uqErr("Pick a class first.");
-        if (UQ.step === 3 && !UQ.subj) return uqErr("Pick a subject first — or add it as a custom subject.");
+        if (UQ.step === 3 && !UQ.subj) return uqErr("Pick a subject first — or use + Add Subject.");
         UQ.step++; render();
       });
       var s = $("uqSearch");
@@ -1869,7 +1869,7 @@ tr:last-child td{border-bottom:none}
           var sub = d.subject;
           if (!UQ.subs.some(function (x) { return x.id === sub.id; })) UQ.subs.push(sub);
           UQ.subj = sub; UQ.f = ""; UQ.pv = null; UQ.file = null;
-          toast(d.reused ? "Subject already existed — selected" : "Custom subject added");
+          toast(d.reused ? "Subject already existed — selected" : "Subject added");
           UQ.step = 4; render();
         }).catch(function (e) { busy(ca, false, "Add"); uqErr(errText(e)); });
       });
