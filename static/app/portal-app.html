@@ -637,6 +637,71 @@ tr:last-child td{border-bottom:none}
     exup: "Results", exreview: "Results", extpl: "Results", results: "Results", reports: "Results",
     settings: "Setup",
   };
+  /* ── FEATURES THE SCHOOL SWITCHED OFF FOR TEACHERS ──
+     Same locks as Settings → "What your teachers can use". A teacher who opens
+     a locked section gets "Ask your school admin for access" instead of the
+     page; the admin is never blocked. */
+  var PAGE_FEATURE = {
+    lessonhub: "teacher.materials",
+    students: "teacher.students", attendance: "teacher.students",
+    exreg: "teacher.exams", exstudents: "teacher.exams", exsched: "teacher.exams",
+    exbank: "teacher.exams", exresults: "teacher.exams", exretake: "teacher.exams",
+    exup: "teacher.grading", exreview: "teacher.grading",
+    results: "teacher.grading", reports: "teacher.grading"
+  };
+  var TEACHER_LOCKS = null;
+  var TEACHER_LOCKS_AT = 0;
+
+  function isTeacherRole() {
+    return String((S.user && S.user.role) || "").toLowerCase() === "teacher";
+  }
+  function lockedMessage(page) {
+    if (!isTeacherRole() || !TEACHER_LOCKS) return null;
+    var key = PAGE_FEATURE[page];
+    var lock = key && TEACHER_LOCKS[key];
+    if (!lock) return null;
+    return lock.message || "Ask your school admin for access.";
+  }
+  function loadTeacherLocksForNav(force) {
+    if (!isTeacherRole()) return Promise.resolve();
+    if (!force && TEACHER_LOCKS && (Date.now() - TEACHER_LOCKS_AT) < 30000) {
+      return Promise.resolve(TEACHER_LOCKS);
+    }
+    return settingsApi("/features").then(function (d) {
+      var map = {};
+      (d && d.features || []).forEach(function (f) { if (f.locked) map[f.key] = f; });
+      TEACHER_LOCKS = map;
+      TEACHER_LOCKS_AT = Date.now();
+      markLockedNav();
+      return map;
+    }).catch(function () { TEACHER_LOCKS = TEACHER_LOCKS || {}; return TEACHER_LOCKS; });
+  }
+  function markLockedNav() {
+    Array.prototype.forEach.call(document.querySelectorAll(".nav button"), function (b) {
+      var page = b.getAttribute("data-p");
+      if (!lockedMessage(page)) return;
+      b.style.opacity = ".62";
+      b.title = "Ask your school admin for access";
+      if (!b.querySelector(".lk")) {
+        var lock = document.createElement("span");
+        lock.className = "lk";
+        lock.textContent = "🔒";
+        lock.style.marginLeft = "auto";
+        lock.style.fontSize = "12px";
+        b.appendChild(lock);
+      }
+    });
+  }
+  function showLockedPage(page) {
+    var title = "";
+    PAGES.forEach(function (p) { if (p[0] === page) title = p[2]; });
+    $("pages").innerHTML = head(title || "Locked", "This part is switched off for teachers.") +
+      '<div class="panel"><div class="empty">🔒 <strong>Ask your school admin for access.</strong>' +
+      (lockedMessage(page) && lockedMessage(page) !== "Ask your school admin for access."
+        ? '<br/>' + esc(lockedMessage(page)) : "") + '</div></div>';
+  }
+  window.refreshTeacherLocks = function () { return loadTeacherLocksForNav(true); };
+
   /* ── ADMIN PIN ──
      Teachers and the school admin share this portal. Read screens are open to
      both; changing or deleting school data asks for the 6-digit admin PIN,
@@ -747,6 +812,7 @@ tr:last-child td{border-bottom:none}
       navHtml += '<button data-p="' + p[0] + '" onclick="showPage(\'' + p[0] + '\')"><span class="ico">' + p[1] + '</span>' + p[2] + '</button>';
     });
     $("nav").innerHTML = navHtml;
+    loadTeacherLocksForNav();
     $("gSearch").addEventListener("keydown", function (e) {
       if (e.key === "Enter" && this.value.trim()) { showPage("students"); setTimeout(function () { var q = $("stQ"); if (q) { q.value = $("gSearch").value.trim(); loadStudents(); } }, 60); }
     });
@@ -776,6 +842,14 @@ tr:last-child td{border-bottom:none}
     closeModal();
     var sb = $("sidebar");
     if (sb && sb.classList.contains("open")) { sb.classList.remove("open"); document.body.classList.remove("sidebar-open"); }
+    // A teacher's sections are only known after their locks arrive: wait for
+    // them so a locked page never flashes open first.
+    if (isTeacherRole() && TEACHER_LOCKS === null) {
+      $("pages").innerHTML = '<div class="panel"><div class="empty">Loading…</div></div>';
+      loadTeacherLocksForNav().then(function () { showPage(p); });
+      return;
+    }
+    if (lockedMessage(p)) { showLockedPage(p); return; }
     if (R[p]) { try { R[p](); } catch (e) { $("pages").innerHTML = '<div class="panel"><div class="empty">' + esc(errText(e)) + '</div></div>'; } }
   };
   window.showHelp = function () {
@@ -3751,12 +3825,25 @@ tr:last-child td{border-bottom:none}
         : '<span class="pill warn">No PIN yet</span> <button class="btn sm" onclick="pinCreate()">Create 6-digit PIN</button>';
     }).catch(function (e) { box.textContent = errText(e); });
   }
+  /* Where each teacher lock shows up inside the school portal. */
+  var FEATURE_COVERS = {
+    "teacher.live": "No portal page — this only affects the teacher studio live classes.",
+    "teacher.materials": "Notes & Materials",
+    "teacher.exams": "Register Student, Approve Students, Exam Schedule, Upload Exams, Exam Results, Grant Retake",
+    "teacher.students": "Students, Attendance",
+    "teacher.grading": "Upload Results, Result Review, Result Book, Reports",
+    "teacher.community": "No portal page — this only affects the teacher studio community.",
+    "teacher.ai": "No portal page — this only affects the teacher studio Teacher AI.",
+    "teacher.affiliate": "No portal page — this only affects the teacher studio Refer & Earn."
+  };
+
   function loadTeacherLocks() {
     var box = $("tLocksBody");
     if (!box) return;
     settingsApi("/features").then(function (d) {
       var rows = (d.features || []).map(function (f) {
-        return '<tr><td><strong>' + esc(f.label) + '</strong><div class="muted" style="font-size:12px">' + esc(f.description) + '</div></td>' +
+        return '<tr><td><strong>' + esc(f.label) + '</strong><div class="muted" style="font-size:12px">' + esc(f.description) + '</div>' +
+          '<div class="muted" style="font-size:12px;margin-top:2px">In the school portal: ' + esc(FEATURE_COVERS[f.key] || "no page") + '</div></td>' +
           '<td>' + (f.locked ? '<span class="pill bad">Locked</span>' : '<span class="pill ok">Open</span>') + '</td>' +
           '<td style="white-space:nowrap"><button class="btn sm ' + (f.locked ? "" : "ghost") + '" onclick="toggleTeacherFeature(\'' + esc(f.key) + '\',' + (f.locked ? 'false' : 'true') + ',this)">' + (f.locked ? '🔓 Unlock' : '🔒 Lock') + '</button></td></tr>';
       });
