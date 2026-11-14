@@ -641,14 +641,9 @@ tr:last-child td{border-bottom:none}
      Same locks as Settings → "What your teachers can use". A teacher who opens
      a locked section gets "Ask your school admin for access" instead of the
      page; the admin is never blocked. */
-  var PAGE_FEATURE = {
-    lessonhub: "teacher.materials",
-    students: "teacher.students", attendance: "teacher.students",
-    exreg: "teacher.exams", exstudents: "teacher.exams", exsched: "teacher.exams",
-    exbank: "teacher.exams", exresults: "teacher.exams", exretake: "teacher.exams",
-    exup: "teacher.grading", exreview: "teacher.grading",
-    results: "teacher.grading", reports: "teacher.grading"
-  };
+  // Each lock in Settings matches one section of THIS portal.
+  var PAGE_LOCK_OVERRIDE = { lessonhub: "portal.notes" };
+  function lockKeyFor(page) { return PAGE_LOCK_OVERRIDE[page] || ("portal." + page); }
   var TEACHER_LOCKS = null;
   var TEACHER_LOCKS_AT = 0;
 
@@ -657,8 +652,8 @@ tr:last-child td{border-bottom:none}
   }
   function lockedMessage(page) {
     if (!isTeacherRole() || !TEACHER_LOCKS) return null;
-    var key = PAGE_FEATURE[page];
-    var lock = key && TEACHER_LOCKS[key];
+    if (page === "dashboard") return null;
+    var lock = TEACHER_LOCKS[lockKeyFor(page)];
     if (!lock) return null;
     return lock.message || "Ask your school admin for access.";
   }
@@ -3805,8 +3800,8 @@ tr:last-child td{border-bottom:none}
         '<div class="panel" style="margin-top:18px"><h3>🔐 Admin PIN</h3>' +
         '<p class="mhint">The 6-digit PIN asked before this control panel opens. Teachers never see it.</p>' +
         '<div id="pinPanelBody" class="muted" style="margin-top:10px">Loading…</div></div>' +
-        '<div class="panel" style="margin-top:18px"><h3>🔒 What your teachers can use</h3>' +
-        '<p class="mhint">Switch a feature off and teachers see “Ask your school admin for access” when they open it. Unlock it any time.</p>' +
+        '<div class="panel" style="margin-top:18px"><h3>🔒 What teachers can open</h3>' +
+        '<p class="mhint">These are the sections of this portal. Switch one off and your teachers see a padlock and “Ask your school admin for access” instead of the page. You can unlock it any time.</p>' +
         '<div id="tLocksBody" class="muted" style="margin-top:10px">Loading…</div></div>';
       loadPinPanel();
       loadTeacherLocks();
@@ -3825,30 +3820,17 @@ tr:last-child td{border-bottom:none}
         : '<span class="pill warn">No PIN yet</span> <button class="btn sm" onclick="pinCreate()">Create 6-digit PIN</button>';
     }).catch(function (e) { box.textContent = errText(e); });
   }
-  /* Where each teacher lock shows up inside the school portal. */
-  var FEATURE_COVERS = {
-    "teacher.live": "No portal page — this only affects the teacher studio live classes.",
-    "teacher.materials": "Notes & Materials",
-    "teacher.exams": "Register Student, Approve Students, Exam Schedule, Upload Exams, Exam Results, Grant Retake",
-    "teacher.students": "Students, Attendance",
-    "teacher.grading": "Upload Results, Result Review, Result Book, Reports",
-    "teacher.community": "No portal page — this only affects the teacher studio community.",
-    "teacher.ai": "No portal page — this only affects the teacher studio Teacher AI.",
-    "teacher.affiliate": "No portal page — this only affects the teacher studio Refer & Earn."
-  };
-
   function loadTeacherLocks() {
     var box = $("tLocksBody");
     if (!box) return;
     settingsApi("/features").then(function (d) {
       var rows = (d.features || []).map(function (f) {
-        return '<tr><td><strong>' + esc(f.label) + '</strong><div class="muted" style="font-size:12px">' + esc(f.description) + '</div>' +
-          '<div class="muted" style="font-size:12px;margin-top:2px">In the school portal: ' + esc(FEATURE_COVERS[f.key] || "no page") + '</div></td>' +
+        return '<tr><td><strong>' + esc(f.label) + '</strong><div class="muted" style="font-size:12px">' + esc(f.description) + '</div></td>' +
           '<td>' + (f.locked ? '<span class="pill bad">Locked</span>' : '<span class="pill ok">Open</span>') + '</td>' +
           '<td style="white-space:nowrap"><button class="btn sm ' + (f.locked ? "" : "ghost") + '" onclick="toggleTeacherFeature(\'' + esc(f.key) + '\',' + (f.locked ? 'false' : 'true') + ',this)">' + (f.locked ? '🔓 Unlock' : '🔒 Lock') + '</button></td></tr>';
       });
       box.className = "";
-      box.innerHTML = (d.locked_count ? '<p class="mhint">' + d.locked_count + ' feature' + (d.locked_count === 1 ? '' : 's') + ' locked for teachers.</p>' : '') + tbl(["Feature", "For teachers", ""], rows);
+      box.innerHTML = (d.locked_count ? '<p class="mhint">' + d.locked_count + ' section' + (d.locked_count === 1 ? '' : 's') + ' closed to teachers.</p>' : '') + tbl(["Portal section", "For teachers", ""], rows);
     }).catch(function (e) { box.innerHTML = '<div class="empty">' + esc(errText(e)) + '</div>'; });
   }
   window.toggleTeacherFeature = function (key, locked, btn) {

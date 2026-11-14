@@ -34,16 +34,28 @@ DEFAULT_LOCK_MESSAGE = "Ask your school admin for access."
 
 # Teacher screens a school can switch off. Keys match the teacher app's
 # `data-feature-lock` values.
-TEACHER_FEATURES = [
-    {"key": "teacher.live", "label": "Live Classes", "description": "Host and schedule live classes."},
-    {"key": "teacher.materials", "label": "Materials", "description": "Upload notes, PDFs and videos."},
-    {"key": "teacher.exams", "label": "Exams", "description": "Publish exams and upload questions."},
-    {"key": "teacher.students", "label": "Students", "description": "See the school's student list."},
-    {"key": "teacher.grading", "label": "Grading", "description": "Score submitted work."},
-    {"key": "teacher.community", "label": "Community", "description": "Post to the school community."},
-    {"key": "teacher.ai", "label": "Teacher AI", "description": "AI lesson planning and questions."},
-    {"key": "teacher.affiliate", "label": "Refer & Earn", "description": "The teacher's affiliate page."},
+PORTAL_FEATURES = [
+    {"key": "portal.students", "label": "Students", "description": "See and add the school's students."},
+    {"key": "portal.teachers", "label": "Teachers", "description": "See the teaching staff."},
+    {"key": "portal.classes", "label": "Classes", "description": "Class groups and their sizes."},
+    {"key": "portal.attendance", "label": "Attendance", "description": "Mark and read the attendance register."},
+    {"key": "portal.fees", "label": "Fees & Payments", "description": "Fees, invoices and payments."},
+    {"key": "portal.notes", "label": "Notes & Materials", "description": "Study material from you and the lesson notes teachers send back."},
+    {"key": "portal.exreg", "label": "Register Student", "description": "Register a student for a CBT exam."},
+    {"key": "portal.exstudents", "label": "Approve Students", "description": "Approve the students who registered for an exam."},
+    {"key": "portal.exsched", "label": "Exam Schedule", "description": "Schedule exam dates and windows."},
+    {"key": "portal.exbank", "label": "Upload Exams", "description": "Question banks and uploading questions."},
+    {"key": "portal.exresults", "label": "Exam Results", "description": "See the scores from each exam."},
+    {"key": "portal.exretake", "label": "Grant Retake", "description": "Let a student sit an exam again."},
+    {"key": "portal.exup", "label": "Upload Results", "description": "Enter CA and exam scores."},
+    {"key": "portal.exreview", "label": "Result Review", "description": "Publish or reopen result sheets."},
+    {"key": "portal.extpl", "label": "Report Card Design", "description": "Design and print the report card."},
+    {"key": "portal.results", "label": "Result Book", "description": "The school's full result book."},
+    {"key": "portal.reports", "label": "Reports", "description": "Performance reports and averages."},
+    {"key": "portal.settings", "label": "Settings", "description": "School details (saving still asks for the admin PIN)."},
 ]
+# Kept for older lock rows so nothing breaks if they are still in the table.
+TEACHER_FEATURES = PORTAL_FEATURES
 
 
 class PinIn(BaseModel):
