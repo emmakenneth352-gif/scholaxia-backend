@@ -65,6 +65,16 @@ textarea.f-in{resize:vertical;min-height:60px}
 .step:last-child{border-bottom:0}
 .step:hover{background:#f6f9ff}
 .step-n{width:27px;height:27px;border-radius:50%;background:#e8f0fe;color:#1d4ed8;font-weight:800;font-size:12.5px;display:flex;align-items:center;justify-content:center;flex:none}
+.steps-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:4px}
+@media(max-width:1180px){.steps-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.steps-grid{grid-template-columns:1fr}}
+.step-card{position:relative;overflow:hidden;border:1px solid #dbe6fb;border-radius:16px;padding:16px 16px 15px;cursor:pointer;background:linear-gradient(155deg,#ffffff 0%,#f3f8ff 100%);transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease}
+.step-card:hover{transform:translateY(-3px);box-shadow:0 16px 30px rgba(37,99,235,.15);border-color:#a9c9ff}
+.step-card:before{content:"";position:absolute;width:120px;height:120px;right:-46px;top:-56px;border-radius:50%;background:radial-gradient(circle,rgba(37,99,235,.22),rgba(37,99,235,0) 70%)}
+.step-card .num{width:31px;height:31px;border-radius:10px;background:linear-gradient(135deg,#2563eb,#5aa2ff);color:#fff;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;margin-bottom:10px;box-shadow:0 6px 14px rgba(37,99,235,.32);position:relative}
+.step-card h4{margin:0 0 5px;font-size:14.5px;color:#0f1c33;position:relative}
+.step-card p{margin:0;font-size:12.4px;line-height:1.45;color:#64748b;position:relative}
+.step-card .go{position:absolute;right:14px;bottom:12px;color:#2563eb;font-weight:700;font-size:12.5px}
 .side-foot{padding-top:14px;border-top:1px solid rgba(255,255,255,.09);font-size:12px;color:#8fa3c8;line-height:1.6}
 /* Quick Stats (reference sidebar) */
 .qstats{margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.09);display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -436,7 +446,8 @@ tr:last-child td{border-bottom:none}
         body: opts.form ? opts.form : (opts.body ? JSON.stringify(opts.body) : undefined),
       }).then(_handle);
     };
-    return PIN_METHODS.indexOf(method) >= 0 ? withAdminPin(run) : run();
+    var guarded = PIN_METHODS.indexOf(method) >= 0 || (method === "POST" && /(delete|clear|restrict|remove|publish|\/review)/i.test(path));
+    return guarded ? withAdminPin(run) : run();
   }
   function officeApi(path, opts) {
     opts = opts || {};
@@ -606,22 +617,23 @@ tr:last-child td{border-bottom:none}
   var PAGES = [
     ["dashboard", "🏠", "Dashboard"],
     ["students", "👥", "Students"], ["teachers", "👨‍🏫", "Teachers"],
-    ["classes", "🎓", "Classes"], ["subjects", "📚", "Subjects"],
+    ["classes", "🎓", "Classes"],
     ["attendance", "📋", "Attendance"], ["fees", "💳", "Fees & Payments"],
     ["exreg", "🧾", "Register Student"], ["exstudents", "✅", "Approve Students"],
     ["exsched", "🗓️", "Exam Schedule"], ["exbank", "🏦", "Question Banks"],
     ["exresults", "🏆", "Exam Results"], ["exretake", "🔄", "Grant Retake"],
-    ["exup", "📤", "Upload Results"], ["extpl", "🖨️", "Report Card Design"],
+    ["exup", "📤", "Upload Results"], ["exreview", "🔍", "Result Review"],
+    ["extpl", "🖨️", "Report Card Design"],
     ["results", "📊", "Result Book"], ["reports", "📈", "Reports"],
     ["settings", "⚙️", "Settings"],
   ];
   var NAV_SECTIONS = {
     dashboard: "Overview",
-    students: "School", teachers: "School", classes: "School", subjects: "School",
+    students: "School", teachers: "School", classes: "School",
     attendance: "School", fees: "School",
     exreg: "Exams", exstudents: "Exams", exsched: "Exams", exbank: "Exams",
     exresults: "Exams", exretake: "Exams",
-    exup: "Results", extpl: "Results", results: "Results", reports: "Results",
+    exup: "Results", exreview: "Results", extpl: "Results", results: "Results", reports: "Results",
     settings: "Setup",
   };
   /* ── ADMIN PIN ──
@@ -814,7 +826,6 @@ tr:last-child td{border-bottom:none}
       '<div id="dSteps"></div></div>';
     var steps = [
       ["classes", "Create your classes", "JSS1, JSS2, SS1… students and exams are grouped by class."],
-      ["subjects", "Add your subjects", "The subjects you teach and exam in."],
       ["teachers", "Add your teachers", "They log in on this same link with the password you give them."],
       ["students", "Add your students", "Each student gets a Student ID and a password to log in with."],
       ["exbank", "Build question banks", "Upload a file or type questions — one bank per class and subject."],
@@ -822,13 +833,13 @@ tr:last-child td{border-bottom:none}
       ["exstudents", "Approve the students", "Approved students get their registration number and access code."],
       ["exup", "Upload the results", "Enter CA and exam scores, then print the report cards."]
     ];
-    $("dSteps").innerHTML = steps.map(function (s, i) {
-      return '<div class="step" data-go="' + s[0] + '">' +
-        '<div class="step-n">' + (i + 1) + '</div>' +
-        '<div style="flex:1"><strong>' + s[1] + '</strong><div class="muted" style="font-size:12.5px;margin-top:2px">' + s[2] + '</div></div>' +
-        '<span class="muted" style="font-size:18px">›</span></div>';
-    }).join("");
-    Array.prototype.forEach.call(document.querySelectorAll("#dSteps .step"), function (el) {
+    $("dSteps").innerHTML = '<div class="steps-grid">' + steps.map(function (s, i) {
+      return '<div class="step-card" data-go="' + s[0] + '">' +
+        '<div class="num">' + (i + 1) + '</div>' +
+        '<h4>' + s[1] + '</h4><p>' + s[2] + '</p>' +
+        '<span class="go">Open ›</span></div>';
+    }).join("") + '</div>';
+    Array.prototype.forEach.call(document.querySelectorAll("#dSteps .step-card"), function (el) {
       el.addEventListener("click", function () { showPage(el.getAttribute("data-go")); });
     });
     api("/dashboard").then(function (d) {
@@ -1104,8 +1115,8 @@ tr:last-child td{border-bottom:none}
         body: opts.form ? opts.form : (opts.body ? JSON.stringify(opts.body) : undefined),
       }).then(_handle);
     };
-    // Deleting, clearing or restricting anything asks for the admin PIN first.
-    var destructive = PIN_METHODS.indexOf(method) >= 0 || (method === "POST" && /(delete|clear|restrict|remove)/i.test(path));
+    // Deleting, clearing, restricting or publishing anything asks for the PIN.
+    var destructive = PIN_METHODS.indexOf(method) >= 0 || (method === "POST" && /(delete|clear|restrict|remove|publish|\/review)/i.test(path));
     return destructive ? withAdminPin(run) : run();
   }
   /* ═══ EXAMS & CBT — each function is its OWN tab in the MAIN sidebar,
@@ -1124,7 +1135,8 @@ tr:last-child td{border-bottom:none}
     ["exstudents", "Approve Students", "Approve registered students, issue their codes, restrict or delete them — changes need the admin PIN", ""],
     ["exsched", "Exam Schedule", "Schedule the class exams — subjects, questions, duration, date", ""],
     ["exretake", "Grant Retake", "Fetch a student by reg number and grant their retake", ""],
-    ["exup", "Upload Results", "Result sheets per class, term and subject", ""],
+    ["exup", "Upload Results", "Pick a class and your subject — the class roll fills in automatically, then save or send your scores to the admin", ""],
+    ["exreview", "Result Review", "Scores teachers sent in — check them, then publish before report cards are prepared", ""],
     ["extpl", "Report Card Design", "The printed report card — school logo, colours, signatures, remarks and how CA and exam are weighted", ""],
     ["exresults", "Exam Results", "Scores, grades, publish and Grant Retake", ""],
   ];
@@ -1143,6 +1155,7 @@ tr:last-child td{border-bottom:none}
     if (EX_PAGE === "extpl") return templateList();
     if (EX_PAGE === "exretake") return retakeList();
     if (EX_PAGE === "exup") return upList();
+    if (EX_PAGE === "exreview") return reviewList();
     if (EX_PAGE === "exresults") return resultsList();
   }
   /* legacy aliases — older actions call exTab / renderExTab with old keys */
@@ -3088,85 +3101,194 @@ tr:last-child td{border-bottom:none}
     }, "Grant retake");
   };
 
+  /* — Result Review (owner request): the sheets teachers pushed in land here.
+     The tab asks for the admin PIN before it opens, and the server asks again
+     when publishing, so a teacher can never release grades. — */
+  var RV = { sheets: [] };
+  window.reviewList = function () {
+    $("exBody").innerHTML = '<div class="panel"><div class="empty">🔒 Asking for the admin PIN…</div></div>';
+    withAdminPin(function () { loadReview(); }).catch(function (e) {
+      $("exBody").innerHTML = '<div class="panel"><div class="empty">' + esc(errText(e)) +
+        '<div style="margin-top:12px"><button class="btn sm" onclick="reviewList()">🔒 Enter admin PIN</button></div></div></div>';
+    });
+  };
+  function rvTable(list, canPublish) {
+    if (!list.length) return '<div class="empty">Nothing here yet.</div>';
+    return tbl(["Class", "Subject", "Term", "Students", "Sent by", "Status", ""], list.map(function (s) {
+      var pill = s.status === "published" ? "ok" : "warn";
+      return '<tr><td><span class="pill violet">' + esc(s.class_name) + '</span></td>' +
+        '<td><span class="pill blue">' + esc(s.subject) + '</span></td>' +
+        '<td>' + esc(s.term || "—") + '</td><td>' + s.count + '</td>' +
+        '<td>' + esc(s.submitted_by || "—") + '</td>' +
+        '<td><span class="pill ' + pill + '">' + esc(s.status) + '</span></td>' +
+        '<td style="white-space:nowrap"><button class="btn sm ghost" onclick="rvView(\'' + s.id + '\')">👁 Check scores</button> ' +
+        (canPublish ? '<button class="btn sm" onclick="publishSheets(\'' + s.id + '\')">✅ Publish</button>' : "") +
+        '</td></tr>';
+    }));
+  }
+  function loadReview() {
+    return api("/results/review").then(function (d) {
+      RV.sheets = d.sheets || [];
+      var waiting = RV.sheets.filter(function (s) { return s.status === "submitted"; });
+      var done = RV.sheets.filter(function (s) { return s.status === "published"; });
+      $("exBody").innerHTML =
+        '<div class="panel"><h3>Waiting for you (' + waiting.length + ')</h3>' +
+        '<p class="mhint">Teachers sent these in. Check the scores, then publish — report cards are only ready after you publish.</p>' +
+        (waiting.length ? '<div style="margin:10px 0 14px"><button class="btn" onclick="publishSheets(null)">✅ Publish all ' + waiting.length + ' sheets</button></div>' : "") +
+        rvTable(waiting, true) + '</div>' +
+        '<div class="panel"><h3>Published (' + done.length + ')</h3>' + rvTable(done, false) + '</div>';
+    }).catch(function (e) { $("exBody").innerHTML = '<div class="panel"><div class="empty">' + esc(errText(e)) + '</div></div>'; });
+  }
+  window.rvView = function (id) {
+    var s = (RV.sheets || []).filter(function (x) { return x.id === id; })[0];
+    if (!s) return toastErr("Sheet not found — reload the page.");
+    window.__upRows = s.rows || [];
+    window.__upMeta = { class_name: s.class_name, subject: s.subject, term: s.term, session: s.session, max_score: s.max_score };
+    openModal("🔍 " + esc(s.class_name) + " · " + esc(s.subject),
+      '<p class="mhint" style="margin-bottom:10px">' + esc(s.term || "") + (s.session ? " · " + esc(s.session) : "") + ' · sent by ' + esc(s.submitted_by || "a teacher") + '</p>' +
+      tbl(["Student", "Student ID", "CA", "Exam", "Total", "%", "Grade"], (s.rows || []).map(function (r) {
+        return '<tr><td><strong>' + esc(r.student_name) + '</strong></td><td>' + esc(r.reg_number || "—") + '</td><td>' + r.ca + '</td><td>' + r.exam + '</td>' +
+          '<td><strong>' + r.total + '</strong></td><td>' + r.percentage + '%</td><td><span class="pill ' + (r.percentage >= 50 ? "ok" : "bad") + '">' + esc(r.grade) + '</span></td></tr>';
+      })),
+      '<button class="btn ghost" onclick="closeModal()">Close</button>' +
+      (s.status === "submitted" ? '<button class="btn" onclick="closeModal();publishSheets(\'' + s.id + '\')">✅ Publish this sheet</button>' : ""), true);
+  };
+  window.publishSheets = function (id) {
+    var ids = id ? [id] : null;
+    confirmModal("Publish results", id ? "Release this sheet so report cards can be prepared?" : "Release every submitted sheet for report cards?",
+      function (b) {
+        busy(b, true);
+        api("/results/review", { method: "POST", body: { sheet_ids: ids, action: "publish" } }).then(function (d) {
+          closeModal(); toast("✅ " + (d.changed || 0) + " sheet(s) published"); loadReview();
+        }).catch(function (e) { busy(b, false, "Publish"); mErr(errText(e)); });
+      }, "Publish", true);
+  };
+
   /* — Upload Results tab (owner addition; same per-class pattern as fees) —
      Pick class + subject + term, enter CA/exam scores per student, save.
      Totals, percentages and grades are computed server-side. — */
   function upList() {
-    cbtApi("/exams").then(function (d) {
-      var classes = [];
-      (d.exams || []).forEach(function (x) { if (x.class_name && classes.indexOf(x.class_name) < 0) classes.push(x.class_name); });
-      var clsOpts = classes.map(function (c) { return '<option value="' + esc(c) + '">'; }).join("");
-      $("exBody").innerHTML = '<div class="panel"><h3>Upload Results</h3>' +
-        '<p class="mhint" style="margin-bottom:14px">Upload result sheets per class — like the fees records, each sheet stays in that class\'s custody. Choose the class and subject, add each student\'s CA and exam score, and save. Grades are computed automatically.</p>' +
-        '<div class="form-grid"><div><label class="f-label">Class *</label><input class="f-in" id="upCls" list="upClsList" placeholder="e.g. SS2" /><datalist id="upClsList">' + clsOpts + '</datalist></div>' +
-        '<div><label class="f-label">Subject *</label><input class="f-in" id="upSubj" placeholder="e.g. Mathematics" /></div></div>' +
-        '<div class="form-grid"><div><label class="f-label">Term</label><select class="f-in" id="upTerm"><option value="">—</option><option>First Term</option><option>Second Term</option><option>Third Term</option></select></div>' +
-        '<div><label class="f-label">Session</label><input class="f-in" id="upSession" placeholder="e.g. 2026/2027" /></div></div>' +
-        '<div class="form-grid"><div><label class="f-label">Total obtainable marks</label><input class="f-in" id="upMax" type="number" min="1" value="100" /></div><div></div></div>' +
-        '<div id="upRows"></div>' +
-        '<div class="radio-row" style="margin:10px 0 16px"><button class="btn sm ghost" onclick="upAddRow()">+ Add student</button><button class="btn ghost" onclick="upLoadSheet()">📂 Load existing sheet</button></div>' +
-        '<button class="btn" onclick="upSave()">💾 Save result sheet</button></div>' +
-        '<div class="panel"><h3>Uploaded sheets</h3><div id="upSheets"><div class="empty">Loading…</div></div></div>';
-      upAddRow(); upAddRow();
-      upSheets();
-    }).catch(function (e) { $("exBody").innerHTML = '<div class="panel"><div class="empty">' + esc(errText(e)) + '</div></div>'; });
+    $("exBody").innerHTML =
+      '<div class="panel"><h3>Enter scores</h3>' +
+      '<p class="mhint" style="margin-bottom:14px">Pick the class and the subject you teach — every student in that class appears automatically. Type their CA and exam score and save. Other teachers open their own subject the same way; each subject keeps its own sheet.</p>' +
+      '<div class="form-grid">' +
+        '<div><label class="f-label">Class *</label><select class="f-in" id="upCls" onchange="upLoadStudents()"><option value="">Loading classes…</option></select></div>' +
+        '<div><label class="f-label">Subject *</label><select class="f-in" id="upSubj" onchange="upLoadStudents()"><option value="">Pick a subject</option></select></div>' +
+      '</div>' +
+      '<div class="form-grid">' +
+        '<div><label class="f-label">Term</label><select class="f-in" id="upTerm" onchange="upLoadStudents()"><option value="">—</option><option>First Term</option><option>Second Term</option><option>Third Term</option></select></div>' +
+        '<div><label class="f-label">Session</label><input class="f-in" id="upSession" placeholder="e.g. 2026/2027" /></div>' +
+      '</div>' +
+      '<div class="form-grid"><div><label class="f-label">Total obtainable marks</label><input class="f-in" id="upMax" type="number" min="1" value="100" /></div>' +
+        '<div style="display:flex;align-items:flex-end"><button class="btn sm ghost" type="button" onclick="upLoadStudents()">↻ Reload students</button></div></div>' +
+      '<div id="upRows"><div class="empty">Pick a class to load its students.</div></div>' +
+      '<div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">' +
+        '<button class="btn" onclick="upSaveSheet(\'draft\')">💾 Save scores</button>' +
+        '<button class="btn ghost" onclick="upSaveSheet(\'submitted\')">📤 Send to admin for review</button>' +
+        '<span class="muted" id="upSaved" style="font-size:13px"></span></div></div>' +
+      '<div class="panel"><h3>Result sheets</h3>' +
+      '<p class="mhint">Draft = still being typed · Submitted = waiting for the admin · Published = grades released.</p>' +
+      '<div id="upSheets"><div class="empty">Loading…</div></div></div>';
+    loadUpPickers();
+    upSheets();
   }
-  window.upAddRow = function (name, reg, ca, ex) {
-    var box = $("upRows"); if (!box) return;
-    var div = document.createElement("div");
-    div.className = "up-row";
-    div.innerHTML = '<input class="f-in up-name" placeholder="Student full name" value="' + esc(name || "") + '" />' +
-      '<input class="f-in up-reg" placeholder="Reg number (optional)" value="' + esc(reg || "") + '" style="max-width:150px" />' +
-      '<input class="f-in up-ca" type="number" min="0" step="0.5" placeholder="CA" value="' + (ca != null ? ca : "") + '" style="max-width:90px" />' +
-      '<input class="f-in up-ex" type="number" min="0" step="0.5" placeholder="Exam" value="' + (ex != null ? ex : "") + '" style="max-width:90px" />' +
-      '<button class="mb-x" onclick="this.parentNode.remove()" title="Remove" style="width:30px;height:30px;flex:none">✕</button>';
-    box.appendChild(div);
-  };
-  window.upLoadSheet = function () {
-    var cls = ($("upCls").value || "").trim().toUpperCase(), subj = ($("upSubj").value || "").trim();
-    if (!cls || !subj) return toastErr("Enter class and subject first, then load the sheet.");
-    api("/results/upload?class_name=" + encodeURIComponent(cls)).then(function (d) {
-      var sheet = (d.sheets || []).filter(function (s) { return (s.subject || "").toLowerCase() === subj.toLowerCase(); })[0];
-      $("upRows").innerHTML = "";
-      if (sheet) {
-        $("upTerm").value = sheet.term || ""; $("upSession").value = sheet.session || ""; $("upMax").value = sheet.max_score || 100;
-        (sheet.rows || []).forEach(function (r) { upAddRow(r.student_name, r.reg_number, r.ca, r.exam); });
-        toast("Loaded existing sheet — saving replaces it");
-      } else { toast("No existing sheet — filling a new one"); }
-      if (!$("upRows").children.length) upAddRow();
+  function loadUpPickers() {
+    api("/classes").then(function (d) {
+      var sel = $("upCls"); if (!sel) return;
+      var names = (d.classes || []).map(function (c) { return c.name; });
+      sel.innerHTML = '<option value="">Pick a class</option>' + names.map(function (c) { return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }).join("");
     }).catch(toastErr);
+    api("/subjects").then(function (d) {
+      var sel = $("upSubj"); if (!sel) return;
+      var names = (d.subjects || []).map(function (s) { return typeof s === "string" ? s : (s.name || ""); }).filter(Boolean);
+      sel.innerHTML = '<option value="">Pick a subject</option>' + names.map(function (c) { return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }).join("");
+    }).catch(function () {});
+  }
+  /* The roll comes from the class, not from typing names: once a class is
+     picked, every student in it is listed with their ID. */
+  window.upLoadStudents = function () {
+    var cls = ($("upCls") && $("upCls").value) || "";
+    var subj = ($("upSubj") && $("upSubj").value) || "";
+    var box = $("upRows"); if (!box) return;
+    if (!cls) { box.innerHTML = '<div class="empty">Pick a class to load its students.</div>'; return; }
+    box.innerHTML = '<div class="empty">Loading ' + esc(cls) + ' students…</div>';
+    Promise.all([
+      officeApi("/students?class_name=" + encodeURIComponent(cls)),
+      api("/results/upload?class_name=" + encodeURIComponent(cls))
+    ]).then(function (res) {
+      var students = (res[0].students || []);
+      var sheet = null;
+      if (subj) {
+        sheet = (res[1].sheets || []).filter(function (s) {
+          return (s.subject || "").toLowerCase() === subj.toLowerCase();
+        })[0] || null;
+      }
+      if (sheet) {
+        if (sheet.term) $("upTerm").value = sheet.term;
+        if (sheet.session) $("upSession").value = sheet.session;
+        $("upMax").value = sheet.max_score || 100;
+      }
+      var prev = {};
+      (sheet ? (sheet.rows || []) : []).forEach(function (r) { prev[String(r.student_name || "").toLowerCase()] = r; });
+      if (!students.length) {
+        box.innerHTML = '<div class="empty">No students in ' + esc(cls) + ' yet. <button class="btn sm" onclick="showPage(\'students\')">Add students</button></div>';
+        return;
+      }
+      var rows = students.map(function (st, i) {
+        var p = prev[String(st.full_name || "").toLowerCase()];
+        return '<tr data-reg="' + esc(st.student_id || "") + '">' +
+          '<td>' + (i + 1) + '</td>' +
+          '<td><strong>' + esc(st.full_name) + '</strong></td>' +
+          '<td><span class="pill violet">' + esc(st.student_id || "—") + '</span></td>' +
+          '<td><input class="f-in up-ca" type="number" min="0" step="0.5" style="max-width:96px" value="' + (p && p.ca != null ? p.ca : "") + '" /></td>' +
+          '<td><input class="f-in up-ex" type="number" min="0" step="0.5" style="max-width:96px" value="' + (p && p.exam != null ? p.exam : "") + '" /></td>' +
+          '<td>' + (p ? '<span class="pill ' + (sheet.status === "published" ? "ok" : "gray") + '">' + esc(sheet.status || "draft") + '</span>' : '<span class="muted">—</span>') + '</td></tr>';
+      });
+      box.innerHTML = (sheet ? '<p class="mhint" style="margin-bottom:8px">Loaded the saved <strong>' + esc(subj) + '</strong> sheet (' + esc(sheet.status || "draft") + ') — saving replaces it.</p>' : '') +
+        tbl(["#", "Student", "Student ID", "CA", "Exam", "Saved"], rows);
+    }).catch(function (e) { box.innerHTML = '<div class="empty">' + esc(errText(e)) + '</div>'; });
   };
-  window.upSave = function () {
+  window.upSaveSheet = function (status) {
     var cls = ($("upCls").value || "").trim(), subj = ($("upSubj").value || "").trim();
-    if (!cls) return toastErr("Enter the class.");
-    if (!subj) return toastErr("Enter the subject.");
+    if (!cls) return toastErr("Pick a class first.");
+    if (!subj) return toastErr("Pick the subject you are entering.");
     var rows = [];
-    document.querySelectorAll("#upRows .up-row").forEach(function (row) {
-      var nm = row.querySelector(".up-name").value.trim();
-      if (!nm) return;
-      rows.push({ student_name: nm, reg_number: row.querySelector(".up-reg").value.trim() || null,
-        ca: parseFloat(row.querySelector(".up-ca").value) || 0, exam: parseFloat(row.querySelector(".up-ex").value) || 0 });
+    Array.prototype.forEach.call(document.querySelectorAll("#upRows tbody tr"), function (tr) {
+      var caEl = tr.querySelector(".up-ca"), exEl = tr.querySelector(".up-ex"), nameEl = tr.querySelector("strong");
+      if (!caEl || !exEl || !nameEl) return;
+      var ca = parseFloat(caEl.value), ex = parseFloat(exEl.value);
+      if (isNaN(ca) && isNaN(ex)) return;  // nobody typed anything for this student
+      var reg = tr.getAttribute("data-reg") || "";
+      rows.push({ student_name: nameEl.textContent, reg_number: (reg && reg !== "—") ? reg : null, ca: isNaN(ca) ? 0 : ca, exam: isNaN(ex) ? 0 : ex });
     });
-    if (!rows.length) return toastErr("Add at least one student with a name.");
+    if (!rows.length) return toastErr("Enter at least one score.");
+    $("upSaved").textContent = "Saving…";
     api("/results/upload", { method: "POST", body: {
       class_name: cls, subject: subj, term: $("upTerm").value, session: $("upSession").value.trim(),
-      max_score: parseFloat($("upMax").value) || 100, rows: rows,
+      max_score: parseFloat($("upMax").value) || 100, rows: rows, status: status,
     } }).then(function (d) {
-      toast("✓ Result sheet saved — " + d.sheet.count + " students, grades computed");
+      $("upSaved").textContent = status === "submitted" ? "Submitted for review ✓" : "Saved ✓";
+      toast(status === "submitted" ? "📤 Sent to the admin for review" : "✓ " + d.sheet.count + " scores saved");
       upSheets();
-    }).catch(toastErr);
+    }).catch(function (e) { $("upSaved").textContent = ""; toastErr(e); });
   };
   function upSheets() {
     api("/results/upload").then(function (d) {
       var sheets = d.sheets || [];
       var box = $("upSheets"); if (!box) return;
-      if (!sheets.length) { box.innerHTML = '<div class="empty">No sheets uploaded yet.</div>'; return; }
-      box.innerHTML = tbl(["Class", "Subject", "Term", "Session", "Students", "Uploaded", ""], sheets.map(function (s) {
-        return '<tr><td><span class="pill violet">' + esc(s.class_name) + '</span></td><td><span class="pill blue">' + esc(s.subject) + '</span></td><td>' + esc(s.term || "—") + '</td><td>' + esc(s.session || "—") + '</td><td>' + s.count + '</td><td>' + dOnly(s.uploaded_at) + '</td>' +
-          '<td style="white-space:nowrap"><button class="btn sm ghost" onclick="upView(\'' + s.id + '\')">👁 View</button> <button class="btn sm ghost" onclick="upPrintSheet(\'' + s.id + '\')" title="Print master result list">🖨</button> <button class="btn sm red" onclick="upDel(\'' + s.id + '\')">Delete</button></td></tr>';
+      if (!sheets.length) { box.innerHTML = '<div class="empty">No result sheets yet.</div>'; return; }
+      box.innerHTML = tbl(["Class", "Subject", "Term", "Students", "Status", ""], sheets.map(function (s) {
+        var st = s.status || "draft";
+        var pill = st === "published" ? "ok" : st === "submitted" ? "warn" : "gray";
+        return '<tr><td><span class="pill violet">' + esc(s.class_name) + '</span></td><td><span class="pill blue">' + esc(s.subject) + '</span></td><td>' + esc(s.term || "—") + '</td><td>' + s.count + '</td>' +
+          '<td><span class="pill ' + pill + '">' + esc(st) + '</span></td>' +
+          '<td style="white-space:nowrap"><button class="btn sm ghost" onclick="upView(\'' + s.id + '\')">👁 View</button> ' +
+          '<button class="btn sm ghost" onclick="upPrintSheet(\'' + s.id + '\')" title="Print master list">🖨</button> ' +
+          '<button class="btn sm red" onclick="upDel(\'' + s.id + '\')">Delete</button></td></tr>';
       }));
     }).catch(function (e) { var b = $("upSheets"); if (b) b.innerHTML = '<div class="empty">' + esc(errText(e)) + '</div>'; });
   }
+
   window.upView = function (id) {
     api("/results/upload").then(function (d) {
       var s = (d.sheets || []).filter(function (x) { return x.id === id; })[0];
@@ -3422,8 +3544,11 @@ tr:last-child td{border-bottom:none}
         '<div class="panel" style="margin-top:18px"><h3>🔐 Admin PIN</h3>' +
         '<p class="mhint">The 6-digit PIN asked before this control panel opens. Teachers never see it.</p>' +
         '<div id="pinPanelBody" class="muted" style="margin-top:10px">Loading…</div></div>' +
-        '<p class="mhint" style="margin-top:10px">Teacher access is managed on the <strong>Teachers</strong> page.</p>';
+        '<div class="panel" style="margin-top:18px"><h3>🔒 What your teachers can use</h3>' +
+        '<p class="mhint">Switch a feature off and teachers see “Ask your school admin for access” when they open it. Unlock it any time.</p>' +
+        '<div id="tLocksBody" class="muted" style="margin-top:10px">Loading…</div></div>';
       loadPinPanel();
+      loadTeacherLocks();
     }).catch(function (e) { $("setBody").innerHTML = '<div class="empty">' + esc(errText(e)) + '</div>'; });
   };
   function loadPinPanel() {

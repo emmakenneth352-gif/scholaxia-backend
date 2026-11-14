@@ -24,7 +24,7 @@ def _role(current_user: dict) -> str:
 
 # Write requests that change or remove school data. Reads are never gated.
 _WRITE_METHODS = {"DELETE", "PATCH", "PUT"}
-_DESTRUCTIVE_POSTS = ("/delete", "/clear", "/restrict", "/remove")
+_DESTRUCTIVE_POSTS = ("/delete", "/clear", "/restrict", "/remove", "/publish", "/review")
 
 
 def is_write(request: Request) -> bool:

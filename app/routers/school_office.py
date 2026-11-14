@@ -1563,6 +1563,8 @@ class ResultUploadIn(BaseModel):
     session: str = Field(default="", max_length=40)
     max_score: float = Field(default=100, gt=0)
     rows: list[ResultRowIn] = []
+    # draft -> submitted (teacher pushed it) -> published (admin released it)
+    status: str = Field(default="draft", max_length=20)
 
 
 def _grade_for(pct: float) -> str:
@@ -1602,6 +1604,10 @@ def _result_sheet_dict(sheet: dict) -> dict:
         "uploaded_at": sheet.get("uploaded_at"),
         "count": len(sheet.get("rows") or []),
         "rows": sheet.get("rows") or [],
+        "status": sheet.get("status") or "draft",
+        "submitted_by": sheet.get("submitted_by"),
+        "submitted_at": sheet.get("submitted_at"),
+        "published_at": sheet.get("published_at"),
     }
 
 
@@ -1673,6 +1679,15 @@ async def portal_upload_results(
         (payload.term or "").strip().lower(),
         (payload.session or "").strip().lower(),
     )
+    previous = next((s for s in sheets if (
+        str(s.get("class_name") or "").upper(),
+        str(s.get("subject") or "").lower(),
+        str(s.get("term") or "").lower(),
+        str(s.get("session") or "").lower(),
+    ) == key), None)
+    want_status = payload.status if payload.status in ("draft", "submitted") else "draft"
+    if previous and (previous.get("status") == "published") and want_status == "draft":
+        want_status = "published"  # never quietly un-publish a released result
     sheets = [s for s in sheets if (
         str(s.get("class_name") or "").upper(),
         str(s.get("subject") or "").lower(),
@@ -1690,12 +1705,81 @@ async def portal_upload_results(
             "max_score": max_total,
             "uploaded_at": naive_utc_now().date().isoformat(),
             "rows": rows,
+            "status": want_status,
+            "submitted_by": (previous or {}).get("submitted_by") or (
+                current_user.get("full_name") if want_status != "draft" else None
+            ),
+            "submitted_at": (previous or {}).get("submitted_at") or (
+                naive_utc_now().isoformat(timespec="seconds") if want_status != "draft" else None
+            ),
+            "published_at": (previous or {}).get("published_at"),
         },
     )
     campus.portal_results = sheets[:200]
     flag_modified(campus, "portal_results")
     await db.commit()
     return {"ok": True, "sheet": _result_sheet_dict(sheets[0]), "sheets": [_result_sheet_dict(s) for s in sheets[:200]]}
+
+
+class ResultPublishIn(BaseModel):
+    sheet_ids: Optional[list[str]] = None  # omitted = every submitted sheet
+    action: str = Field(default="publish")  # publish | reopen
+
+
+@portal_router.get("/{slug}/results/review")
+async def portal_results_review(
+    slug: str,
+    current_user: dict = Depends(require_school_staff),
+    db: AsyncSession = Depends(get_db),
+):
+    """Sheets teachers have pushed in, waiting for the school admin to release."""
+    info = await portal_public_info(slug, db)
+    campus = await _campus(db, current_user, info["school_id"])
+    sheets = [
+        _result_sheet_dict(s)
+        for s in (getattr(campus, "portal_results", None) or [])
+        if (s.get("status") or "draft") in ("submitted", "published")
+    ]
+    sheets.sort(key=lambda s: (s.get("class_name") or "", s.get("subject") or ""))
+    awaiting = [s for s in sheets if s.get("status") == "submitted"]
+    published = [s for s in sheets if s.get("status") == "published"]
+    return {"sheets": sheets, "awaiting": len(awaiting), "published": len(published)}
+
+
+@portal_router.post("/{slug}/results/review")
+async def portal_results_review_action(
+    slug: str,
+    payload: ResultPublishIn,
+    request: Request,
+    current_user: dict = Depends(require_school_staff),
+    db: AsyncSession = Depends(get_db),
+):
+    """Publish (or send back) submitted result sheets. Admin PIN required."""
+    info = await portal_public_info(slug, db)
+    campus = await _campus(db, current_user, info["school_id"])
+    await require_admin_pin(request, campus, current_user)
+    action = "publish" if payload.action != "reopen" else "reopen"
+    wanted = set(payload.sheet_ids or [])
+    sheets = list(getattr(campus, "portal_results", None) or [])
+    touched = 0
+    stamp = naive_utc_now().isoformat(timespec="seconds")
+    for s in sheets:
+        if wanted and s.get("id") not in wanted:
+            continue
+        if action == "publish" and (s.get("status") or "draft") != "submitted":
+            continue
+        if action == "reopen" and (s.get("status") or "draft") != "published":
+            continue
+        s["status"] = "published" if action == "publish" else "submitted"
+        if action == "publish":
+            s["published_at"] = stamp
+        else:
+            s["published_at"] = None
+        touched += 1
+    campus.portal_results = sheets
+    flag_modified(campus, "portal_results")
+    await db.commit()
+    return {"ok": True, "changed": touched, "action": action}
 
 
 @portal_router.delete("/{slug}/results/upload/{sheet_id}")
