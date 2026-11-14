@@ -7,15 +7,21 @@ PIN the school admin set in Settings. A teacher does not know it, so they get
 """
 
 from fastapi import Depends, HTTPException, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.deps import require_school_staff
+from app.core.deps import get_current_user
 from app.core.security import verify_password
 
 PIN_HEADER = "X-School-Pin"
 PIN_REQUIRED = "PIN_REQUIRED"
+
+# The PIN guard runs on every request of the routers it is attached to —
+# including the PUBLIC school-portal login — so it must not demand a token
+# up front. Authentication is only resolved once we know this is a write.
+_optional_bearer = HTTPBearer(auto_error=False)
 
 
 def _role(current_user: dict) -> str:
@@ -39,7 +45,7 @@ def is_write(request: Request) -> bool:
 
 async def require_write_pin(
     request: Request,
-    current_user: dict = Depends(require_school_staff),
+    credentials: HTTPAuthorizationCredentials | None = Depends(_optional_bearer),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Router-level guard: any write on a school endpoint needs the admin PIN.
@@ -47,9 +53,20 @@ async def require_write_pin(
     Applied with `dependencies=[Depends(require_write_pin)]`, so every current
     and future DELETE/PATCH/PUT (and delete-all / clear / restrict POST) is
     covered without touching each route by hand.
+
+    Reads — and the public login/branding calls — pass straight through with
+    no token, because the auth dependency is only resolved once a request is
+    known to be a write.
     """
     if not is_write(request):
         return
+    if credentials is None or not getattr(credentials, "credentials", None):
+        raise HTTPException(
+            status_code=401,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    current_user = await get_current_user(credentials=credentials, db=db)
     sid = current_user.get("school_id") or request.query_params.get("school_id")
     if not sid:
         return
