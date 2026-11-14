@@ -93,6 +93,39 @@ _SCHEMA_STATEMENTS = (
     )
     """,
     "CREATE UNIQUE INDEX IF NOT EXISTS ux_school_feature_locks ON school_feature_locks (school_id, feature_key)",
+    # Tutor hub — admin sends study material, tutors submit lesson notes.
+    """
+    CREATE TABLE IF NOT EXISTS tutor_materials (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        admin_id UUID NULL REFERENCES users(id),
+        teacher_id UUID NULL REFERENCES users(id),
+        title VARCHAR(200) NOT NULL,
+        subject VARCHAR(120) NULL,
+        class_name VARCHAR(60) NULL,
+        description TEXT NULL,
+        link_url VARCHAR(600) NULL,
+        created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW()
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS ix_tutor_materials_teacher ON tutor_materials (teacher_id)",
+    """
+    CREATE TABLE IF NOT EXISTS tutor_lesson_notes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        teacher_id UUID NOT NULL REFERENCES users(id),
+        title VARCHAR(200) NOT NULL,
+        subject VARCHAR(120) NULL,
+        class_name VARCHAR(60) NULL,
+        week VARCHAR(40) NULL,
+        term VARCHAR(40) NULL,
+        content TEXT NOT NULL,
+        attachment_url VARCHAR(600) NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'submitted',
+        admin_comment TEXT NULL,
+        created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+        reviewed_at TIMESTAMP WITHOUT TIME ZONE NULL
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS ix_tutor_lesson_notes_teacher ON tutor_lesson_notes (teacher_id)",
     # student_profiles
     "ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS jamb_subjects VARCHAR[] NULL",
     "ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS ssce_subjects VARCHAR[] NULL",

@@ -31,6 +31,7 @@
           <nav class="teacher-nav">
             <button type="button" class="nav-btn is-active" data-page="live" data-feature-lock="teacher.live"><span class="ico">📹</span>Live Classes</button>
             <button type="button" class="nav-btn" data-page="materials" data-feature-lock="teacher.materials"><span class="ico">📚</span>Materials</button>
+            <button type="button" class="nav-btn" data-page="lessons"><span class="ico">🗒️</span>Lesson Notes</button>
             <button type="button" class="nav-btn" data-page="exams" data-feature-lock="teacher.exams"><span class="ico">📝</span>Exams</button>
             <button type="button" class="nav-btn" data-page="students" data-feature-lock="teacher.students"><span class="ico">👥</span>Students</button>
             <button type="button" class="nav-btn" data-page="grading" data-feature-lock="teacher.grading"><span class="ico">✅</span>Grading</button>
@@ -353,6 +354,38 @@
             <iframe class="aff-embed" id="affiliateFrame" data-src="affiliate.html?embed=1" title="Refer &amp; Earn"></iframe>
           </section>
 
+
+          <section class="page" id="page-lessons">
+            <header class="page-hero soft-hero">
+              <div>
+                <span class="kicker">Direct from Scholaxia</span>
+                <h2>Lesson Notes</h2>
+                <p>Study material the admin sent you, and the lesson notes you send back for checking.</p>
+              </div>
+              <button type="button" class="btn btn-light" id="openNoteBtn" onclick="teacherLessonComposer(true)">+ New lesson note</button>
+            </header>
+            <h3 class="section-title">From the admin</h3>
+            <div id="tutorMaterialsBox" class="materials-grid"><div class="loading">Loading…</div></div>
+            <h3 class="section-title">Your lesson notes</h3>
+            <div id="tutorNotesBox"><div class="loading">Loading…</div></div>
+            <div class="panel" id="noteComposer" hidden>
+              <h3>Send a lesson note</h3>
+              <div class="form-grid">
+                <label>Title <input id="noteTitle" type="text" placeholder="e.g. Week 4 — Photosynthesis" /></label>
+                <label>Subject <input id="noteSubject" type="text" placeholder="Biology" /></label>
+                <label>Class <input id="noteClass" type="text" placeholder="SS2" /></label>
+                <label>Week <input id="noteWeek" type="text" placeholder="Week 4" /></label>
+                <label>Term <select id="noteTerm"><option value="">—</option><option>First term</option><option>Second term</option><option>Third term</option></select></label>
+              </div>
+              <label style="display:block;margin-top:10px">Lesson note <textarea id="noteContent" rows="8" placeholder="Write the lesson note here…" style="width:100%"></textarea></label>
+              <label style="display:block;margin-top:10px">Attachment link (optional) <input id="noteLink" type="text" placeholder="https://…" style="width:100%" /></label>
+              <div class="actions" style="margin-top:10px">
+                <button type="button" class="btn btn-primary" id="noteSubmit" onclick="teacherSubmitLessonNote()">Send to admin</button>
+                <button type="button" class="btn btn-mini" id="noteCancel" onclick="teacherLessonComposer(false)">Cancel</button>
+                <span class="meta" id="noteMsg"></span>
+              </div>
+            </div>
+          </section>
           <section class="page" id="page-profile">
             <header class="page-hero soft-hero">
               <div>
@@ -483,7 +516,7 @@
     <script src="js/i18n.js?v=20261024b"></script>
     <script src="js/api.js?v=20261024b"></script>
     <script src="js/feature-lock.js?v=20261113school"></script>
-    <script src="js/teacher-app.js?v=20261113school"></script>
+    <script src="js/teacher-app.js?v=20261114notes"></script>
     <script>
       document.addEventListener("DOMContentLoaded", function () {
         var kbBtn = document.getElementById("openKbBtn");
