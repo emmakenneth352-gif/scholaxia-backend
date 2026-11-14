@@ -1550,7 +1550,7 @@ tr:last-child td{border-bottom:none}
         ((classes.length || subjects.length) ? '<div class="panel"><h3>Question Banks by Class &amp; Subject</h3><p class="mhint" style="margin-bottom:10px">Pick a class and a subject to find its bank — open it to edit or clear questions.</p>' + chipRow + '</div>' : '') +
         '<div class="panel">' + tbl(["Bank", "Subject", "Class", "Questions", "Status", ""], show.map(function (b) {
           return '<tr><td><strong>' + esc(b.name) + '</strong></td><td><span class="pill blue">' + esc(b.subject) + '</span></td><td><span class="pill violet">' + esc(b.class_name) + '</span></td><td>' + b.question_count + '</td><td><span class="pill ' + (b.status === "active" ? "ok" : "gray") + '">' + esc(b.status) + '</span></td>' +
-            '<td style="white-space:nowrap"><button class="btn sm ghost" onclick="openBank(\'' + b.id + '\')">📂 Questions</button> <button class="btn sm ghost" onclick="addBankQ(\'' + b.id + '\',\'' + esc(b.name).replace(/'/g, "") + '\')">➕ Add question</button> <button class="btn sm ghost" onclick="clearBankQs(\'' + b.id + '\',\'' + esc(b.name).replace(/'/g, "") + '\')">🧹 Clear</button> <button class="btn sm red" onclick="delBankPw(\'' + b.id + '\',\'' + esc(b.name).replace(/'/g, "") + '\')">Delete</button></td></tr>';
+            '<td style="white-space:nowrap"><button class="btn sm ghost" onclick="openBank(\'' + b.id + '\')">📂 Questions</button> <button class="btn sm ghost" onclick="clearBankQs(\'' + b.id + '\',\'' + esc(b.name).replace(/'/g, "") + '\')">🧹 Clear</button> <button class="btn sm red" onclick="delBankPw(\'' + b.id + '\',\'' + esc(b.name).replace(/'/g, "") + '\')">Delete</button></td></tr>';
         })) + '</div>';
     }).catch(function (e) { $("exBody").innerHTML = '<div class="panel"><div class="empty">' + esc(errText(e)) + '</div></div>'; });
   }
@@ -3240,28 +3240,66 @@ tr:last-child td{border-bottom:none}
   window.__attMarks = {};
   R.attendance = function () {
     var today = new Date().toISOString().slice(0, 10);
-    $("pages").innerHTML = head("Attendance", "Mark and track daily student attendance.",
+    $("pages").innerHTML = head("Attendance", "Every student registered in your school is listed automatically — just pick a date and mark them.",
         '<input class="f-in" type="date" id="attDateIn" value="' + today + '" max="' + today + '" style="width:170px" onchange="loadAttendance(this.value)" /><button class="btn ghost" onclick="markAllPresent()">✓ All present</button>') +
-      '<div class="stat-mini" id="attSum"></div><div class="panel"><div id="attTbl"><div class="empty">Loading…</div></div>' +
+      '<div class="stat-mini" id="attSum"></div>' +
+      '<div class="panel"><div class="form-grid" style="margin-bottom:12px"><div><select class="f-in" id="attCls" onchange="paintAttendance()"><option value="">All classes</option></select></div>' +
+      '<div><input class="f-in" id="attQ" placeholder="Search a student by name or ID…" oninput="paintAttendance()" /></div></div>' +
+      '<div id="attTbl"><div class="empty">Loading…</div></div>' +
       '<div style="margin-top:14px;display:flex;gap:10px"><button class="btn" onclick="saveAttendance()">💾 Save register</button><span class="muted" id="attSaved" style="align-self:center;font-size:13px"></span></div></div>';
     loadAttendance(today);
   };
   window.loadAttendance = function (date) {
     window.__attMarks = {};
     api("/attendance" + (date ? "?date=" + encodeURIComponent(date) : "")).then(function (d) {
-      var s = d.summary || {};
-      $("attSum").innerHTML = '<span class="chip">Total: ' + s.total + '</span><span class="chip g">Present: ' + s.present + '</span><span class="chip r">Absent: ' + s.absent + '</span><span class="chip w">Late: ' + s.late + '</span><span class="chip">' + (d.date || "") + '</span>';
-      var rows = (d.students || []).map(function (st) {
-        window.__attMarks[st.student_id] = st.status;
-        var opts = ["unmarked", "present", "absent", "late"].map(function (v) {
-          return '<option value="' + v + '"' + (st.status === v ? " selected" : "") + '>' + (v === "unmarked" ? "—" : v.charAt(0).toUpperCase() + v.slice(1)) + '</option>';
-        }).join("");
-        return '<tr><td><strong>' + esc(st.full_name) + '</strong></td><td><span class="pill violet">' + esc(st.student_id) + '</span></td><td><span class="pill blue">' + esc(st.class_name) + '</span></td><td><select class="f-in" style="padding:7px 10px;width:130px" onchange="setMark(\'' + esc(st.student_id) + '\', this.value)">' + opts + '</select></td></tr>';
-      });
-      $("attTbl").innerHTML = rows.length ? tbl(["Student", "ID", "Class", "Status"], rows) : '<div class="empty">No students yet — add students first.</div>';
+      window.__attAll = d.students || [];
+      window.__attDate = d.date || date;
+      var cls = ($("attCls") && $("attCls").value) || "";
+      var sel = $("attCls");
+      if (sel) {
+        var seen = {};
+        window.__attAll.forEach(function (st) { if (st.class_name && st.class_name !== "—") seen[st.class_name] = 1; });
+        sel.innerHTML = '<option value="">All classes (' + window.__attAll.length + ')</option>' +
+          Object.keys(seen).sort().map(function (c) { return '<option' + (c === cls ? " selected" : "") + '>' + esc(c) + '</option>'; }).join("");
+      }
+      paintAttendance();
     }).catch(function (e) { $("attTbl").innerHTML = '<div class="empty">' + esc(errText(e)) + '</div>'; });
   };
-  window.setMark = function (sid, v) { window.__attMarks[sid] = v; $("attSaved").textContent = "Unsaved changes"; };
+  window.paintAttendance = function () {
+    var list = window.__attAll || [];
+    var cls = ($("attCls") && $("attCls").value) || "";
+    var q = (($("attQ") && $("attQ").value) || "").trim().toLowerCase();
+    var s = { total: list.length, present: 0, absent: 0, late: 0 };
+    list.forEach(function (st) {
+      var k = st.key || st.student_id;
+      // Keep marks already made in this visit; only fill in the saved ones.
+      if (!(k in window.__attMarks)) window.__attMarks[k] = st.status;
+      var v = window.__attMarks[k];
+      if (v === "present") s.present++;
+      else if (v === "absent") s.absent++;
+      else if (v === "late") s.late++;
+    });
+    $("attSum").innerHTML = '<span class="chip">All students: ' + s.total + '</span><span class="chip g">Present: ' + s.present + '</span><span class="chip r">Absent: ' + s.absent + '</span><span class="chip w">Late: ' + s.late + '</span><span class="chip">' + esc(window.__attDate || "") + '</span>';
+    var shown = list.filter(function (st) {
+      if (cls && st.class_name !== cls) return false;
+      if (q && (st.full_name || "").toLowerCase().indexOf(q) < 0 && (st.student_id || "").toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    });
+    var rows = shown.map(function (st) {
+      var k = (st.key || st.student_id);
+      var cur = window.__attMarks[k] || st.status;
+      var opts = ["unmarked", "present", "absent", "late"].map(function (v) {
+        return '<option value="' + v + '"' + (cur === v ? " selected" : "") + '>' + (v === "unmarked" ? "Not marked" : v.charAt(0).toUpperCase() + v.slice(1)) + '</option>';
+      }).join("");
+      return '<tr><td><strong>' + esc(st.full_name) + '</strong></td><td><span class="pill violet">' + esc(st.student_id || "—") + '</span></td><td><span class="pill blue">' + esc(st.class_name || "—") + '</span></td><td><select class="f-in" style="padding:7px 10px;width:140px" onchange="setMark(\'' + esc(k) + '\', this.value)">' + opts + '</select></td></tr>';
+    });
+    $("attTbl").innerHTML = rows.length
+      ? tbl(["Student", "Student ID", "Class", "Status"], rows)
+      : (list.length
+        ? '<div class="empty">No student matches that class or search.</div>'
+        : '<div class="empty">No students in this school yet. <button class="btn sm" onclick="showPage(\'students\')">Go to Students</button></div>');
+  };
+  window.setMark = function (key, v) { window.__attMarks[key] = v; var el = $("attSaved"); if (el) el.textContent = "Unsaved changes"; };
   window.markAllPresent = function () {
     Object.keys(window.__attMarks).forEach(function (k) { window.__attMarks[k] = "present"; });
     document.querySelectorAll("#attTbl select").forEach(function (s) { s.value = "present"; });

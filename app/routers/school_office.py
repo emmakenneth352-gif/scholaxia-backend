@@ -344,17 +344,37 @@ async def portal_attendance(slug: str, date: Optional[str] = Query(None), curren
             .order_by(User.full_name)
         )
     ).all()
+    # Everybody the school has on file shows up on the register, with the same
+    # readable ID the Students page shows (school ID, else exam reg number).
+    from app.models.school_cbt import SchoolExamAccessCode
+
+    reg_by_student: dict[str, str] = {}
+    for code in (
+        await db.execute(
+            select(SchoolExamAccessCode)
+            .where(SchoolExamAccessCode.school_id == campus.id)
+            .order_by(SchoolExamAccessCode.created_at.desc())
+        )
+    ).scalars().all():
+        reg_by_student.setdefault(str(code.student_id), code.reg_number)
+
     marks = dict((getattr(campus, "portal_attendance", None) or {}).get(day, {}))
     out = []
     for user, profile in students:
-        sid = getattr(profile, "school_student_id", None) or str(user.id)
+        readable = (
+            getattr(profile, "school_student_id", None)
+            or reg_by_student.get(str(user.id))
+            or ""
+        )
+        key = readable or str(user.id)  # where the mark is stored
         out.append(
             {
                 "id": str(user.id),
-                "student_id": sid,
+                "key": key,
+                "student_id": readable or "—",
                 "full_name": user.full_name,
                 "class_name": (profile.education_level if profile else "") or "—",
-                "status": marks.get(sid) or "unmarked",  # present | absent | late | unmarked
+                "status": marks.get(key) or "unmarked",  # present | absent | late | unmarked
             }
         )
     present = len([r for r in out if r["status"] == "present"])
