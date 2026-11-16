@@ -62,7 +62,9 @@ function initAuthPage() {
   // Deep link from the exam portal's "← Portal" link: keep the exam-only view
   // open even when a normal student/teacher session already exists.
   var bootParams0 = new URLSearchParams(window.location.search);
-  var examDeepLink = bootParams0.get("exam") === "1" && !!document.getElementById("tab-exam");
+  // The exam-only card was removed from this login page (it is now the
+  // student app's "External Exam" tab), so there is never an exam deep link.
+  var examDeepLink = false;
 
   if (!examDeepLink && getToken()) {
     redirectIfAlreadyLoggedIn();
@@ -80,7 +82,8 @@ function initAuthPage() {
 
   document.getElementById("tab-login").addEventListener("click", function () { switchTab("login"); });
   document.getElementById("tab-signup").addEventListener("click", function () { switchTab("signup"); });
-  document.getElementById("tab-exam").addEventListener("click", function () { switchTab("exam"); });
+  var tabExamEl = document.getElementById("tab-exam");
+  if (tabExamEl) tabExamEl.addEventListener("click", function () { switchTab("exam"); });
   document.getElementById("go-signup").addEventListener("click", function () { switchTab("signup"); });
   document.getElementById("go-login").addEventListener("click", function () { switchTab("login"); });
   document.getElementById("form-login").addEventListener("submit", login);
@@ -279,9 +282,11 @@ function switchTab(tab) {
 
   document.getElementById("tab-login").classList.toggle("active", isLogin);
   document.getElementById("tab-signup").classList.toggle("active", !isLogin && !isExam);
-  document.getElementById("tab-exam").classList.toggle("active", isExam);
+  var tabExamToggle = document.getElementById("tab-exam");
+  if (tabExamToggle) tabExamToggle.classList.toggle("active", isExam);
   // Exam view is exam-only: the email/Student-ID login tabs stay out of sight,
   // so the card shows just the Registration Number + Access Code form.
+  tabExamToggle = document.getElementById("tab-exam");
   document.getElementById("tab-login").classList.toggle("hidden", isExam);
   document.getElementById("tab-signup").classList.toggle("hidden", isExam);
   document.getElementById("form-login").classList.toggle("hidden", !isLogin);

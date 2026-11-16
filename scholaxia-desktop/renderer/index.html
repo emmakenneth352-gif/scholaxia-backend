@@ -57,7 +57,7 @@
           <p class="card-sub" id="portal-sub">Sign in to access live classes, exams &amp; CBT</p>
 
           <p class="role-select-label">Who is signing in?</p>
-          <div class="role-select-grid role-select-grid-four" id="role-select-grid" role="radiogroup" aria-label="Account type">
+          <div class="role-select-grid" id="role-select-grid" role="radiogroup" aria-label="Account type">
             <button type="button" class="role-select-btn active" data-role="student">
               <span class="role-icon">&#127979;</span>
               <strong>Student</strong>
@@ -73,36 +73,12 @@
               <strong>Kids</strong>
               <span>For young learners (ages 3–11) with kid-safe AI tutor</span>
             </button>
-            <button type="button" class="role-select-btn" data-role="exam">
-              <span class="role-icon">&#128221;</span>
-              <strong>Exam</strong>
-              <span>School CBT — registration number + access code</span>
-            </button>
           </div>
 
           <div class="auth-tabs">
             <button type="button" id="tab-login" class="auth-tab active">Log in</button>
             <button type="button" id="tab-signup" class="auth-tab">Register</button>
-            <button type="button" id="tab-exam" class="auth-tab">Exam</button>
           </div>
-
-          <form id="form-exam" class="auth-form hidden">
-            <p class="exam-tab-note">School Examination portal — enter the <strong>Registration Number</strong> and <strong>Access Code</strong> on your exam slip. Exams you download here keep working offline.</p>
-            <label class="field">
-              <span class="field-label">Registration Number</span>
-              <input type="text" id="exam-reg" placeholder="SCHX/26/544560" autocomplete="off" required />
-            </label>
-            <label class="field">
-              <span class="field-label">Access Code</span>
-              <span class="field-input-wrap">
-                <input type="password" id="exam-code" placeholder="SCH-XXXX-XXXX" autocomplete="off" style="letter-spacing:2px" required />
-                <button type="button" class="toggle-pw" data-target="exam-code">&#128065;</button>
-              </span>
-            </label>
-            <p id="exam-error" class="error-msg"></p>
-            <button type="submit" class="btn-primary" id="btn-exam-login">LOGIN TO EXAMINATION</button>
-            <p class="switch-text">Lost your details? Ask your school exam officer — they issued your slip.</p>
-          </form>
 
           <form id="form-login" class="auth-form">
             <label class="field">
