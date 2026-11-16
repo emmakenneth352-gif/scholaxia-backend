@@ -595,6 +595,40 @@ async function endClass(id) {
     return true;
   }
 
+
+  /* Clear history: hide finished classes from Your classes. It only hides them
+     on this device — nothing is deleted, so scores and records stay intact. */
+  var CLASS_HISTORY_KEY = "sia_teacher_classes_cleared_at";
+  function classHistoryClearedAt() {
+    return Number(localStorage.getItem(CLASS_HISTORY_KEY) || 0);
+  }
+  function classEndedAtMs(c) {
+    var stamp = c && (c.end_time || c.start_time);
+    if (!stamp) return 0;
+    var t = new Date(stamp).getTime();
+    return isNaN(t) ? 0 : t;
+  }
+  function classIsHistory(c) {
+    if (!c || classLooksLive(c)) return false;
+    var ended = c.status === "past" || c.status === "ended" || !!c.end_time;
+    return !!ended;
+  }
+  function hideClearedClasses(rows) {
+    var clearedAt = classHistoryClearedAt();
+    if (!clearedAt) return rows;
+    return rows.filter(function (c) {
+      if (!classIsHistory(c)) return true;
+      return classEndedAtMs(c) > clearedAt;
+    });
+  }
+  window.clearClassHistory = function () {
+    var ok = window.confirm("Clear the class history? Every finished class disappears from this list on this device. Nothing is deleted — live and upcoming classes stay.");
+    if (!ok) return;
+    localStorage.setItem(CLASS_HISTORY_KEY, String(Date.now()));
+    if (typeof toast === "function") toast("Class history cleared");
+    loadLive();
+  };
+
   async function loadLive() {
     var el = $("liveList");
     if (!el) return;
@@ -618,6 +652,10 @@ async function endClass(id) {
       clearTimeout(watchdog);
       if (!Array.isArray(rows)) rows = (rows && (rows.items || rows.classes)) || [];
       if (!Array.isArray(rows)) rows = [];
+      var hiddenCount = 0;
+      var beforeHide = rows.length;
+      rows = hideClearedClasses(rows);
+      hiddenCount = beforeHide - rows.length;
       var liveN = rows.filter(classLooksLive).length;
       var upN = rows.filter(function (c) {
         return !classLooksLive(c) && c.status !== "ended" && c.status !== "past";
@@ -625,7 +663,7 @@ async function endClass(id) {
       if ($("statLive")) $("statLive").textContent = String(liveN);
       if ($("statUpcoming")) $("statUpcoming").textContent = String(upN);
       if (!rows.length) {
-        el.innerHTML = '<div class="empty">No classes yet. Schedule or go live above.</div>';
+        el.innerHTML = '<div class="empty">' + (hiddenCount ? 'Class history cleared.' : 'No classes yet. Schedule or go live above.') + '</div>';
         return;
       }
       el.innerHTML = rows
@@ -2048,6 +2086,7 @@ async function endClass(id) {
     });
   }
   if ($("liveRefreshBtn")) $("liveRefreshBtn").addEventListener("click", loadLive);
+  if ($("liveClearBtn")) $("liveClearBtn").addEventListener("click", window.clearClassHistory);
   if ($("liveFilter")) $("liveFilter").addEventListener("change", loadLive);
   if ($("sgCreateBtn")) $("sgCreateBtn").addEventListener("click", createSchoolGroup);
 

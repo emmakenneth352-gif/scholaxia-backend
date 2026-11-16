@@ -777,6 +777,38 @@ async function createSchoolGroup() {
 window.onHostVisibilityChange = onHostVisibilityChange;
 window.createSchoolGroup = createSchoolGroup;
 
+
+/* Clear history for Your classes: finished classes are hidden on this device.
+   Nothing is deleted — live and upcoming classes stay. */
+var TEACHER_CLASS_HISTORY_KEY = 'sia_teacher_classes_cleared_at';
+function teacherHistoryClearedAt() {
+  return Number(localStorage.getItem(TEACHER_CLASS_HISTORY_KEY) || 0);
+}
+function teacherClassEndedMs(c) {
+  var stamp = c && (c.end_time || c.start_time);
+  if (!stamp) return 0;
+  var t = new Date(stamp).getTime();
+  return isNaN(t) ? 0 : t;
+}
+function teacherClassIsHistory(c) {
+  if (!c || c.is_live) return false;
+  return !!(c.end_time || c.status === 'ended' || c.status === 'past');
+}
+function hideClearedTeacherClasses(rows) {
+  var clearedAt = teacherHistoryClearedAt();
+  if (!clearedAt || !Array.isArray(rows)) return rows;
+  return rows.filter(function (c) {
+    if (!teacherClassIsHistory(c)) return true;
+    return teacherClassEndedMs(c) > clearedAt;
+  });
+}
+window.clearTeacherClassHistory = function () {
+  var ok = window.confirm('Clear the class history? Finished classes disappear from this list on this device. Nothing is deleted — live and upcoming classes stay.');
+  if (!ok) return;
+  localStorage.setItem(TEACHER_CLASS_HISTORY_KEY, String(Date.now()));
+  loadTeacherLive();
+};
+
 async function loadTeacherLive() {
   var el = document.getElementById("live-table");
   if (!el) return;
@@ -786,8 +818,11 @@ async function loadTeacherLive() {
     var url = "/api/v1/live-classes/?limit=50";
     if (status) url += "&status=" + status;
     var rows = await teacherApi(url);
+    var beforeHide = Array.isArray(rows) ? rows.length : 0;
+    rows = hideClearedTeacherClasses(rows);
+    var hiddenCount = beforeHide - (Array.isArray(rows) ? rows.length : 0);
     if (!rows || !rows.length) {
-      el.innerHTML = '<div class="empty-state">No classes yet. Schedule or go live above.</div>';
+      el.innerHTML = '<div class="empty-state">' + (hiddenCount ? 'Class history cleared.' : 'No classes yet. Schedule or go live above.') + '</div>';
       return;
     }
     el.innerHTML = '<table class="data-table"><thead><tr><th>Title</th><th>Code</th><th>Type</th><th>Subject</th><th>Schedule</th><th>Status</th><th></th></tr></thead><tbody>' +
@@ -1588,6 +1623,8 @@ function bindTeacherUI() {
   if (liveBtn) liveBtn.addEventListener("click", function () { teacherHostClass(true); });
   var liveFilter = document.getElementById("live-filter");
   if (liveFilter) liveFilter.addEventListener("change", loadTeacherLive);
+  var liveClear = document.getElementById("live-clear-btn");
+  if (liveClear) liveClear.addEventListener("click", window.clearTeacherClassHistory);
   var liveRefresh = document.getElementById("live-refresh-btn");
   if (liveRefresh) liveRefresh.addEventListener("click", loadTeacherLive);
 
