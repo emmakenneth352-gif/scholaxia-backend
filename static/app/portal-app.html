@@ -3222,7 +3222,8 @@ tr:last-child td{border-bottom:none}
       '<p class="mhint" style="margin-bottom:14px">Enter the student\'s Registration Number, fetch their exams, and grant a retake. Their previous attempt is cleared and they can start again.</p>' +
       '<div class="form-grid rg2"><div><label class="f-label">🔢 Student Reg Number *</label><input class="f-in" id="rtReg" placeholder="Enter registration number e.g. SCHX/26/544560" onkeydown="if(event.key===\'Enter\')retakeFetch()" /></div>' +
       '<div><label class="f-label">&nbsp;</label><button class="btn" onclick="retakeFetch()">🔍 Fetch Student</button></div></div>' +
-      '<div id="rtOut"><div class="empty">Fetch a student to see their exams.</div></div></div>';
+      '<div id="rtOut"><div class="empty">Fetch a student to see their exams.</div></div>' +
+      '<div id="rtHistory"></div></div>';
     setTimeout(function () { var el = $("rtReg"); if (el) el.focus(); }, 50);
   }
   window.retakeFetch = function () {
@@ -3232,7 +3233,11 @@ tr:last-child td{border-bottom:none}
     box.innerHTML = '<div class="empty">Searching…</div>';
     cbtApi("/retake-lookup/" + encodeURIComponent(reg)).then(function (d) {
       var ms = (d && d.matches) || [];
-      if (!ms.length) { box.innerHTML = '<div class="empty">No student found with reg number <code>' + esc(reg.toUpperCase()) + '</code>.</div>'; return; }
+      if (!ms.length) {
+        box.innerHTML = '<div class="empty">No student found with reg number <code>' + esc(reg.toUpperCase()) + '</code>. Check the slip, or approve the student on <strong>Approve Students</strong> first.</div>';
+        retakeHistory(reg);
+        return;
+      }
       var nm = ms[0].student_name;
       var sched = ms.filter(function (m) { return !!m.exam_id; });
       box.innerHTML = '<div class="mnote" style="margin:12px 0"><strong>' + esc(nm) + '</strong> — ' + esc(ms[0].class_name || "") + ' · ' + sched.length + ' scheduled exam(s)' +
@@ -3244,8 +3249,32 @@ tr:last-child td{border-bottom:none}
             '<td>' + (m.grade ? '<span class="pill ' + (m.percentage >= 50 ? "ok" : "bad") + '">' + esc(m.grade) + '</span>' : '—') + '</td>' +
             '<td><button class="btn sm green" onclick="retakeGrant(\'' + m.exam_id + '\',\'' + m.student_id + '\',\'' + esc(m.student_name).replace(/'/g, "") + '\',\'' + esc(m.subject).replace(/'/g, "") + '\')">↻ Grant Retake</button></td></tr>';
         })) : '');
-    }).catch(function (e) { box.innerHTML = '<div class="empty">' + esc(errText(e)) + '</div>'; });
+      retakeHistory(reg);
+    }).catch(function (e) { box.innerHTML = '<div class="empty">' + esc(errText(e)) + '</div>'; retakeHistory(reg); });
   };
+  /* Class history: every sitting of this student's exams + when a retake was granted. */
+  function retakeHistory(reg) {
+    var box = $("rtHistory");
+    if (!box) return;
+    cbtApi("/retake-history/" + encodeURIComponent(reg)).then(function (d) {
+      var rows = (d && d.history) || [];
+      if (!rows.length) { box.innerHTML = ""; return; }
+      var who = (d.student && d.student.name) || "this student";
+      box.innerHTML = '<h3 style="margin:20px 0 6px">📜 Class history</h3>' +
+        '<p class="mhint" style="margin-bottom:10px">Every sitting for ' + esc(who) + ' — newest first, with the date a retake was granted.</p>' +
+        tbl(["Subject", "Class", "Score", "Grade", "Status", "Retake granted"], rows.map(function (x) {
+          var score = x.score != null
+            ? '<strong>' + x.score + ' / ' + (x.total_mark || "—") + '</strong>' + (x.percentage != null ? ' (' + x.percentage + '%)' : "")
+            : "—";
+          return '<tr><td><span class="pill blue">' + esc(x.subject) + '</span></td>' +
+            '<td>' + esc(x.class_name || "—") + '</td>' +
+            '<td>' + score + '</td>' +
+            '<td>' + esc(x.grade || "—") + '</td>' +
+            '<td>' + (x.submitted ? '<span class="pill ok">Submitted</span>' : '<span class="pill gray">Not submitted</span>') + '</td>' +
+            '<td>' + (x.retake_granted_at ? dOnly(x.retake_granted_at) : "—") + '</td></tr>';
+        }));
+    }).catch(function () { box.innerHTML = ""; });
+  }
   window.retakeGrant = function (examId, studentId, name, subject) {
     confirmModal("Grant Exam Retake", 'Allow <strong>' + esc(name) + '</strong> to retake <strong>' + esc(subject) + '</strong>? Their previous attempt is cleared and a fresh attempt is recorded.', function (btn) {
       busy(btn, true);

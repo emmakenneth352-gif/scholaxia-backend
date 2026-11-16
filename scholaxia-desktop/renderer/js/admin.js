@@ -5015,3 +5015,32 @@ async function savePlanOverride(btn) {
     btn.disabled = false;
   }
 }
+
+/* Clear every list on the screen the admin is looking at.
+   It only empties what is rendered (plus the search boxes and filters) —
+   nothing is deleted on the server, and each page's Refresh brings the
+   real list back. */
+function clearAllLists() {
+  var page = document.querySelector('.admin-page.active');
+  if (!page) return;
+  var ok = confirm('Clear every list, search box and filter on this page?' + String.fromCharCode(10, 10) + 'Nothing is deleted — use the Refresh button to load the lists again.');
+  if (!ok) return;
+  page.querySelectorAll('input[type=search], input[type=text], textarea').forEach(function (el) {
+    if (el.dataset && el.dataset.keep === '1') return;
+    el.value = '';
+    try { el.dispatchEvent(new Event('input')); } catch (e) {}
+  });
+  page.querySelectorAll('select').forEach(function (el) {
+    if (el.dataset && el.dataset.keep === '1') return;
+    el.selectedIndex = 0;
+  });
+  var cleared = 0;
+  page.querySelectorAll('.data-table-wrap, .stats-grid, [id$="-table"], [id$="-list"], [id$="-body"], [id$="-rows"]').forEach(function (el) {
+    if (el.closest('.admin-page') !== page) return;
+    el.innerHTML = '<div class="loading">Cleared — tap Refresh to load this list again.</div>';
+    cleared++;
+  });
+  var head = page.querySelector('.page-head h2');
+  var title = head ? head.textContent.trim() : 'this page';
+  alert(cleared ? ('Cleared ' + cleared + ' list' + (cleared === 1 ? '' : 's') + ' on ' + title + '. Tap Refresh to load them again.') : ('No open lists on ' + title + ' — the search boxes and filters were cleared.'));
+}

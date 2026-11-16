@@ -1637,6 +1637,27 @@ async def exam_students_aggregate(
     return {"students": out}
 
 
+async def _retake_rows(db: AsyncSession, sid: UUID, reg: str):
+    """Access-code rows for one registration number.
+
+    Older slips were saved without a school_id, so a strict school filter made
+    the lookup answer "no student found" — that is what broke retakes for
+    teachers. When the strict pass is empty we fall back to the student's own
+    school, which keeps the tenant check while finding those rows.
+    """
+    q = (
+        select(SchoolExamAccessCode, SchoolExam, User)
+        .join(User, User.id == SchoolExamAccessCode.student_id)
+        .outerjoin(SchoolExam, SchoolExam.id == SchoolExamAccessCode.exam_id)
+        .where(func.upper(func.trim(SchoolExamAccessCode.reg_number)) == reg)
+        .order_by(SchoolExamAccessCode.created_at.desc())
+    )
+    rows = (await db.execute(q.where(SchoolExamAccessCode.school_id == sid))).all()
+    if not rows:
+        rows = (await db.execute(q.where(User.school_id == sid))).all()
+    return rows
+
+
 @router.get("/retake-lookup/{reg_number}")
 async def retake_lookup(
     reg_number: str,
@@ -1650,18 +1671,7 @@ async def retake_lookup(
     always finds the student."""
     sid = _staff_school_id(current_user, school_id)
     reg = (reg_number or "").strip().upper()
-    rows = (
-        await db.execute(
-            select(SchoolExamAccessCode, SchoolExam, User)
-            .join(User, User.id == SchoolExamAccessCode.student_id)
-            .outerjoin(SchoolExam, SchoolExam.id == SchoolExamAccessCode.exam_id)
-            .where(
-                SchoolExamAccessCode.school_id == sid,
-                func.upper(func.trim(SchoolExamAccessCode.reg_number)) == reg,
-            )
-            .order_by(SchoolExamAccessCode.created_at.desc())
-        )
-    ).all()
+    rows = await _retake_rows(db, sid, reg)
     out = []
     for code, exam, user in rows:
         res = None
@@ -3151,6 +3161,71 @@ async def exam_results(
 class RetakeIn(BaseModel):
     student_ids: list[str] = Field(..., min_length=1)
 
+
+# ── Retake history ───────────────────────────────────────────────────────
+# The class history behind "Grant Retake": every sitting of every exam for a
+# registration number, with its score and whether a retake was already granted.
+
+
+@router.get("/retake-history/{reg_number}")
+async def retake_history(
+    reg_number: str,
+    school_id: Optional[str] = Query(None),
+    current_user: dict = Depends(require_school_staff),
+    db: AsyncSession = Depends(get_db),
+):
+    sid = _staff_school_id(current_user, school_id)
+    reg = (reg_number or "").strip().upper()
+    rows = await _retake_rows(db, sid, reg)
+    if not rows:
+        return {"student": None, "history": []}
+    student = rows[0][2]
+    history = []
+    for code, exam, user in rows:
+        if exam is None:
+            continue
+        res = (
+            await db.execute(
+                select(SchoolExamResult).where(
+                    SchoolExamResult.exam_id == exam.id,
+                    SchoolExamResult.student_id == user.id,
+                )
+            )
+        ).scalar_one_or_none()
+        granted_at = (
+            await db.execute(
+                select(func.max(SchoolExamSyncLog.created_at)).where(
+                    SchoolExamSyncLog.exam_id == exam.id,
+                    SchoolExamSyncLog.student_id == user.id,
+                    SchoolExamSyncLog.event == "retake_granted",
+                )
+            )
+        ).scalar()
+        history.append(
+            {
+                "exam_id": str(exam.id),
+                "subject": exam.subject,
+                "class_name": (exam.class_name or "").upper(),
+                "session": exam.session,
+                "term": exam.term,
+                "submitted": bool(code.is_used),
+                "score": (res.final_score if res else None),
+                "total_mark": (res.total_mark if res else None) or (exam.total_mark or None),
+                "percentage": (res.percentage if res else None),
+                "grade": (res.grade if res else None),
+                "retake_granted_at": granted_at.isoformat() if granted_at else None,
+            }
+        )
+    history.sort(key=lambda h: h.get("retake_granted_at") or "", reverse=True)
+    return {
+        "student": {
+            "id": str(student.id),
+            "name": student.full_name,
+            "class_name": (history[0]["class_name"] if history else "") or "",
+            "total_sittings": len(history),
+        },
+        "history": history,
+    }
 
 @router.post("/exams/{exam_id}/retake")
 async def grant_retake(
