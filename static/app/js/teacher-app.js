@@ -221,6 +221,10 @@
       hint.textContent = "School only — enter the school email. A class code is created; give it to that school's students.";
       return;
     }
+    if (key === "all") {
+      hint.textContent = "All groups — the same class is shown to every student (JAMB, WAEC, NECO, BECE, school and others). No code needed.";
+      return;
+    }
     var label = HOST_AUDIENCE_LABELS[key] || key;
     hint.textContent = "Only " + label + " students are notified and can join — no code needed.";
     try {
