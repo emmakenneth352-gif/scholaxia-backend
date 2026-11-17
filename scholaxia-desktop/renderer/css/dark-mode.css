@@ -844,8 +844,7 @@ html[data-app-theme="dark"] .kind-page {
 }
 
 /* ═══ Teacher studio dark mode (platform purple) ═══ */
-html[data-app-theme="dark"] body:has(.teacher-shell),
-html[data-app-theme="dark"] .teacher-auth-page {
+html[data-app-theme="dark"] body:has(.teacher-shell) {
   background: linear-gradient(180deg, #17131f 0%, #1b1727 50%, #17131f 100%);
 }
 html[data-app-theme="dark"] .teacher-theme {

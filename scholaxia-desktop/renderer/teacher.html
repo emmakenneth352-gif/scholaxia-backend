@@ -13,43 +13,8 @@
 </head>
 <body class="teacher-theme">
 
-<!-- ═══════════════ AUTH SCREEN ═══════════════ -->
-<div id="auth-screen" class="teacher-auth-page hidden">
-  <div class="teacher-auth-layout">
-    <div class="teacher-auth-hero">
-      <div class="teacher-auth-hero-inner">
-        <img src="assets/logo.png" alt="Scholaxia" class="teacher-auth-hero-logo" />
-        <h1>Teacher studio</h1>
-        <p class="teacher-auth-lead">Host live classes, share materials, publish exams &amp; grade your students — all in one place.</p>
-        <ul class="teacher-auth-features">
-          <li>&#127909; Go live with video, mic &amp; whiteboard</li>
-          <li>&#128218; Upload PDFs, worksheets &amp; video links</li>
-          <li>&#128221; Publish timed exams from a JSON file</li>
-          <li>&#128227; Send announcements to every student</li>
-        </ul>
-      </div>
-    </div>
-    <div class="teacher-auth-panel">
-      <img src="assets/logo.png" alt="" class="teacher-auth-logo" />
-      <span class="teacher-auth-eyebrow">Teacher sign in</span>
-      <h2>Welcome back</h2>
-      <form id="teacher-login-form">
-        <label id="teacher-name-label" for="teacher-login-email">Email</label>
-        <input type="email" id="teacher-login-email" required placeholder="you@school.com" autocomplete="email" />
-        <label id="teacher-email-label" for="teacher-login-password">Password</label>
-        <div class="sg-form-row">
-          <input type="password" id="teacher-login-password" required placeholder="Your password" autocomplete="current-password" />
-          <button type="button" id="teacher-pw-toggle" class="btn-sm">Show</button>
-        </div>
-        <p class="error-msg" id="teacher-login-error"></p>
-        <button type="submit" id="teacher-login-btn" class="teacher-login-btn">Log in</button>
-      </form>
-    </div>
-  </div>
-</div>
-
 <!-- ═══════════════ APP SCREEN ═══════════════ -->
-<div id="app-screen" class="app-shell app-shell-sidebar teacher-shell hidden">
+<div id="app-screen" class="app-shell app-shell-sidebar teacher-shell">
 
   <div class="sidebar-wrap" id="sidebar-wrap">
     <aside class="app-sidebar" aria-label="Teacher navigation">

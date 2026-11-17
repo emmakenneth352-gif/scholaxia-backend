@@ -24,233 +24,6 @@ body:has(.teacher-shell) {
   color: var(--t-text);
 }
 
-/* ── Login ── */
-.teacher-auth-page {
-  min-height: 100vh;
-  background: #f4f6f8;
-}
-
-.teacher-auth-layout {
-  min-height: 100vh;
-  display: grid;
-  grid-template-columns: 1.05fr 0.95fr;
-}
-
-.teacher-auth-hero {
-  position: relative;
-  display: flex;
-  align-items: center;
-  padding: 48px 56px;
-  background: linear-gradient(145deg, var(--t-blue-950) 0%, var(--t-blue-800) 38%, var(--t-blue-600) 72%, var(--t-sky) 100%);
-  color: #fff;
-  overflow: hidden;
-}
-
-.teacher-auth-hero::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(circle at 85% 15%, rgba(255, 255, 255, 0.14), transparent 42%),
-    radial-gradient(circle at 10% 90%, rgba(0, 0, 0, 0.18), transparent 50%);
-  pointer-events: none;
-}
-
-.teacher-auth-hero-inner {
-  position: relative;
-  z-index: 1;
-  max-width: 480px;
-}
-
-.teacher-auth-hero-logo {
-  width: 64px;
-  height: 64px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.12);
-  padding: 8px;
-  margin-bottom: 28px;
-  object-fit: contain;
-}
-
-.teacher-auth-eyebrow {
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  opacity: 0.85;
-  margin-bottom: 14px;
-}
-
-.teacher-auth-hero h1 {
-  font-family: "Plus Jakarta Sans", sans-serif;
-  font-size: clamp(1.85rem, 3.2vw, 2.45rem);
-  font-weight: 800;
-  line-height: 1.15;
-  letter-spacing: -0.03em;
-  margin-bottom: 16px;
-}
-
-.teacher-auth-lead {
-  font-size: 0.98rem;
-  line-height: 1.65;
-  opacity: 0.92;
-  margin-bottom: 28px;
-}
-
-.teacher-auth-features {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.teacher-auth-features li {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 0.92rem;
-  font-weight: 500;
-}
-
-.teacher-auth-features li span {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.12);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1rem;
-}
-
-.teacher-auth-panel {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 32px;
-  background: #fff;
-}
-
-.teacher-auth-card {
-  width: 100%;
-  max-width: 400px;
-}
-
-.teacher-auth-logo {
-  width: 56px;
-  height: 56px;
-  display: block;
-  margin: 0 auto 18px;
-  object-fit: contain;
-}
-
-.teacher-auth-card h2 {
-  text-align: center;
-  font-family: "Plus Jakarta Sans", sans-serif;
-  font-size: 1.45rem;
-  font-weight: 800;
-  color: #0f3320;
-  margin: 0 0 6px;
-  letter-spacing: -0.02em;
-}
-
-.teacher-auth-card .sub {
-  text-align: center;
-  color: #6b7280;
-  font-size: 0.9rem;
-  margin-bottom: 28px;
-}
-
-.teacher-auth-card label {
-  display: block;
-  margin-bottom: 16px;
-}
-
-.teacher-auth-card label span {
-  display: block;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: #6b7280;
-  margin-bottom: 6px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.teacher-auth-card input {
-  width: 100%;
-  padding: 12px 14px;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  font-size: 0.95rem;
-  background: #fafbfc;
-  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
-}
-
-.teacher-auth-card input:focus {
-  outline: none;
-  border-color: #c4b5fd;
-  box-shadow: 0 0 0 3px rgba(125, 211, 160, 0.22);
-  background: #fff;
-}
-
-.teacher-auth-card .pw-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.teacher-auth-card .pw-row input { flex: 1; }
-
-.teacher-auth-card .pw-toggle {
-  border: 1px solid #e5e7eb;
-  background: #faf9ff;
-  color: var(--t-blue-700);
-  border-radius: 10px;
-  padding: 12px 14px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.teacher-auth-card .error-msg {
-  min-height: 1.2em;
-  color: #dc2626;
-  font-size: 0.85rem;
-  margin: 4px 0 12px;
-}
-
-.teacher-login-btn {
-  width: 100%;
-  padding: 14px;
-  border: none;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--t-blue-700), var(--t-blue-500));
-  color: #fff;
-  font-weight: 700;
-  font-size: 0.95rem;
-  cursor: pointer;
-  box-shadow: 0 8px 24px rgba(124, 58, 237, 0.35);
-  transition: transform 0.15s, filter 0.15s, box-shadow 0.15s;
-}
-
-.teacher-login-btn:hover { transform: translateY(-1px); filter: brightness(1.04); }
-.teacher-login-btn:disabled { opacity: 0.7; cursor: wait; transform: none; }
-
-.teacher-auth-card .auth-footer {
-  text-align: center;
-  margin-top: 20px;
-  font-size: 0.85rem;
-}
-
-.teacher-auth-card .auth-footer a {
-  color: var(--t-blue-600);
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.teacher-auth-card .auth-footer a:hover { text-decoration: underline; }
-
 /* ── Main layout ── */
 .teacher-shell { min-height: 100vh; }
 .teacher-main { padding-bottom: 64px; }
@@ -1306,8 +1079,7 @@ body:has(.teacher-shell) {
 .teacher-theme .form-grid select:focus,
 .teacher-theme .teacher-ai-field input:focus,
 .teacher-theme .teacher-ai-field select:focus,
-.teacher-theme .announce-compose-input:focus,
-.teacher-theme .teacher-auth-card input:focus {
+.teacher-theme .announce-compose-input:focus {
   border-color: var(--t-blue-400);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
 }
@@ -1763,9 +1535,6 @@ body:has(.teacher-shell) {
 
 /* ── Responsive ── */
 @media (max-width: 960px) {
-  .teacher-auth-layout { grid-template-columns: 1fr; }
-  .teacher-auth-hero { padding: 40px 28px; min-height: auto; }
-  .teacher-auth-panel { padding: 32px 24px 48px; }
   .teacher-ai-fields { grid-template-columns: 1fr; }
   .announce-compose-footer { flex-direction: column; align-items: stretch; }
   .announce-send-btn { width: 100%; }
@@ -2035,8 +1804,7 @@ body:has(.teacher-shell) {
 }
 
 /* Page + auth backgrounds → soft platform violet */
-body:has(.teacher-shell),
-.teacher-auth-page {
+body:has(.teacher-shell) {
   background: linear-gradient(180deg, #f8f6ff 0%, #faf9ff 45%, #f5f2ff 100%);
 }
 .teacher-main { background: transparent; }

@@ -14,12 +14,11 @@ window.onload = function () {
   bindTeacherUI();
   setDefaultScheduleDate();
 
+  // No separate teacher login here — the desktop app signs in once on index.html.
   if (!getTeacherToken()) {
-    document.getElementById("auth-screen").classList.remove("hidden");
-    document.getElementById("app-screen").classList.add("hidden");
+    window.location.href = "index.html#auth";
     return;
   }
-  document.getElementById("auth-screen").classList.add("hidden");
   document.getElementById("app-screen").classList.remove("hidden");
   initTeacherUI();
   initTeacherSidebar();
@@ -69,74 +68,6 @@ function initTeacherUI() {
   if (avatar) {
     var initial = (user.name || user.email || "T").trim().charAt(0).toUpperCase();
     avatar.textContent = initial || "T";
-  }
-}
-
-function teacherNetworkMessage(err) {
-  var msg = (err && err.message) ? String(err.message) : "";
-  if (err && (err.name === "AbortError" || err.name === "TimeoutError")) {
-    return "Server is waking up — wait a moment and try again.";
-  }
-  if (msg === "Failed to fetch" || msg.indexOf("NetworkError") >= 0 || msg.indexOf("network") >= 0) {
-    return "Cannot reach Scholaxia server. Restart the app and check your internet.";
-  }
-  return msg || "Login failed. Please try again.";
-}
-
-function formatTeacherApiError(data, status) {
-  var detail = data && data.detail;
-  if (typeof detail === "string") return detail;
-  if (Array.isArray(detail)) return detail.map(function (d) { return d.msg || d; }).join(", ");
-  if (detail && typeof detail === "object") return detail.msg || JSON.stringify(detail);
-  if (status === 401) return "Wrong email or password.";
-  if (status === 403) return "Account disabled.";
-  if (status === 502) return "Server proxy error — fully close the app and open TEACHER.bat again.";
-  if (status === 501) return "Old desktop server still running. Close ALL Scholaxia windows, then open TEACHER.bat again.";
-  return "Login failed (HTTP " + status + ").";
-}
-
-async function teacherLogin(ev) {
-  if (ev) ev.preventDefault();
-  var email = document.getElementById("teacher-login-email").value.trim();
-  var password = document.getElementById("teacher-login-password").value;
-  var err = document.getElementById("teacher-login-error");
-  var btn = document.getElementById("teacher-login-btn");
-  err.textContent = "";
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = "Logging in…";
-  }
-  try {
-    var signal = typeof fetchTimeout === "function" ? fetchTimeout(45000) : teacherFetchTimeout(45000);
-    var res = await fetch(API_BASE + "/api/v1/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: email, password: password }),
-      signal: signal,
-    });
-    var data = await res.json().catch(function () { return {}; });
-    if (!res.ok) {
-      throw new Error(formatTeacherApiError(data, res.status));
-    }
-    var role = data.role || (data.user && data.user.role) || "";
-    if (role !== "teacher" && role !== "admin") {
-      throw new Error("This portal is for teachers only. Use the student or admin app.");
-    }
-    saveTeacherSession(data, email, data.user && data.user.full_name);
-    try {
-      var profile = await teacherApi("/api/v1/teachers/me");
-      if (profile && profile.subjects) {
-        localStorage.setItem("sia_teacher_subjects", JSON.stringify(profile.subjects));
-      }
-    } catch (e) { /* optional */ }
-    window.location.reload();
-  } catch (e) {
-    err.textContent = teacherNetworkMessage(e);
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = "Sign in";
-    }
   }
 }
 
@@ -1639,19 +1570,6 @@ function bindTeacherUI() {
   if (window._teacherUIBound) return;
   window._teacherUIBound = true;
 
-  var loginForm = document.getElementById("teacher-login-form");
-  if (loginForm) loginForm.addEventListener("submit", teacherLogin);
-
-  var pwToggle = document.getElementById("teacher-pw-toggle");
-  var pwInput = document.getElementById("teacher-login-password");
-  if (pwToggle && pwInput) {
-    pwToggle.addEventListener("click", function () {
-      var show = pwInput.type === "password";
-      pwInput.type = show ? "text" : "password";
-      pwToggle.textContent = show ? "Hide" : "Show";
-    });
-  }
-
   var logoutBtn = document.getElementById("teacher-logout-btn");
   if (logoutBtn) logoutBtn.addEventListener("click", teacherLogout);
 
@@ -1747,7 +1665,6 @@ function bindTeacherUI() {
   });
 }
 
-window.teacherLogin = teacherLogin;
 window.teacherLogout = teacherLogout;
 window.showTeacherPage = showTeacherPage;
 window.loadTeacherLive = loadTeacherLive;
