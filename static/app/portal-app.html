@@ -3234,7 +3234,7 @@ tr:last-child td{border-bottom:none}
     cbtApi("/retake-lookup/" + encodeURIComponent(reg)).then(function (d) {
       var ms = (d && d.matches) || [];
       if (!ms.length) {
-        box.innerHTML = '<div class="empty">No student found with reg number <code>' + esc(reg.toUpperCase()) + '</code>. Check the slip, or approve the student on <strong>Approve Students</strong> first.</div>';
+        box.innerHTML = '<div class="empty">No student found with reg number <code>' + esc(reg.toUpperCase()) + '</code> in this school. Check the slip, make sure the right school is selected, or register/approve the student on <strong>Approve Students</strong> first.</div>';
         retakeHistory(reg);
         return;
       }

@@ -1637,13 +1637,117 @@ async def exam_students_aggregate(
     return {"students": out}
 
 
+def _reg_key(expr):
+    """Portable normalization for registration / admission numbers.
+
+    Slips come back typed with and without separators ("DL/26/515595",
+    "dl26515595", "DL-26-515595"), so numbers are compared on their letters
+    and digits only. Nested replace() is used instead of regexp_replace so the
+    same SQL runs on Postgres and on the SQLite test database.
+    """
+    key = func.upper(func.coalesce(expr, ""))
+    for ch in (" ", "/", "-", "_", ".", "\\"):
+        key = func.replace(key, ch, "")
+    return key
+
+
+def _reg_key_text(reg: str) -> str:
+    return "".join(ch for ch in (reg or "").upper() if ch.isalnum())
+
+
+class _RegOnlyCredit:
+    """Stand-in credential for a student approved for school exams through the
+    school roster (admission number only) instead of Register Student.
+
+    They have no access-code row, so the lookup used to answer "no student
+    found" for a student the school could see on Approve Students.
+    """
+
+    def __init__(self, reg_number: str):
+        self.reg_number = reg_number
+        self.access_code = ""
+        self.is_used = False
+        self.requested_subjects = None
+        self.is_restricted = False
+
+
+async def _retake_rows_from_roster(db: AsyncSession, sid: UUID, reg: str):
+    """Last resort for "Grant Retake": match the student by admission number.
+
+    Exam registrations mint an access-code row; students approved through the
+    school roster keep only StudentProfile.school_student_id, so their slip
+    number never matched and teachers were told "no student found" for a
+    student they had just approved. Their scheduled exams are returned, and a
+    null-exam row is returned when nothing is scheduled yet so the page still
+    shows who the student is.
+    """
+    key = _reg_key_text(reg)
+    if not key:
+        return []
+    students = (
+        await db.execute(
+            select(User, StudentProfile)
+            .join(StudentProfile, StudentProfile.user_id == User.id)
+            .where(
+                User.school_id == sid,
+                User.role == UserRole.student,
+                _reg_key(StudentProfile.school_student_id) == key,
+            )
+        )
+    ).all()
+    out = []
+    for user, _profile in students:
+        codes = (
+            await db.execute(
+                select(SchoolExamAccessCode)
+                .where(SchoolExamAccessCode.student_id == user.id)
+                .order_by(SchoolExamAccessCode.created_at.desc())
+            )
+        ).scalars().all()
+        any_code = codes[0] if codes else _RegOnlyCredit(reg)
+        code_by_exam = {str(c.exam_id): c for c in codes if c.exam_id}
+        exams = (
+            await db.execute(
+                select(SchoolExam)
+                .join(SchoolExamAssignment, SchoolExamAssignment.exam_id == SchoolExam.id)
+                .where(
+                    SchoolExamAssignment.student_id == user.id,
+                    SchoolExam.school_id == sid,
+                )
+                .order_by(SchoolExam.subject)
+            )
+        ).scalars().all()
+        if not exams:
+            # Assignments can be cleaned up after results — the exams the
+            # student actually sat still allow a retake.
+            exams = (
+                await db.execute(
+                    select(SchoolExam)
+                    .join(SchoolExamResult, SchoolExamResult.exam_id == SchoolExam.id)
+                    .where(
+                        SchoolExamResult.student_id == user.id,
+                        SchoolExam.school_id == sid,
+                    )
+                    .order_by(SchoolExam.subject)
+                )
+            ).scalars().all()
+        if exams:
+            for exam in exams:
+                out.append((code_by_exam.get(str(exam.id), any_code), exam, user))
+        else:
+            out.append((any_code, None, user))
+    return out
+
+
 async def _retake_rows(db: AsyncSession, sid: UUID, reg: str):
     """Access-code rows for one registration number.
 
     Older slips were saved without a school_id, so a strict school filter made
     the lookup answer "no student found" — that is what broke retakes for
     teachers. When the strict pass is empty we fall back to the student's own
-    school, which keeps the tenant check while finding those rows.
+    school, which keeps the tenant check while finding those rows. Numbers are
+    then compared without separators, and finally the school roster's
+    admission numbers are searched.
     """
     q = (
         select(SchoolExamAccessCode, SchoolExam, User)
@@ -1655,7 +1759,21 @@ async def _retake_rows(db: AsyncSession, sid: UUID, reg: str):
     rows = (await db.execute(q.where(SchoolExamAccessCode.school_id == sid))).all()
     if not rows:
         rows = (await db.execute(q.where(User.school_id == sid))).all()
-    return rows
+    if not rows:
+        key = _reg_key_text(reg)
+        loose = (
+            select(SchoolExamAccessCode, SchoolExam, User)
+            .join(User, User.id == SchoolExamAccessCode.student_id)
+            .outerjoin(SchoolExam, SchoolExam.id == SchoolExamAccessCode.exam_id)
+            .where(_reg_key(SchoolExamAccessCode.reg_number) == key)
+            .order_by(SchoolExamAccessCode.created_at.desc())
+        )
+        rows = (await db.execute(loose.where(SchoolExamAccessCode.school_id == sid))).all()
+        if not rows:
+            rows = (await db.execute(loose.where(User.school_id == sid))).all()
+    if rows:
+        return rows
+    return await _retake_rows_from_roster(db, sid, reg)
 
 
 @router.get("/retake-lookup/{reg_number}")
