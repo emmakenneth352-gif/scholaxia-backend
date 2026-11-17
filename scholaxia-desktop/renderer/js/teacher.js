@@ -195,7 +195,7 @@ function getSchedulePayload(goLiveNow) {
   var visibility = visEl ? visEl.value : "public";
 
   var audEl = document.getElementById("host-audience");
-  var audience = audEl ? audEl.value : "all";
+  var category = (audEl && audEl.value) || "jamb";
 
   var body = {
     title: title,
@@ -203,31 +203,41 @@ function getSchedulePayload(goLiveNow) {
     duration_minutes: duration,
     go_live_now: goLiveNow,
     visibility: visibility,
-    audience: audience || "all",
+    audience: "all",
   };
+  var note = "";
 
-  if (visibility === "private") {
-    // Invited students/emails (kids are invited by email and join from their
-    // Live Class list — no code needed). Other students still join by code.
-    var ids = [];
-    var hidden = document.getElementById("host-invited-students");
-    if (hidden) {
-      Array.prototype.forEach.call(hidden.options || [], function (o) {
-        if (o.selected && o.value) ids.push(o.value);
-      });
+  if (visibility === "scholarship") {
+    if (category === "school") {
+      var schoolEmail = ((document.getElementById("host-school-email") || {}).value || "").trim();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(schoolEmail)) {
+        throw new Error("Enter the school email for a school-only class.");
+      }
+      var gid = (document.getElementById("host-school-group") || {}).value || "";
+      body.visibility = gid ? "school_group" : "private";
+      if (gid) body.school_group_id = gid;
+      body.audience = "all";
+      note = "School class — " + schoolEmail;
+    } else if (category === "others") {
+      body.visibility = "private";
+      body.audience = "all";
+      note = "Scholarship class — others. Join with the class code.";
+    } else {
+      body.visibility = "public";
+      body.audience = category;
     }
-    if (ids.length) body.invited_student_ids = ids;
-    // Direct email invites: every address gets a class invitation email.
-    var emailInput = document.getElementById("host-invite-emails");
-    var rawEmails = (emailInput && emailInput.value) || "";
-    var emails = rawEmails.split(",").map(function (s) { return s.trim(); }).filter(function (s) { return s.indexOf("@") > 0; });
-    if (emails.length) body.invited_student_emails = emails;
+  } else if (visibility === "private") {
+    body.visibility = "private";
+    body.audience = "all";
+    var modeEl = document.querySelector('input[name="host-private-mode"]:checked');
+    if (modeEl && modeEl.value === "one_on_one") {
+      note = "Special one-on-one. Join with the class code.";
+    }
+  } else {
+    body.visibility = "public";
+    body.audience = "all";
   }
-  if (visibility === "school_group") {
-    var gid = document.getElementById("host-school-group").value;
-    if (!gid) throw new Error("Select a school group.");
-    body.school_group_id = gid;
-  }
+  if (note) body.description = note;
 
   if (!goLiveNow) {
     if (!date || !startTime) throw new Error("Pick a date and start time to schedule");
@@ -320,7 +330,15 @@ function showTeacherHostCode(created, body, goLiveNow) {
   var openWrap = document.getElementById("host-code-open-wrap");
   if (value) value.textContent = code;
   if (title) title.textContent = goLiveNow ? "Class is live — share this code" : "Class scheduled — share this code";
-  if (hint) hint.textContent = "Students open Join Live, paste this code, and they're in. It also lands in their Access Code tab automatically.";
+  if (hint) {
+    if (body && body.visibility === "public" && (body.audience || "all") === "all") {
+      hint.textContent = "Every student can already join this class without a code. Share the code only if you want to give a shortcut.";
+    } else if (body && body.description && body.description.indexOf("one-on-one") >= 0) {
+      hint.textContent = "Send this code to your one-on-one student. Nobody else can join.";
+    } else {
+      hint.textContent = "Students open Join Live, paste this code, and they're in. It also lands in their Access Code tab automatically.";
+    }
+  }
   if (openWrap) openWrap.hidden = !goLiveNow;
   if (box) {
     box.hidden = false;
@@ -581,24 +599,39 @@ var HOST_AUDIENCE_LABELS = {
   coding: "Coding / Skills",
 };
 
+function classKindLabel(c) {
+  var aud = (c && c.audience) || "all";
+  if (aud !== "all") return "Scholarship · " + (HOST_AUDIENCE_LABELS[aud] || aud);
+  return visibilityLabel((c && c.visibility) || "public");
+}
+
 function onHostAudienceChange() {
   var el = document.getElementById("host-audience");
   var hint = document.getElementById("host-audience-hint");
-  if (!el || !hint) return;
-  var key = el.value || "all";
-  if (key === "all") {
-    hint.textContent = "Everyone can join with the class code.";
+  if (!el) return;
+  var key = el.value || "jamb";
+  var emailRow = document.getElementById("host-school-email-row");
+  var schoolWrap = document.getElementById("host-school-wrap");
+  if (emailRow) emailRow.classList.toggle("hidden", key !== "school");
+  if (schoolWrap) schoolWrap.classList.toggle("hidden", key !== "school");
+  if (!hint) return;
+  if (key === "others") {
+    hint.textContent = "Others — no school email needed. A class code is created; share it with whoever should join.";
+    return;
+  }
+  if (key === "school") {
+    hint.textContent = "School only — enter the school email. A class code is created; give it to that school's students.";
     return;
   }
   var label = HOST_AUDIENCE_LABELS[key] || key;
-  hint.textContent = "Only paid " + label + " students are notified and can join — no code needed.";
+  hint.textContent = "Only " + label + " students are notified and can join — no code needed.";
   try {
     teacherApi("/api/v1/memberships/paid?audience=" + encodeURIComponent(key) + "&limit=1")
       .then(function (data) {
         var count = data && typeof data.count === "number" ? data.count : 0;
         hint.textContent =
-          "Only paid " + label + " students are notified and can join — no code needed. " +
-          count + " paid member" + (count === 1 ? "" : "s") + " right now.";
+          "Only " + label + " students are notified and can join — no code needed. " +
+          count + " member" + (count === 1 ? "" : "s") + " right now.";
       })
       .catch(function () { /* count is optional */ });
   } catch (e) { /* ignore */ }
@@ -609,13 +642,24 @@ function onHostVisibilityChange() {
   var vis = visEl ? visEl.value : "public";
   var priv = document.getElementById("host-private-wrap");
   var school = document.getElementById("host-school-wrap");
+  var schol = document.getElementById("host-scholarship-wrap");
   if (priv) priv.classList.toggle("hidden", vis !== "private");
-  if (school) school.classList.toggle("hidden", vis !== "school_group");
+  if (schol) schol.classList.toggle("hidden", vis !== "scholarship");
+  if (school) school.classList.toggle("hidden", vis !== "scholarship");
   document.querySelectorAll(".host-vis-option").forEach(function (opt) {
     var input = opt.querySelector('input[name="host-visibility"]');
     opt.classList.toggle("is-selected", !!(input && input.checked));
   });
-  onHostAudienceChange();
+  var hint = document.getElementById("host-vis-hint");
+  if (hint) {
+    hint.textContent = vis === "private"
+      ? "Private class — only students who have your code can join."
+      : vis === "scholarship"
+        ? "Scholarship class — pick exactly which students below."
+        : "Public class — any student on Scholaxia can join. No code needed.";
+  }
+  if (vis === "scholarship") onHostAudienceChange();
+  else if (school) school.classList.add("hidden");
 }
 
 window.onHostAudienceChange = onHostAudienceChange;
@@ -828,7 +872,7 @@ async function loadTeacherLive() {
     el.innerHTML = '<table class="data-table"><thead><tr><th>Title</th><th>Code</th><th>Type</th><th>Subject</th><th>Schedule</th><th>Status</th><th></th></tr></thead><tbody>' +
       rows.map(function (c) {
         var badge = c.is_live ? '<span class="badge live">LIVE</span>' : '<span class="badge muted">Scheduled</span>';
-        var vis = '<span class="badge">' + visibilityLabel(c.visibility) + "</span>";
+        var vis = '<span class="badge">' + escHtml(classKindLabel(c)) + "</span>";
         var codeCell = c.join_code ? '<code class="join-code">' + escHtml(c.join_code) + "</code>" : "—";
         var actions = "";
         if (c.is_live) {

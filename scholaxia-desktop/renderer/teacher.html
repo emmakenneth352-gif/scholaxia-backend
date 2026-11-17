@@ -125,51 +125,55 @@
           </div>
         </div>
 
-        <div class="host-visibility-row" role="radiogroup" aria-label="Who can join">
-          <span class="host-visibility-label">Who can join?</span>
+        <div class="host-visibility-row" role="radiogroup" aria-label="Class type">
+          <span class="host-visibility-label">What kind of class?</span>
           <div class="host-vis-grid">
             <label class="host-vis-option is-selected">
               <input type="radio" name="host-visibility" value="public" checked onchange="onHostVisibilityChange()" />
               <span class="host-vis-icon" aria-hidden="true">&#127760;</span>
-              <span class="host-vis-text"><strong>Everyone</strong><small>Any student joins with the class code</small></span>
+              <span class="host-vis-text"><strong>Public class</strong><small>Any student joins &mdash; no code</small></span>
             </label>
             <label class="host-vis-option">
               <input type="radio" name="host-visibility" value="private" onchange="onHostVisibilityChange()" />
               <span class="host-vis-icon" aria-hidden="true">&#128274;</span>
-              <span class="host-vis-text"><strong>Specific students</strong><small>Only invited students (optional) + code</small></span>
+              <span class="host-vis-text"><strong>Private class</strong><small>Only students with your code</small></span>
             </label>
             <label class="host-vis-option">
-              <input type="radio" name="host-visibility" value="school_group" onchange="onHostVisibilityChange()" />
-              <span class="host-vis-icon" aria-hidden="true">&#127979;</span>
-              <span class="host-vis-text"><strong>A school group</strong><small>Whole class group joins together</small></span>
+              <input type="radio" name="host-visibility" value="scholarship" onchange="onHostVisibilityChange()" />
+              <span class="host-vis-icon" aria-hidden="true">&#127891;</span>
+              <span class="host-vis-text"><strong>Scholarship students</strong><small>JAMB, WAEC, NECO, a school&hellip;</small></span>
             </label>
           </div>
         </div>
-
-        <div class="host-audience-block">
-          <div class="form-row">
-            <label for="host-audience">Paid students only</label>
-            <select id="host-audience" onchange="onHostAudienceChange()">
-              <option value="all">All students (free to join)</option>
-              <option value="jamb">JAMB members only</option>
-              <option value="waec">WAEC members only</option>
-              <option value="neco">NECO members only</option>
-              <option value="bece">Junior WAEC (BECE) members only</option>
-              <option value="coding">Coding / Skills members only</option>
-            </select>
-          </div>
-          <p class="host-audience-hint" id="host-audience-hint"></p>
-        </div>
+        <p class="host-audience-hint" id="host-vis-hint">Public class &mdash; any student on Scholaxia can join. No code needed.</p>
 
         <div class="host-extra-panel hidden" id="host-private-wrap">
-          <span class="sg-field-label">Invited students</span>
-          <div class="student-chip-picker" id="host-invited-picker"></div>
-          <span class="sg-selected-count" id="host-selected-count">Tap to select</span>
-          <select id="host-invited-students" multiple class="hidden"></select>
-          <div class="form-row" style="margin-top:10px">
-            <label for="host-invite-emails">Invite by email (kids get the class in their list)</label>
-            <input type="text" id="host-invite-emails" placeholder="kid1@email.com, kid2@email.com" />
+          <span class="sg-field-label">Private class &mdash; who is it for?</span>
+          <div class="host-private-modes">
+            <label><input type="radio" name="host-private-mode" value="group" checked /> Group of students</label>
+            <label><input type="radio" name="host-private-mode" value="one_on_one" /> &#128100; Special one-on-one</label>
           </div>
+          <p class="host-audience-hint">A code is created with the class. Only the students you give that code to can join &mdash; without it nobody gets in.</p>
+        </div>
+
+        <div class="host-extra-panel hidden" id="host-scholarship-wrap">
+          <span class="sg-field-label">Scholarship students &mdash; pick one category</span>
+          <div class="form-row" style="margin-top:10px">
+            <label for="host-audience">Category</label>
+            <select id="host-audience" onchange="onHostAudienceChange()">
+              <option value="jamb">JAMB students only</option>
+              <option value="waec">WAEC students only</option>
+              <option value="neco">NECO students only</option>
+              <option value="bece">Junior WAEC (BECE) students only</option>
+              <option value="school">A school only</option>
+              <option value="others">Others</option>
+            </select>
+          </div>
+          <div class="form-row hidden" id="host-school-email-row">
+            <label for="host-school-email">School email</label>
+            <input type="email" id="host-school-email" placeholder="admin@school.edu.ng" />
+          </div>
+          <p class="host-audience-hint" id="host-audience-hint"></p>
         </div>
 
         <div class="host-extra-panel hidden" id="host-school-wrap">

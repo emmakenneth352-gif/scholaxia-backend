@@ -5352,3 +5352,18 @@ html[data-app-theme="dark"] .xexam-card { background: #1e1b2a; border-color: #3f
 html[data-app-theme="dark"] .xexam-card input { background: #262233; border-color: #4b4560; color: #f1eefb; }
 html[data-app-theme="dark"] .xexam-signed { background: #17352a; border-color: #2f6b53; }
 html[data-app-theme="dark"] .xexam-signed-line { color: #a7f3d0; }
+
+.host-private-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin: 8px 0 2px;
+}
+.host-private-modes label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}

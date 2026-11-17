@@ -81,27 +81,42 @@
 
             <div class="host-card">
               <h3>Host a class</h3>
-              <div class="vis-row">
-                <label class="vis-opt"><input type="radio" name="host-visibility" value="public" checked /> Public</label>
-                <label class="vis-opt"><input type="radio" name="host-visibility" value="private" /> Private</label>
-                <label class="vis-opt"><input type="radio" name="host-visibility" value="school_group" /> School group</label>
+              <div class="vis-row" role="radiogroup" aria-label="Class type">
+                <label class="vis-opt"><input type="radio" name="host-visibility" value="public" checked /> 🌍 Public class</label>
+                <label class="vis-opt"><input type="radio" name="host-visibility" value="private" /> 🔒 Private class</label>
+                <label class="vis-opt"><input type="radio" name="host-visibility" value="scholarship" /> 🎓 Scholarship students</label>
               </div>
-              <div class="vis-row" style="margin-top:.7rem">
-                <label style="font-weight:700;font-size:.9rem;min-width:150px">Paid students only</label>
-                <select id="hostAudience" style="padding:.45rem .6rem;border-radius:8px;border:1px solid #ddd3f5">
-                  <option value="all">All students (free to join)</option>
-                  <option value="jamb">JAMB members only</option>
-                  <option value="waec">WAEC members only</option>
-                  <option value="neco">NECO members only</option>
-                  <option value="bece">Junior WAEC (BECE) members only</option>
-                  <option value="coding">Coding / Skills members only</option>
-                </select>
-              </div>
-              <p class="hint" id="hostAudienceHint">Everyone can join with the class code.</p>
+              <p class="hint" id="hostVisHint">Public class — any student on Scholaxia can join. No code needed.</p>
+
               <div id="hostPrivateWrap" class="extra-panel" hidden>
-                <strong style="font-size:0.9rem">Private class — join with code</strong>
-                <p class="hint">After you create the class, Scholaxia generates a unique access code (e.g. SX-…). Copy or share that code with your students. They join with the code — no email-by-email invitations.</p>
-                <p class="hint">Private classes are free to join with the code. Students do not need to be invited individually.</p>
+                <strong style="font-size:0.9rem">Private class — code only</strong>
+                <div class="vis-row" style="margin:.55rem 0">
+                  <label class="vis-opt"><input type="radio" name="host-private-mode" value="group" checked /> Group of students</label>
+                  <label class="vis-opt"><input type="radio" name="host-private-mode" value="one_on_one" /> 👤 Special one-on-one</label>
+                </div>
+                <p class="hint">A code (like SX-4F8A21C3) is created with the class. Only the students you give that code to can join — without the code nobody gets in.</p>
+              </div>
+
+              <div id="hostScholarshipWrap" class="extra-panel" hidden>
+                <strong style="font-size:0.9rem">Scholarship students — pick one category</strong>
+                <div class="vis-row" style="margin-top:.55rem">
+                  <label style="font-weight:700;font-size:.9rem;min-width:150px">Category</label>
+                  <select id="hostAudience" style="padding:.45rem .6rem;border-radius:8px;border:1px solid #ddd3f5">
+                    <option value="jamb">JAMB students only</option>
+                    <option value="waec">WAEC students only</option>
+                    <option value="neco">NECO students only</option>
+                    <option value="bece">Junior WAEC (BECE) students only</option>
+                    <option value="school">A school only</option>
+                    <option value="others">Others</option>
+                  </select>
+                </div>
+                <label id="hostSchoolEmailWrap" hidden>School email
+                  <input type="email" id="hostSchoolEmail" placeholder="admin@school.edu.ng" />
+                </label>
+                <label id="hostSchoolGroupWrap" hidden>School group (optional)
+                  <select id="hostSchoolGroup"><option value="">No group</option></select>
+                </label>
+                <p class="hint" id="hostAudienceHint">Only JAMB students see and join this class — no code needed.</p>
               </div>
               <div id="hostCodeShare" class="host-code-share" hidden>
                 <strong id="hostCodeTitle">Share this access code</strong>
@@ -114,13 +129,6 @@
                 <div class="btn-row" id="hostCodeOpenWrap" hidden>
                   <button type="button" class="btn btn-primary" id="hostCodeOpenBtn">Open classroom</button>
                 </div>
-              </div>
-              <div id="hostSchoolWrap" class="extra-panel" hidden>
-                <strong style="font-size:0.9rem">School class — school students + code</strong>
-                <p class="hint">Only students in the selected school group can join. They must use their school account and the class access code.</p>
-                <label>School group
-                  <select id="hostSchoolGroup"><option value="">Loading…</option></select>
-                </label>
               </div>
               <div class="form-grid">
                 <label>Title <input id="hostTitle" placeholder="e.g. Algebra — Quadratics" /></label>

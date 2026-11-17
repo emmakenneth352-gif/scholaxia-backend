@@ -186,57 +186,68 @@
     coding: "Coding / Skills",
   };
 
+  function hostVis() {
+    return (document.querySelector('input[name="host-visibility"]:checked') || {}).value || "public";
+  }
+
+  function showPanel(el, on, display) {
+    if (!el) return;
+    if (on) { el.hidden = false; el.removeAttribute("hidden"); el.style.display = display || "grid"; }
+    else { el.hidden = true; el.setAttribute("hidden", ""); el.style.display = "none"; }
+  }
+
+  function classKindLabel(c) {
+    var aud = (c && c.audience) || "all";
+    if (aud !== "all") return "Scholarship · " + (HOST_AUDIENCE_LABELS[aud] || aud);
+    var v = (c && c.visibility) || "public";
+    if (v === "private") return "Private";
+    if (v === "school_group") return "School";
+    if (v === "public") return "Public";
+    return "Subject";
+  }
+
   function onAudienceChange() {
     var el = $("hostAudience");
     var hint = $("hostAudienceHint");
     if (!el || !hint) return;
-    var key = el.value || "all";
-    if (key === "all") {
-      hint.textContent = "Everyone can join with the class code.";
+    var key = el.value || "jamb";
+    showPanel($("hostSchoolEmailWrap"), key === "school", "block");
+    showPanel($("hostSchoolGroupWrap"), key === "school", "block");
+    if (key === "others") {
+      hint.textContent = "Others — no school email needed. A class code is created; share it with whoever should join.";
       return;
     }
-    hint.textContent =
-      "Only paid " + (HOST_AUDIENCE_LABELS[key] || key) +
-      " students are notified and can join — no code needed.";
+    if (key === "school") {
+      hint.textContent = "School only — enter the school email. A class code is created; give it to that school's students.";
+      return;
+    }
+    var label = HOST_AUDIENCE_LABELS[key] || key;
+    hint.textContent = "Only " + label + " students are notified and can join — no code needed.";
     try {
       api.api("/api/v1/memberships/paid?audience=" + encodeURIComponent(key) + "&limit=1")
         .then(function (data) {
           var count = data && typeof data.count === "number" ? data.count : 0;
           hint.textContent =
-            "Only paid " + (HOST_AUDIENCE_LABELS[key] || key) +
-            " students are notified and can join — no code needed. " + count +
-            " paid member" + (count === 1 ? "" : "s") + " right now.";
+            "Only " + label + " students are notified and can join — no code needed. " +
+            count + " member" + (count === 1 ? "" : "s") + " right now.";
         })
         .catch(function () {});
     } catch (e) { /* count is optional */ }
   }
 
   function onVisibilityChange() {
-    var vis = (document.querySelector('input[name="host-visibility"]:checked') || {}).value || "public";
-    var priv = $("hostPrivateWrap");
-    var school = $("hostSchoolWrap");
-    if (priv) {
-      if (vis === "private") {
-        priv.hidden = false;
-        priv.removeAttribute("hidden");
-        priv.style.display = "grid";
-      } else {
-        priv.hidden = true;
-        priv.setAttribute("hidden", "");
-        priv.style.display = "none";
-      }
+    var vis = hostVis();
+    showPanel($("hostPrivateWrap"), vis === "private", "grid");
+    showPanel($("hostScholarshipWrap"), vis === "scholarship", "grid");
+    var hint = $("hostVisHint");
+    if (hint) {
+      hint.textContent = vis === "private"
+        ? "Private class — only students who have your code can join."
+        : vis === "scholarship"
+          ? "Scholarship class — pick exactly which students below."
+          : "Public class — any student on Scholaxia can join. No code needed.";
     }
-    if (school) {
-      if (vis === "school_group") {
-        school.hidden = false;
-        school.removeAttribute("hidden");
-        school.style.display = "grid";
-      } else {
-        school.hidden = true;
-        school.setAttribute("hidden", "");
-        school.style.display = "none";
-      }
-    }
+    if (vis === "scholarship") onAudienceChange();
   }
 
   function getHostPayload(goLiveNow) {
@@ -248,26 +259,48 @@
     var duration = parseInt(($("hostDuration") && $("hostDuration").value) || "60", 10) || 60;
     if (!title || !subject) throw new Error("Title and subject are required.");
 
-    var vis = (document.querySelector('input[name="host-visibility"]:checked') || {}).value || "public";
+    var vis = hostVis();
     var audEl = $("hostAudience");
-    var audience = (audEl && audEl.value) || "all";
+    var category = (audEl && audEl.value) || "jamb";
     var body = {
       title: title,
       subject: subject,
       duration_minutes: duration,
       go_live_now: !!goLiveNow,
       visibility: vis,
-      audience: audience,
+      audience: "all",
     };
+    var note = "";
 
-    if (vis === "private") {
-      // Code-only private class — no email invites required.
+    if (vis === "scholarship") {
+      if (category === "school") {
+        var schoolEmail = (($("hostSchoolEmail") && $("hostSchoolEmail").value) || "").trim();
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(schoolEmail)) {
+          throw new Error("Enter the school email for a school-only class.");
+        }
+        var gid = ($("hostSchoolGroup") && $("hostSchoolGroup").value) || "";
+        body.visibility = gid ? "school_group" : "private";
+        if (gid) body.school_group_id = gid;
+        body.audience = "all";
+        note = "School class — " + schoolEmail;
+      } else if (category === "others") {
+        body.visibility = "private";
+        body.audience = "all";
+        note = "Scholarship class — others. Join with the class code.";
+      } else {
+        body.visibility = "public";
+        body.audience = category;
+      }
+    } else if (vis === "private") {
+      body.visibility = "private";
+      body.audience = "all";
+      var modeEl = document.querySelector('input[name="host-private-mode"]:checked');
+      if (modeEl && modeEl.value === "one_on_one") note = "Special one-on-one. Join with the class code.";
+    } else {
+      body.visibility = "public";
+      body.audience = "all";
     }
-    if (vis === "school_group") {
-      var gid = ($("hostSchoolGroup") && $("hostSchoolGroup").value) || "";
-      if (!gid) throw new Error("Select a school group.");
-      body.school_group_id = gid;
-    }
+    if (note) body.description = note;
 
     function parseDT(dateStr, timeStr) {
       if (!dateStr || !timeStr) return null;
@@ -373,7 +406,15 @@
     };
     value.textContent = code;
     if (title) title.textContent = goLiveNow ? "Class is live — share this code" : "Class scheduled — share this code";
-    if (hint) hint.textContent = "Copy or share this access code so students can join.";
+    if (hint) {
+      if (body && body.visibility === "public" && (body.audience || "all") === "all") {
+        hint.textContent = "Every student can already join this class without a code. Share the code only if you want to give a shortcut.";
+      } else if (body && body.description && body.description.indexOf("one-on-one") >= 0) {
+        hint.textContent = "Send this code to your one-on-one student. Nobody else can join.";
+      } else {
+        hint.textContent = "Copy or share this access code so students can join.";
+      }
+    }
     if (openWrap) openWrap.hidden = !goLiveNow;
     box.hidden = false;
     try {
@@ -712,7 +753,7 @@ async function endClass(id) {
             '<p class="meta">' +
             esc(c.subject || "") +
             " · " +
-            esc(c.visibility || "public") +
+            esc(classKindLabel(c)) +
             (c.join_code ? ' · <code class="join-code">' + esc(c.join_code) + "</code>" : "") +
             "</p>" +
             '<p class="meta">' +
