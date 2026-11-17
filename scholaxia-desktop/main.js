@@ -441,10 +441,25 @@ async function runInstallerFile(filePath, sender) {
       notify({ ok: false, error: "The downloaded update is missing. Please download it again." });
       return;
     }
-    const openError = await shell.openPath(p);
-    if (openError) {
-      notify({ ok: false, error: "Windows could not open the installer (" + openError + "). Try downloading again." });
-      return;
+    // Start Setup as its own process. shell.openPath() goes through
+    // ShellExecute, which silently reports nothing when Windows (SmartScreen)
+    // holds the unsigned exe — the download finished, no installer appeared,
+    // and the update never installed. spawn() starts the exe directly.
+    let started = false;
+    try {
+      const { spawn } = require("child_process");
+      const child = spawn(p, [], { detached: true, stdio: "ignore" });
+      child.unref();
+      started = true;
+    } catch (err) {
+      started = false;
+    }
+    if (!started) {
+      const openError = await shell.openPath(p);
+      if (openError) {
+        notify({ ok: false, error: "Windows could not open the installer (" + openError + "). Try downloading again." });
+        return;
+      }
     }
     notify({ ok: true });
     // Close the app so Setup can replace the running files. Windows will not
@@ -452,7 +467,7 @@ async function runInstallerFile(filePath, sender) {
     // downloaded updates used to finish without anything actually changing.
     setTimeout(() => {
       try { app.quit(); } catch (err) { /* ignore */ }
-    }, 1500);
+    }, 2500);
   } catch (err) {
     console.error("runInstallerFile failed", err);
     notify({ ok: false, error: "Could not open the installer. Please try again." });

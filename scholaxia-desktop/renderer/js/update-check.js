@@ -123,36 +123,37 @@
               if (status) status.textContent = (res && res.error) || "Download failed. Try again.";
               return;
             }
-            if (status) status.textContent = "Download finished. Tap Install, click through the Setup, then reopen Scholaxia.";
             var bar2 = document.getElementById("desktop-update-bar");
             if (bar2) bar2.style.width = "100%";
             var pct2 = document.getElementById("desktop-update-pct");
             if (pct2) pct2.textContent = "Ready to install";
-            go.textContent = "Install now";
-            go.style.opacity = "1";
-            go.style.pointerEvents = "auto";
-            // onclick (not addEventListener): a retry-then-success sequence
-            // must not stack duplicate handlers that launch Setup twice.
-            go.onclick = function (ev2) {
-              ev2.preventDefault();
-              ev2.stopImmediatePropagation();
+            function startInstall() {
+              var status2 = document.getElementById("desktop-update-status");
+              if (status2) status2.textContent = "Starting Setup… Windows may ask for permission — allow it, then reopen Scholaxia.";
+              go.textContent = "Installing…";
+              go.style.opacity = "1";
+              go.style.pointerEvents = "none";
               if (window.scholaxiaDesktop.onUpdateInstall) {
                 window.scholaxiaDesktop.onUpdateInstall(function (info) {
                   if (!info || info.ok === false) {
-                    if (status) status.textContent = (info && info.error) || "Could not open the installer. Download it again.";
+                    if (status2) status2.textContent = (info && info.error) || "Could not open the installer. Tap below to try again.";
                     go.textContent = "Install now";
-                    go.style.opacity = "1";
                     go.style.pointerEvents = "auto";
-                    return;
                   }
-                  if (status) status.textContent = "Scholaxia will close to finish installing. Reopen it from your desktop icon.";
                 });
               }
               window.scholaxiaDesktop.runInstaller(res.path);
-              if (status) status.textContent = "Opening Setup… Windows may ask for permission — allow it, then reopen Scholaxia.";
-              go.textContent = "Opening Setup…";
-              go.style.pointerEvents = "none";
+            }
+            if (status) status.textContent = "Download finished. Installing now — Scholaxia closes and Setup opens.";
+            // Install straight away. Before, the popup just said "downloaded"
+            // and waited for a second tap, so updates looked installed when the
+            // Setup had never run.
+            go.onclick = function (ev2) {
+              ev2.preventDefault();
+              ev2.stopImmediatePropagation();
+              startInstall();
             };
+            setTimeout(startInstall, 800);
           });
         });
       } else {
