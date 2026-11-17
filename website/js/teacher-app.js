@@ -198,7 +198,7 @@
 
   function classKindLabel(c) {
     var aud = (c && c.audience) || "all";
-    if (aud !== "all") return "Scholarship · " + (HOST_AUDIENCE_LABELS[aud] || aud);
+    if (aud !== "all") return "Scholaxia · " + (HOST_AUDIENCE_LABELS[aud] || aud);
     var v = (c && c.visibility) || "public";
     if (v === "private") return "Private";
     if (v === "school_group") return "School";
@@ -248,7 +248,7 @@
       hint.textContent = vis === "private"
         ? "Private class — only students who have your code can join."
         : vis === "scholarship"
-          ? "Scholarship class — pick exactly which students below."
+          ? "Scholaxia class — pick exactly which students below."
           : "Public class — any student on Scholaxia can join. No code needed.";
     }
     if (vis === "scholarship") onAudienceChange();
@@ -290,7 +290,7 @@
       } else if (category === "others") {
         body.visibility = "private";
         body.audience = "all";
-        note = "Scholarship class — others. Join with the class code.";
+        note = "Scholaxia class — others. Join with the class code.";
       } else {
         body.visibility = "public";
         body.audience = category;
