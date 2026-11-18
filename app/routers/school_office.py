@@ -1390,6 +1390,80 @@ async def grant_retake(
             CBTSession.student_id == student_id,
         )
     )
+    # The same exam id may belong to the SCHOOL PORTAL examination engine
+    # (/school-cbt), which keeps its attempts, answers and results in its own
+    # tables. Clearing only CBTSession left those untouched, so a retake
+    # granted from here never reopened the portal paper — the student kept
+    # seeing "Completed" and could not sit the exam again.
+    from sqlalchemy import update as _sa_update
+
+    from app.models.school_cbt import (
+        SchoolExam,
+        SchoolExamAccessCode,
+        SchoolExamAnswer,
+        SchoolExamAttempt,
+        SchoolExamDownload,
+        SchoolExamResult,
+        SchoolExamSyncLog,
+    )
+
+    try:
+        portal_exam_id = UUID(str(payload.exam_id))
+    except (ValueError, TypeError, AttributeError):
+        portal_exam_id = None
+    if portal_exam_id is not None:
+        portal_exam = (
+            await db.execute(select(SchoolExam).where(SchoolExam.id == portal_exam_id))
+        ).scalar_one_or_none()
+        if portal_exam is not None:
+            old_attempts = (
+                await db.execute(
+                    select(SchoolExamAttempt).where(
+                        SchoolExamAttempt.exam_id == portal_exam.id,
+                        SchoolExamAttempt.student_id == student_id,
+                    )
+                )
+            ).scalars().all()
+            old_attempt_ids = [a.id for a in old_attempts]
+            # Result first (it points at the attempt), then answers, then the
+            # attempts themselves — Postgres enforces those foreign keys.
+            await db.execute(
+                delete(SchoolExamResult).where(
+                    SchoolExamResult.exam_id == portal_exam.id,
+                    SchoolExamResult.student_id == student_id,
+                )
+            )
+            if old_attempt_ids:
+                await db.execute(
+                    delete(SchoolExamAnswer).where(SchoolExamAnswer.attempt_id.in_(old_attempt_ids))
+                )
+                await db.execute(
+                    _sa_update(SchoolExamSyncLog)
+                    .where(SchoolExamSyncLog.attempt_id.in_(old_attempt_ids))
+                    .values(attempt_id=None)
+                )
+                for old in old_attempts:
+                    await db.delete(old)
+            # A retake gets a freshly randomized paper, so the old download
+            # must go too (the portal asks for a fresh download before starting).
+            await db.execute(
+                delete(SchoolExamDownload).where(
+                    SchoolExamDownload.exam_id == portal_exam.id,
+                    SchoolExamDownload.student_id == student_id,
+                )
+            )
+            await db.execute(
+                _sa_update(SchoolExamAccessCode)
+                .where(
+                    SchoolExamAccessCode.exam_id == portal_exam.id,
+                    SchoolExamAccessCode.student_id == student_id,
+                )
+                .values(is_used=False, used_at=None, failed_attempts=0, locked_until=None, expires_at=None)
+            )
+            retake_ids = [str(x) for x in (portal_exam.retake_student_ids or [])]
+            if str(student_id) not in retake_ids:
+                retake_ids.append(str(student_id))
+            portal_exam.retake_student_ids = retake_ids
     if candidate:
         ids = list(candidate.retake_exam_ids or [])
         if payload.exam_id not in ids:

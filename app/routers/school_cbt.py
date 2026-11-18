@@ -3675,14 +3675,17 @@ async def student_my_exams(
                     "duration_minutes": e.duration_minutes,
                     "total_mark": e.total_mark,
                     "exam_mode": e.exam_mode,
-                    "status": "Completed" if att else ("Open" if window_open else "Closed"),
+                    # A granted retake is a fresh sitting: report it as open/not
+                    # taken even if an old submitted attempt was left behind, so
+                    # every client offers a way back into the paper.
+                    "status": "Open" if retake_granted else ("Completed" if att else ("Open" if window_open else "Closed")),
                     "window_open": window_open,
                     "scheduled_start": e.scheduled_start.isoformat() if e.scheduled_start else None,
                     "scheduled_end": e.scheduled_end.isoformat() if e.scheduled_end else None,
                     "exam_date": e.exam_date.isoformat() if e.exam_date else None,
                     "downloaded": str(e.id) in downloads or e.exam_mode == "ONLINE",
                     "needs_download": e.exam_mode in ("OFFLINE", "HYBRID") and str(e.id) not in downloads,
-                    "attempt_status": "submitted" if att else "not_started",
+                    "attempt_status": "not_started" if retake_granted else ("submitted" if att else "not_started"),
                     "retake_granted": retake_granted,
                     "results_published": bool(e.results_published),
                     "result": (
@@ -3694,7 +3697,7 @@ async def student_my_exams(
                             "correct": res.correct_count,
                             "total_questions": res.total_questions,
                         }
-                        if res and e.results_published
+                        if res and e.results_published and not retake_granted
                         else None
                     ),
                 }

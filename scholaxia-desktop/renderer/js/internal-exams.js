@@ -215,7 +215,10 @@ async function renderInternalExamsListAsync() {
   for (var idx = 0; idx < internalExamsList.length; idx++) {
     var e = internalExamsList[idx];
     var cached = cachedIds.indexOf(String(e.id)) !== -1;
-    var taken = e.already_taken;
+    // A granted retake means the student may sit it again, even when the last
+    // sitting is still marked taken — otherwise the card showed "Submitted"
+    // with no button and the retake could never be started.
+    var taken = e.already_taken && !e.retake_granted;
     var pending = pendingList.some(function (p) { return p.exam_id === e.id; });
     var card = document.createElement("div");
     card.className = "card sx-card";

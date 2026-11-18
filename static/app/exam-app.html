@@ -654,7 +654,16 @@ input{font-family:inherit;font-size:15px}
     var pkg = lsGet(K.pkg(x.id));
     if (pkg) pill += ' <span class="mode-pill offline">📥 On this device</span>';
     var body = "";
-    if (x.attempt_status === "submitted") {
+    var retake = !!x.retake_granted;
+    if (retake) {
+      // A granted retake is a NEW sitting: the school already cleared the old
+      // attempt/result, so the card must offer a way back in even while the
+      // list still reports the last sitting as submitted.
+      body = '<div class="okrow" style="color:var(--warn)">↻ Retake approved — sit this examination again</div>' +
+        (x.needs_download
+          ? '<button class="btn-go dlbtn" onclick="downloadExam(\'' + x.id + '\')">⬇ Download Examination</button>'
+          : '<button class="btn-go" onclick="openExam(\'' + x.id + '\')">START RETAKE</button>');
+    } else if (x.attempt_status === "submitted") {
       body = '<div class="okrow">✓ Completed</div>';
       if (x.result) body += '<div class="scorecard">Score: ' + esc(x.result.final_score) + " / " + esc(x.result.total_mark) + " (" + esc(x.result.grade) + ")</div>";
       else body += '<div class="scorecard" style="background:var(--warnbg);color:var(--warn)">Result waiting for your school to publish</div>';
@@ -663,7 +672,7 @@ input{font-family:inherit;font-size:15px}
     } else {
       body = '<button class="btn-go" onclick="openExam(\'' + x.id + '\')">' + (pkg && mode !== "ONLINE" ? "OPEN EXAM" : "START EXAM") + "</button>";
     }
-    if (!x.window_open && x.attempt_status !== "submitted") {
+    if (!x.window_open && !retake && x.attempt_status !== "submitted") {
       body = '<div class="okrow" style="color:var(--warn)">⏰ Not available yet — check your exam date</div>';
     }
     return '<div class="ecard">' +
