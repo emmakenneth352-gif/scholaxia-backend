@@ -2461,11 +2461,14 @@ async function loadSubmittedSchoolExamReview(submitResult) {
   }
 }
 
+/* Review always covers the WHOLE paper — every question the student saw, in
+   paper order, including the ones they left blank. A review that only listed
+   answered questions made a 5-question paper look like a 1-question paper. */
 function buildAnsweredExamReview(questions, answerSheet) {
   answerSheet = answerSheet || {};
   return (questions || []).map(function (question, index) {
+    if (!question) return null;
     const chosen = String(answerSheet[index] || "").toUpperCase();
-    if (!question || !chosen) return null;
     const options = ["A", "B", "C", "D"].map(function (key) {
       const text = question[`option_${key.toLowerCase()}`] || (question.options && question.options[key]) || "";
       return text ? { key: key, text: text } : null;
@@ -2477,23 +2480,25 @@ function buildAnsweredExamReview(questions, answerSheet) {
       question_text: question.question_text || "",
       subject: question.subject || question.topic || "",
       options: options,
-      your_answer: chosen,
+      your_answer: chosen || null,
       correct_key: correctKey,
-      is_correct: !!correctKey && chosen === correctKey,
+      is_correct: !!chosen && !!correctKey && chosen === correctKey,
+      is_skipped: !chosen,
       explanation: question.explanation || "",
     };
   }).filter(Boolean);
 }
 
 function filterReviewToAnswered(review, answerMap) {
-  const answeredIds = new Set(Object.keys(answerMap || {}).map(String));
   const questionNumbers = new Map((currentExam && currentExam.questions || []).map(function (question, index) {
     return [String(question && question.id), index + 1];
   }));
-  return (Array.isArray(review) ? review : []).filter(function (item) {
-    return item && item.your_answer && answeredIds.has(String(item.id));
-  }).map(function (item) {
-    return Object.assign({}, item, { question_number: questionNumbers.get(String(item.id)) || null });
+  return (Array.isArray(review) ? review : []).filter(Boolean).map(function (item) {
+    return Object.assign({}, item, {
+      question_number: questionNumbers.get(String(item.id)) || item.question_number || null,
+      is_correct: !!item.is_correct,
+      is_skipped: !item.your_answer,
+    });
   });
 }
 
@@ -2637,8 +2642,8 @@ async function submitExam(force) {
 
   if (currentSession && currentSession.is_portal && typeof scorePortalExam === "function") {
     window._lastPracticeReview = (currentExam.questions || []).map(function (q, i) {
+      if (!q) return null;
       const chosen = String(answers[i] || "").toUpperCase();
-      if (!q || !chosen) return null;
       const options = ["A", "B", "C", "D"].map(function (key) {
         const text = q[`option_${key.toLowerCase()}`] || (q.options && q.options[key]) || "";
         return text ? { key: key, text: text } : null;
@@ -2650,9 +2655,10 @@ async function submitExam(force) {
         question_text: q.question_text || "",
         subject: q.subject || q.topic || "",
         options: options,
-        your_answer: chosen,
+        your_answer: chosen || null,
         correct_key: correctKey,
-        is_correct: !!correctKey && chosen === correctKey,
+        is_correct: !!chosen && !!correctKey && chosen === correctKey,
+        is_skipped: !chosen,
         explanation: q.explanation || "",
       };
     }).filter(Boolean);
@@ -2686,7 +2692,18 @@ async function submitExam(force) {
           client: "desktop",
         }),
       });
-      showResult(result);
+      // The school exam endpoint answers with a nested summary — flatten it, or
+      // the result screen shows "0 correct · 0 wrong · 0 total" on a real paper.
+      const sum = (result && result.summary) || {};
+      showResult({
+        percentage: sum.percentage,
+        correct: sum.correct,
+        wrong: sum.wrong,
+        total: sum.total_questions != null ? sum.total_questions : (currentExam.questions || []).length,
+        score: sum.correct,
+        max_score: sum.total_questions != null ? sum.total_questions : (currentExam.questions || []).length,
+        score_pending: !!(result && result.result_hidden),
+      });
     } catch (e) {
       const offline = typeof navigator !== "undefined" && !navigator.onLine;
       if (offline && typeof queueInternalSubmit === "function") {
@@ -2700,7 +2717,9 @@ async function submitExam(force) {
         let localWrong = 0;
         currentExam.questions.forEach((q, i) => {
           const chosen = answers[i];
-          if (chosen && String(chosen).toUpperCase() === String(q.correct_option || "").toUpperCase()) localCorrect++;
+          if (!q) return;
+          // Blank answers count as wrong, so the totals always add up to the paper.
+          if (chosen && String(chosen).toUpperCase() === String(q.correct_option || q.correct_key || "").toUpperCase()) localCorrect++;
           else localWrong++;
         });
         const localTotal = localCorrect + localWrong;
@@ -2941,8 +2960,11 @@ function showResult(result) {
   const pct = raw != null ? Math.round(raw) : "—";
   document.getElementById("score-display").textContent = result.score_pending ? "Pending" : `${pct}%`;
   const correct = result.correct ?? result.total_correct ?? 0;
-  const wrong = result.wrong ?? result.total_wrong ?? 0;
-  const total = result.total ?? (correct + wrong);
+  const total = result.total ?? result.max_score ?? (correct + (result.wrong ?? result.total_wrong ?? 0));
+  // Every question the student never answered is a wrong answer, so a paper
+  // with 1 of 5 answered reads "1 correct · 4 wrong · 5 total" — never
+  // "1 correct · 0 wrong".
+  const wrong = result.wrong ?? result.total_wrong ?? Math.max(0, total - correct);
   // Result screen shows only the score. No subject breakdown and no rating
   // line here — the motivation below is the single encouragement message.
   const lines = [result.score_pending
@@ -2986,12 +3008,13 @@ function showResult(result) {
 /* Answer review for board practice attempts — every question with the
    student's pick, the correct option and the explanation (top-down list). */
 function showPracticeReviewModal(review, boardLabel) {
-  var answeredItems = (review || []).filter(function (q) { return q && q.your_answer; });
-  if (!answeredItems.length) {
-    showExamLockNotice("No answered questions are available to review.");
+  var reviewItems = (review || []).filter(Boolean);
+  if (!reviewItems.length) {
+    showExamLockNotice("There are no questions to review for this paper.");
     return;
   }
-  var items = answeredItems.map(function (q, i) {
+  var answeredItems = reviewItems.filter(function (q) { return q.your_answer; });
+  var items = reviewItems.map(function (q, i) {
     var opts = (q.options || []).map(function (o) {
       return { key: String(o.key || "").toUpperCase(), text: o.text || "" };
     });
@@ -2999,15 +3022,15 @@ function showPracticeReviewModal(review, boardLabel) {
       for (var j = 0; j < opts.length; j++) if (opts[j].key === String(key || "").toUpperCase()) return opts[j].text;
       return "";
     }
-    var your = textOf(q.your_answer);
+    var skipped = !q.your_answer;
     var correct = textOf(q.correct_key);
     var ok = !!q.is_correct;
-    var stateClass = ok ? "correct" : "incorrect";
+    var stateClass = skipped ? "skipped" : ok ? "correct" : "incorrect";
     var html =
       '<article class="pr-item ' + stateClass + '">' +
       '<div class="pr-item-head">' +
-      '<span class="pr-item-mark" aria-hidden="true">' + (ok ? "✓" : "×") + "</span>" +
-      '<strong class="pr-item-label">Q' + (q.question_number || (i + 1)) + (q.subject ? " · " + escHtml(q.subject) : "") + "</strong>" +
+      '<span class="pr-item-mark" aria-hidden="true">' + (skipped ? "—" : ok ? "✓" : "×") + "</span>" +
+      '<strong class="pr-item-label">Q' + (q.question_number || (i + 1)) + (q.subject ? " · " + escHtml(q.subject) : "") + (skipped ? " · Not answered" : "") + "</strong>" +
       "</div>" +
       '<div class="pr-question">' + escHtml(q.question_text || "") + "</div>";
     opts.forEach(function (o) {
@@ -3041,7 +3064,7 @@ function showPracticeReviewModal(review, boardLabel) {
     '<h3>Answer review <span>· ' + escHtml(boardLabel) + "</span></h3>" +
     '<button id="pr-close" class="practice-review-close" type="button">Close</button>' +
     "</div>" +
-    '<div class="practice-review-legend">' + answeredItems.length + ' answered question' + (answeredItems.length === 1 ? '' : 's') + ' · Green = correct · Red = incorrect · Amber = explanation</div>' +
+    '<div class="practice-review-legend">' + answeredItems.length + ' of ' + reviewItems.length + ' answered · ' + (reviewItems.length - answeredItems.length) + ' not answered · Green = correct · Red = incorrect · Amber = explanation</div>' +
     items;
   overlay.appendChild(box);
   overlay.addEventListener("click", function (e) {

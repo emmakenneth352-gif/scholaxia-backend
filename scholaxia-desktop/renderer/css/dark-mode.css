@@ -559,6 +559,27 @@ html[data-app-theme="dark"] .q-btn.current {
   border-color: #2d7a4f !important;
   color: #fff !important;
 }
+/* Answered questions must stay visibly green in dark mode — the plain
+   .q-btn dark rule above used to repaint them dark and the progress marks
+   disappeared. */
+html[data-app-theme="dark"] .q-btn.answered {
+  background: linear-gradient(135deg, #1a5c3a, #2d9b83) !important;
+  border-color: #34c38f !important;
+  color: #fff !important;
+  box-shadow: 0 4px 10px rgba(45, 155, 131, 0.35) !important;
+}
+html[data-app-theme="dark"] .q-btn.answered.current {
+  background: linear-gradient(135deg, #7c3aed, #5b21b6) !important;
+  border-color: #a78bfa !important;
+  color: #fff !important;
+}
+html[data-app-theme="dark"] .pr-item.skipped {
+  border-left-color: #6b7280 !important;
+}
+html[data-app-theme="dark"] .pr-item.skipped .pr-item-mark {
+  color: #d1d5db !important;
+  background: #35373c !important;
+}
 html[data-app-theme="dark"] .opt-key {
   background: #35373c !important;
   color: #f2f3f5 !important;

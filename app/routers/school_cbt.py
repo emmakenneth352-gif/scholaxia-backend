@@ -16,6 +16,7 @@ keeps scores hidden until the school publishes them (§22).
 """
 import hashlib
 import json
+import re
 import secrets
 import string
 from datetime import datetime, timedelta
@@ -347,7 +348,17 @@ def _paper_order(exam: SchoolExam, questions: list[SchoolExamQuestion]) -> list[
     is stored on the attempt/download row so marking always agrees with what
     the student actually saw.
     """
-    ids = [str(q.id) for q in questions]
+    # One entry per distinct question: a question uploaded twice in the Exam
+    # Bank must never appear twice on a paper ("Q1 shows up again at Q10").
+    ids = []
+    seen: set[str] = set()
+    for q in questions:
+        fp = re.sub(r"[^a-z0-9]+", "", (q.question_text or "").lower())
+        if fp:
+            if fp in seen:
+                continue
+            seen.add(fp)
+        ids.append(str(q.id))
     if exam.randomize_questions:
         secrets.SystemRandom().shuffle(ids)
     limit = int(exam.questions_to_display or 0)
@@ -4149,6 +4160,10 @@ async def submit_attempt(
                 raw_score += float(q.marks or 1)
             else:
                 wrong += 1
+        else:
+            # Left blank: not answered AND not correct. Counting only wrong
+            # answers made a 1-of-5 paper read "1 correct · 0 wrong".
+            wrong += 1
 
     raw_total = raw_total or float(total_q or 1)
     pct_raw = (raw_score / raw_total) * 100 if raw_total else 0.0

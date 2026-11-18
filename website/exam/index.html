@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<script src="../js/site-guard.js?v=20261112a"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Scholaxia — Examination Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --navy:#1e1b4b; --blue:#7c3aed; --blue2:#6d28d9; --sky:#ede9fe; --ink:#0f172a;
+  --mut:#64748b; --line:#e8e5f4; --bg:#f6f5fc; --ok:#16a34a; --okbg:#e7f8ee;
+  --warn:#d97706; --warnbg:#fdf3e3; --bad:#dc2626; --badbg:#fdeaea; --rad:16px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Outfit',system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:15px}
+button{font-family:inherit;cursor:pointer}
+input{font-family:inherit;font-size:15px}
+#toast{position:fixed;bottom:22px;right:22px;background:var(--navy);color:#fff;padding:12px 18px;border-radius:12px;font-size:14px;display:none;z-index:999;box-shadow:0 10px 30px rgba(76,29,149,.3);max-width:420px}
+
+/* ═══ LOGIN (mockup 1) ═══ */
+#login{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#f5f3ff 0%,#ede9fe 45%,#ddd6fe 100%);position:relative;overflow:hidden;padding:24px}
+.blob{position:absolute;border-radius:50%;filter:blur(10px);opacity:.55;pointer-events:none}
+.blob.b1{width:520px;height:520px;background:radial-gradient(circle,#ddd6fe,#ede9fe 70%);top:-160px;right:-120px}
+.blob.b2{width:420px;height:420px;background:radial-gradient(circle,#e9d5ff,#f3e8ff 70%);bottom:-140px;left:-100px}
+.edu{position:absolute;font-size:120px;opacity:.13;color:var(--blue)}
+.edu.e1{left:6%;top:16%;transform:rotate(-12deg)}
+.edu.e2{right:7%;bottom:14%}
+.hand{position:absolute;left:8%;top:18%;font-family:'Segoe Script','Comic Sans MS',cursive;color:var(--blue);font-size:24px;line-height:1.6;transform:rotate(-14deg);font-weight:600}
+@media(max-width:760px){.hand,.edu{display:none}}
+.exam-card{position:relative;z-index:2;background:#fff;border-radius:24px;box-shadow:0 30px 80px rgba(76,29,149,.22);padding:52px 56px;width:100%;max-width:560px}
+@media(max-width:560px){.exam-card{padding:36px 24px}}
+.exam-brand{display:flex;align-items:center;justify-content:center;gap:13px;margin-bottom:26px}
+.exam-brand img{height:58px}
+.exam-brand .fb{display:none;font-size:34px}
+.exam-card h1{font-size:34px;font-weight:800;color:var(--navy);text-align:center;letter-spacing:-.5px}
+.exam-card .sub{text-align:center;color:var(--mut);margin:8px 0 30px}
+.fgroup{display:flex;align-items:center;gap:10px;font-weight:700;font-size:13px;letter-spacing:.04em;color:var(--navy);margin:18px 0 8px;text-transform:uppercase}
+.fgroup .gico{width:30px;height:30px;border-radius:50%;background:var(--sky);color:var(--blue);display:flex;align-items:center;justify-content:center;font-size:15px}
+.inwrap{position:relative;display:flex;align-items:center}
+.inwrap .lico{position:absolute;left:14px;color:#a29bbd;font-size:17px}
+.f-in{width:100%;padding:14px 46px;border:1.5px solid var(--line);border-radius:12px;outline:none;background:#fbfaff;transition:border .15s}
+.f-in:focus{border-color:var(--blue);background:#fff}
+.eye{position:absolute;right:12px;background:none;border:none;color:var(--mut);font-size:18px;padding:4px}
+.btn-login{width:100%;margin-top:28px;padding:15px;border:none;border-radius:12px;background:var(--blue);color:#fff;font-size:16.5px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:10px;transition:background .15s}
+.btn-login:hover{background:var(--blue2)}
+.btn-login[disabled]{opacity:.65;cursor:wait}
+.login-err{display:none;margin-top:16px;padding:11px 14px;border-radius:10px;background:var(--badbg);color:var(--bad);font-size:13.5px}
+.login-foot{margin-top:22px;text-align:center;font-size:14px}
+.login-foot a{color:var(--blue);font-weight:600;text-decoration:none}
+.login-foot a:hover{text-decoration:underline}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* ═══ EXAM HOME (§15) ═══ */
+.hidden{display:none!important}
+.top{background:#fff;border-bottom:1px solid var(--line);padding:14px 26px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:40}
+.top .tb{display:flex;align-items:center;gap:11px}
+.top .tb img{height:34px}
+.top .tb b{color:var(--navy);font-size:19px;letter-spacing:-.3px}
+.top .who{display:flex;align-items:center;gap:10px;font-weight:600;color:var(--navy)}
+.top .ava{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--blue),#a855f7);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700}
+.wrap{max-width:1060px;margin:0 auto;padding:30px 20px}
+.wrap h2{font-size:24px;color:var(--navy);font-weight:800;margin-bottom:4px}
+.wrap .lead{color:var(--mut);margin-bottom:22px}
+.examgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px}
+.ecard{background:#fff;border-radius:var(--rad);box-shadow:0 2px 14px rgba(21,34,66,.07);padding:20px;display:flex;flex-direction:column;gap:8px}
+.ecard h3{font-size:18px;color:var(--navy)}
+.ecard .esub{color:var(--mut);font-size:13.5px}
+.emeta{display:flex;gap:14px;flex-wrap:wrap;color:var(--mut);font-size:13px;margin:8px 0}
+.emeta b{color:var(--ink)}
+.mode-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:700}
+.mode-pill.online{background:var(--okbg);color:var(--ok)}
+.mode-pill.offline{background:var(--warnbg);color:var(--warn)}
+.mode-pill.hybrid{background:var(--sky);color:var(--blue)}
+.btn-go{margin-top:10px;padding:12px;border:none;border-radius:11px;background:var(--blue);color:#fff;font-weight:700;font-size:14.5px}
+.btn-go:hover{background:var(--blue2)}
+.btn-go[disabled]{opacity:.6;cursor:not-allowed}
+.okrow{display:flex;gap:8px;align-items:center;color:var(--ok);font-weight:600;font-size:13.5px}
+.dlbtn{background:var(--warn)}
+.scorecard{background:var(--okbg);border-radius:11px;padding:10px 14px;font-size:13.5px;color:var(--ok);font-weight:600}
+
+/* ═══ CBT INTERFACE (mockup 2) ═══ */
+#exam{display:grid;grid-template-columns:270px 1fr;gap:20px;max-width:1280px;margin:0 auto;padding:24px 20px 60px}
+#exam .side{order:-1}
+@media(max-width:1000px){#exam{grid-template-columns:1fr}#exam .side{order:0}}
+.qcard{background:#fff;border-radius:var(--rad);box-shadow:0 2px 14px rgba(21,34,66,.07);padding:24px}
+.qhead{display:flex;align-items:center;gap:14px;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:20px}
+.qhead .qico{width:52px;height:52px;border-radius:13px;background:var(--sky);display:flex;align-items:center;justify-content:center;font-size:24px}
+.qhead h2{font-size:20px;color:var(--navy)}
+.qhead .qsub{color:var(--mut);font-size:13.5px;margin-top:2px}
+.qhead .pill-ok{margin-left:auto;display:flex;align-items:center;gap:7px;background:var(--okbg);color:var(--ok);padding:7px 14px;border-radius:999px;font-size:13px;font-weight:700}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok)}
+.qnum{color:var(--blue);font-weight:700;font-size:15.5px}
+.flagrow{display:flex;justify-content:flex-end;margin-bottom:8px}
+.flagbtn{background:none;border:none;color:var(--blue);font-weight:600;font-size:14px;display:flex;gap:7px;align-items:center}
+.flagbtn.on{color:var(--warn)}
+.qtext{font-size:19px;line-height:1.65;margin:14px 0 22px;color:var(--ink)}
+.opt{display:flex;align-items:center;gap:16px;border:1.5px solid var(--line);border-radius:12px;padding:17px 20px;margin-bottom:13px;cursor:pointer;transition:border .12s,background .12s;font-size:16px}
+.opt:hover{border-color:#c4b5fd}
+.opt.sel{border-color:var(--blue);background:#f5f3ff}
+.opt .radio{width:20px;height:20px;border:2px solid #b9b3cf;border-radius:50%;flex:none;position:relative}
+.opt.sel .radio{border-color:var(--blue)}
+.opt.sel .radio::after{content:"";position:absolute;inset:3px;background:var(--blue);border-radius:50%}
+.opt .ol{font-weight:800;color:var(--navy);width:16px}
+.qnav{display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:18px;margin-top:16px}
+.btn-nav{padding:12px 26px;border-radius:11px;font-weight:600;font-size:14.5px;border:1.5px solid var(--line);background:#fff;color:var(--ink)}
+.btn-nav:hover{border-color:var(--blue);color:var(--blue)}
+.btn-nav.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn-nav.primary:hover{background:var(--blue2)}
+.side .tcard{background:linear-gradient(135deg,var(--blue) 0%,#a855f7 100%);border-radius:var(--rad);padding:14px 16px;color:#fff;display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.tcard .clock{font-size:24px}
+.tcard .tlab{font-size:11.5px;opacity:.9}
+.tcard .tval{font-size:21px;font-weight:800;letter-spacing:1px;font-variant-numeric:tabular-nums}
+.side .pcard{background:#fff;border-radius:var(--rad);box-shadow:0 2px 14px rgba(21,34,66,.07);padding:14px}
+.pcard h3{font-size:14.5px;color:var(--navy);margin-bottom:8px}
+.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:11.5px;color:var(--mut);margin-bottom:12px}
+.legend span{display:flex;align-items:center;gap:5px}
+.ld{width:9px;height:9px;border-radius:50%}
+.ld.cur{background:var(--blue)}.ld.ans{background:var(--ok)}.ld.not{background:#ddd9ea;border:1px solid #b9b3cf}.ld.mk{background:var(--bad)}
+.palette{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+@media(max-width:520px){.palette{grid-template-columns:repeat(6,1fr)}}
+.pal{height:32px;border-radius:8px;border:1px solid var(--line);background:#fff;font-weight:600;font-size:12.5px;color:var(--ink);display:flex;align-items:center;justify-content:center}
+.pal.ans{background:var(--ok);border-color:var(--ok);color:#fff}
+.pal.cur{background:var(--blue);border-color:var(--blue);color:#fff}
+.pal.mk{background:var(--bad);border-color:var(--bad);color:#fff}
+.pal.ans.mk{background:#8b1a1a;border-color:#8b1a1a}
+.pnote{margin-top:14px;background:var(--sky);border-radius:11px;padding:12px 14px;font-size:13px;color:var(--blue);display:flex;gap:9px;line-height:1.5}
+.submitbar{margin-top:16px}
+.btn-submit{width:100%;padding:13px;border:none;border-radius:11px;background:var(--ok);color:#fff;font-weight:700;font-size:15px}
+.btn-submit:hover{background:#128a3e}
+
+/* summary modal */
+.mback{position:fixed;inset:0;background:rgba(76,29,149,.5);display:flex;align-items:center;justify-content:center;z-index:500;padding:18px}
+.mmodal{background:#fff;border-radius:18px;max-width:480px;width:100%;padding:28px;box-shadow:0 30px 80px rgba(76,29,149,.35)}
+.mmodal h3{font-size:20px;color:var(--navy);margin-bottom:14px}
+.sumrow{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);font-size:14.5px}
+.sumrow b{color:var(--navy)}
+.mnote{margin-top:14px;font-size:13px;color:var(--mut);line-height:1.55}
+.macts{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+.btn-m{padding:11px 20px;border-radius:10px;font-weight:600;border:1.5px solid var(--line);background:#fff}
+.btn-m.primary{background:var(--ok);border-color:var(--ok);color:#fff}
+.btn-m.danger{background:var(--blue);border-color:var(--blue);color:#fff}
+.syncbox{margin-top:14px;border-radius:12px;padding:14px 16px;font-size:13.5px;line-height:1.6}
+.syncbox.wait{background:var(--warnbg);color:var(--warn)}
+.syncbox.done{background:var(--okbg);color:var(--ok)}
+
+/* ═══ MOBILE (exam mockups: palette grid, timer card, stacked options) ═══ */
+@media(max-width:1000px){
+  #exam{grid-template-columns:1fr;gap:16px;padding:18px 14px 56px}
+  .top{padding:12px 16px}
+  .top .tb b{font-size:17px}
+  .top .who{font-size:13.5px}
+  .qcard{padding:18px 16px;border-radius:14px}
+  .qhead{gap:11px;padding-bottom:12px;margin-bottom:14px}
+  .qhead .qico{width:42px;height:42px;border-radius:11px;font-size:19px}
+  .qhead h2{font-size:17px}
+  .qhead .pill-ok{padding:6px 11px;font-size:12px}
+  .tcard{padding:14px 18px;margin-bottom:14px}
+  .tcard .clock{font-size:24px}
+  .tcard .tval{font-size:22px}
+  .pcard{padding:16px}
+}
+@media(max-width:600px){
+  .wrap{padding:20px 12px}
+  .wrap h2{font-size:20px}
+  .wrap .lead{margin-bottom:16px}
+  .examgrid{grid-template-columns:1fr}
+  .ecard{padding:16px}
+  .top .who .wname{display:none}
+  .qtext{font-size:16.5px;margin:10px 0 16px}
+  .opt{padding:14px 15px;font-size:15px;gap:12px;margin-bottom:10px}
+  .opt .radio{width:18px;height:18px}
+  .qnav{gap:10px}
+  .qnav .btn-nav{flex:1;padding:12px 10px;font-size:14px}
+  .legend{gap:10px;font-size:11.5px}
+  .mback{padding:12px}
+  .mmodal{padding:22px 18px}
+  .pnote{font-size:12.5px;padding:10px 12px}
+}
+@media(max-width:520px){
+  .palette{grid-template-columns:repeat(6,1fr);gap:6px}
+  .pal{height:34px;font-size:12.5px;border-radius:8px}
+}
+@media(max-width:400px){
+  .exam-card{padding:30px 18px}
+  .exam-card h1{font-size:26px}
+  .exam-brand img{height:48px}
+  .f-in{padding:13px 42px}
+  .btn-login{margin-top:22px;padding:14px;font-size:15.5px}
+}
+</style>
+</head>
+<body>
+<div id="toast"></div>
+
+<!-- ═══ LOGIN ═══ -->
+<div id="login">
+  <div class="blob b1"></div><div class="blob b2"></div>
+  <div class="hand">Your<br/>Future<br/>Matters</div>
+  <div class="edu e1">🎓</div><div class="edu e2">📘</div>
+  <form class="exam-card" id="loginForm" autocomplete="off">
+    <div class="exam-brand">
+      <img src="../media/logo-main.png" alt="Scholaxia" onerror="this.outerHTML='<span class=\'fb\'>🎓</span>'" />
+      <div>
+        <div style="font-size:27px;font-weight:800;color:var(--blue);letter-spacing:-.5px">Scholaxia</div>
+        <div style="font-size:11px;letter-spacing:.28em;color:var(--mut);font-weight:600">LEARN • PRACTICE • EXCEL</div>
+      </div>
+    </div>
+    <h1>Welcome Back!</h1>
+    <p class="sub">Examinations are ongoing — wishing you all good luck.</p>
+    <div class="fgroup"><span class="gico">👤</span> Registration Number</div>
+    <div class="inwrap"><span class="lico">👤</span>
+      <input class="f-in" id="lgReg" placeholder="SCHX/26/544560" required />
+    </div>
+    <div class="fgroup"><span class="gico">🔑</span> Access Code</div>
+    <div class="inwrap"><span class="lico">🔒</span>
+      <input class="f-in" id="lgCode" type="password" placeholder="••••••" required style="letter-spacing:2px" />
+      <button type="button" class="eye" onclick="toggleEye()" aria-label="Show access code">👁</button>
+    </div>
+    <button class="btn-login" id="lgBtn" type="submit">⮕&nbsp; Login to Examination</button>
+    <div class="login-err" id="lgErr"></div>
+    <div class="login-foot">🔍 Lost your details? <a href="#" onclick="retrieveDetails();return false">Retrieve Login Details</a></div>
+  </form>
+</div>
+
+<!-- ═══ APP ═══ -->
+<div id="app" class="hidden">
+  <div class="top">
+    <div class="tb" onclick="goHome()" style="cursor:pointer">
+      <img src="../media/logo-main.png" alt="" onerror="this.style.display='none'" />
+      <b>Scholaxia</b>
+    </div>
+    <div class="who" id="whoBox"></div>
+  </div>
+
+  <!-- exam home -->
+  <div class="wrap" id="home">
+    <h2 id="hello">Welcome!</h2>
+    <p class="lead">Your Examinations</p>
+    <div class="examgrid" id="examGrid"><div class="ecard">Loading…</div></div>
+  </div>
+
+  <!-- CBT interface -->
+  <div id="exam" class="hidden">
+    <div class="qcard">
+      <div class="qhead">
+        <div class="qico">📝</div>
+        <div>
+          <h2 id="qSubject">—</h2>
+          <div class="qsub" id="qSub">—</div>
+        </div>
+        <div class="pill-ok"><span class="dot"></span> Exam Loaded</div>
+      </div>
+      <div class="flagrow"><button class="flagbtn" id="flagBtn" onclick="toggleFlag()">⚑ Flag Question</button><button class="flagbtn" id="calcBtn" onclick="window.SxCalcToggle&&window.SxCalcToggle()" title="Open calculator">🧮 Calculator</button></div>
+      <div class="qnum" id="qNum">Question 1</div>
+      <div class="qtext" id="qText">—</div>
+      <img id="qImg" alt="Question image" style="display:none;max-width:100%;max-height:260px;margin:10px 0;border-radius:8px;border:1px solid #d7dcea;background:#fff" />
+      <div id="qOpts"></div>
+      <div class="qnav">
+        <button class="btn-nav" id="btnPrev" onclick="move(-1)">← Previous</button>
+        <button class="btn-nav primary" id="btnNext" onclick="move(1)">Next →</button>
+      </div>
+    </div>
+    <div class="side">
+      <div class="tcard">
+        <div class="clock">🕐</div>
+        <div>
+          <div class="tlab">Time Remaining</div>
+          <div class="tval" id="timer">--:--:--</div>
+        </div>
+      </div>
+      <div class="pcard">
+        <h3>Question Palette</h3>
+        <div class="legend">
+          <span><span class="ld cur"></span> Current</span>
+          <span><span class="ld ans"></span> Answered</span>
+          <span><span class="ld not"></span> Not Answered</span>
+          <span><span class="ld mk"></span> Marked</span>
+        </div>
+        <div class="palette" id="palette"></div>
+        <div class="pnote">ⓘ You can review your answers before submitting the exam.</div>
+        <div class="submitbar"><button class="btn-submit" onclick="openSummary()">Submit Examination</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../js/sx-calc.js?v=20261113calc"></script>
+<script>
+(function () {
+  var API = "https://scholaxia1.onrender.com/api/v1";
+  if (/scholaxia1\.onrender\.com$/.test(location.hostname) || /\.scholaxia\.com$/.test(location.hostname) || location.hostname === "localhost" || location.hostname === "127.0.0.1") {
+    API = location.origin + "/api/v1";
+  }
+  var TK = "sx_exam_token", TU = "sx_exam_user";
+  var S = { token: localStorage.getItem(TK) || null, me: null, exams: [], current: null, loginTyped: null };
+
+  /* ── PER-STUDENT DEVICE STATE ──
+     A school exam device is shared: student A submits and logs out, then
+     student B logs in. Every cached paper/attempt/queued answer is therefore
+     namespaced by the student's registration number (`sx2_<kind>__<owner>__<exam>`),
+     so B can never read A's answers or have A's sealed submission synced under
+     B's account. Legacy exam-only keys are migrated once on login. */
+  function normOwner(reg) {
+    return String(reg == null ? "" : reg).trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  }
+  function currentOwner() {
+    var m = S.me || {};
+    var typed = S.loginTyped || {};
+    return normOwner(m.reg_number || typed.reg || "");
+  }
+  function stateKeyFor(kind, owner, id) {
+    return "sx2_" + kind + "__" + (owner || "anon") + "__" + id;
+  }
+  function stateKey(kind, id) { return stateKeyFor(kind, currentOwner(), id); }
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); };
+
+  function toast(msg) { var t = $("toast"); t.textContent = msg; t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(function () { t.style.display = "none"; }, 3200); }
+  function detailOf(d) {
+    if (!d) return null;
+    var det = d.detail != null ? d.detail : (d.message != null ? d.message : null);
+    if (det == null) return null;
+    if (typeof det === "string") return det;
+    if (Array.isArray(det)) return det.map(function (v) { return v && v.msg ? v.msg : ""; }).filter(Boolean).join("; ") || "Invalid input";
+    try { return det.msg || JSON.stringify(det); } catch (_) { return "Request failed"; }
+  }
+  function isOnline() { return navigator.onLine !== false; }
+  function api(path, opts) {
+    opts = opts || {};
+    var h = {};
+    if (!opts.form) h["Content-Type"] = "application/json";
+    if (S.token) h["Authorization"] = "Bearer " + S.token;
+    return fetch(API + path, { method: opts.method || "GET", headers: h, body: opts.body ? JSON.stringify(opts.body) : undefined })
+      .then(function (r) {
+        return r.text().then(function (txt) {
+          var d = null; try { d = txt ? JSON.parse(txt) : null; } catch (_) {}
+          if (r.status === 401 && path !== "/school-cbt/student/login") { logout(); throw new Error(detailOf(d) || "Session expired — log in again."); }
+          if (!r.ok) throw new Error(detailOf(d) || ("Request failed (" + r.status + ")"));
+          return d;
+        });
+      });
+  }
+
+  /* ── TRUE OFFLINE STORE (§16–§23) — one per-student, per-exam key ──
+     sx2_exam_pkg__<reg>__<id>    : downloaded exam package (server-verified order)
+     sx2_attempt__<reg>__<examId> : { attemptId, exam, seconds, questions, answers, flags } — survives reload/offline
+     sx2_offq__<reg>__<examId>    : answers saved on the device while offline
+     sx2_pending__<reg>__<examId> : sealed FULL submission awaiting secure sync
+     sx2_sealed__<reg>__<examId>  : marks a sealed submission as awaiting sync
+  */
+  var K = {
+    pkg: function (id) { return stateKey("exam_pkg", id); },
+    att: function (id) { return stateKey("attempt", id); },
+    pend: function (id) { return stateKey("pending", id); },
+    offq: function (id) { return stateKey("offq", id); },
+    seal: function (id) { return stateKey("sealed", id); },
+    retake: function (id) { return stateKey("retake_cleared", id); },
+  };
+  function lsGet(k) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+  function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
+  function allKeysWithPrefix(prefix) {
+    var out = [];
+    try {
+      Object.keys(localStorage).forEach(function (k) { if (k.indexOf(prefix) === 0) out.push(k); });
+    } catch (e) {}
+    return out;
+  }
+  function listOwned(kind) {
+    var prefix = "sx2_" + kind + "__" + (currentOwner() || "anon") + "__";
+    return allKeysWithPrefix(prefix).map(function (k) {
+      return { key: k, examId: k.slice(prefix.length) };
+    });
+  }
+  function allPkgKeys() {
+    return allKeysWithPrefix("sx2_exam_pkg__").concat(allKeysWithPrefix("sx_exam_pkg_"));
+  }
+  function examIdFromPkgKey(k) {
+    if (k.indexOf("sx2_exam_pkg__") === 0) {
+      var rest = k.slice("sx2_exam_pkg__".length);
+      var cut = rest.indexOf("__");
+      return cut >= 0 ? rest.slice(cut + 2) : rest;
+    }
+    return k.slice("sx_exam_pkg_".length);
+  }
+  /* One-time migration of old exam-only keys. Packages know their owner; the
+     attempt/queue/seal keys for that exam move with the package. Keys whose
+     owner cannot be established are dropped rather than shown to the next
+     student on this device. */
+  function migrateLegacyState() {
+    var ownerByExam = {};
+    allKeysWithPrefix("sx_exam_pkg_").forEach(function (k) {
+      var examId = k.slice("sx_exam_pkg_".length);
+      var pkg = lsGet(k);
+      var owner = normOwner(pkg && pkg.student && pkg.student.reg_number);
+      ownerByExam[examId] = owner;
+      if (owner) {
+        var nk = stateKeyFor("exam_pkg", owner, examId);
+        if (!lsGet(nk)) lsSet(nk, pkg);
+      }
+      lsDel(k);
+    });
+    [
+      ["sx_attempt_", "attempt"],
+      ["sx_offq_", "offq"],
+      ["sx_pending_", "pending"],
+      ["sx_sealed_", "sealed"],
+      ["sx_retake_cleared_", "retake_cleared"],
+    ].forEach(function (pair) {
+      allKeysWithPrefix(pair[0]).forEach(function (k) {
+        var examId = k.slice(pair[0].length);
+        var val = lsGet(k);
+        // Never fall back to the current login: an unattributable key is
+        // dropped so it cannot be replayed under the next student's account.
+        var owner = ownerByExam[examId] || normOwner(val && (val.owner || val.reg_number));
+        if (pair[1] === "pending" && val && !val.owner) val.owner = owner;
+        if (owner) {
+          var nk = stateKeyFor(pair[1], owner, examId);
+          if (!lsGet(nk)) lsSet(nk, val);
+        }
+        lsDel(k);
+      });
+    });
+  }
+
+  /* ── Durable offline identity ──
+     The typed reg + access code are remembered across reloads, so a package
+     downloaded in a LATER session (when the in-memory login credentials are
+     gone) still carries the access code that sealed submissions need for
+     silent re-login when the internet returns. */
+  var SI_KEY = "sx_exam_identity";
+  function rememberIdentity(reg, code) {
+    try { localStorage.setItem(SI_KEY, JSON.stringify({ reg_number: String(reg || "").trim(), access_code: String(code || "").trim() })); } catch (e) {}
+  }
+  function knownIdentity(reg) {
+    try {
+      var id = JSON.parse(localStorage.getItem(SI_KEY) || "null");
+      if (id && id.access_code && (!reg || String(id.reg_number || "").toUpperCase() === String(reg || "").toUpperCase())) return id;
+    } catch (e) {}
+    return null;
+  }
+  function backfillPkgIdentities() {
+    // Devices that already downloaded packages before this fix: fill in the
+    // access code from the remembered identity so their seals can sync.
+    allPkgKeys().forEach(function (k) {
+      var pkg = lsGet(k);
+      if (pkg && pkg.student && !pkg.student.access_code) {
+        var id = knownIdentity(pkg.student.reg_number);
+        if (id) { pkg.student.access_code = id.access_code; lsSet(k, pkg); }
+      }
+    });
+  }
+
+  /* Offline answer queue (per student, per exam) — saved locally, flushed when online. */
+  function offlineQueueKey(examId) { return K.offq(examId); }
+  function queueOffline(examId, entry) {
+    var q = lsGet(offlineQueueKey(examId)) || [];
+    for (var i = 0; i < q.length; i++) {
+      if (q[i].question_id === entry.question_id) { q[i] = entry; entry = null; break; }
+    }
+    if (entry) q.push(entry);
+    lsSet(offlineQueueKey(examId), q);
+  }
+  function drainOfflineQueue(examId) {
+    var q = lsGet(offlineQueueKey(examId)) || [];
+    if (!q.length || !S.token) return Promise.resolve(0);
+    return api("/school-cbt/student/sync", {
+      method: "POST",
+      body: { attempt_id: (lsGet(K.att(examId)) || {}).attemptId || null, exam_id: examId, answers: q, offline_sync: true, client: "web-portal-offline" },
+    }).then(function () { lsDel(offlineQueueKey(examId)); return q.length; });
+  }
+  function flushAllQueues() {
+    if (!S.token || !isOnline() || !currentOwner()) return;
+    listOwned("offq").forEach(function (item) {
+      drainOfflineQueue(item.examId).catch(function () {});
+    });
+    listOwned("pending").forEach(function (item) {
+      syncPendingExam(item.examId, null).catch(function () {});
+    });
+  }
+  window.addEventListener("online", function () { toast("🌐 Back online — syncing…"); flushAllQueues(); if (S.me) loadExams(); });
+
+  window.toggleEye = function () {
+    var el = $("lgCode");
+    el.type = el.type === "password" ? "text" : "password";
+  };
+  window.retrieveDetails = function () {
+    toast("Ask your school exam officer — they issued your Registration Number and Access Code.");
+  };
+  function logout() {
+    // Clear only THIS student's transient exam state. Downloaded papers stay
+    // namespaced under their owner, and another student's sealed submission is
+    // never flushed with this session's token.
+    try {
+      ["attempt", "offq", "sealed"].forEach(function (kind) {
+        listOwned(kind).forEach(function (item) { lsDel(item.key); });
+      });
+      localStorage.removeItem(SI_KEY);
+    } catch (e) {}
+    localStorage.removeItem(TK); localStorage.removeItem(TU);
+    S.token = null; S.me = null; location.reload();
+  }
+  window.examLogout = logout;
+
+  /* ── AUTO LOGOUT after submit (§24): one student per device at a time.
+        On submission the device is SEALED — the student sees the completion
+        screen, then the account is cleared and the login screen returns for
+        the next student. Sealed submissions keep syncing in the background. ── */
+  function scheduledLogout(examId, seconds) {
+    setTimeout(function () {
+      lsDel(K.att(examId));
+      lsDel(K.offq(examId));
+      toast("✓ Submitted — logging out. Hand over to the next student.");
+      setTimeout(function () { logout(); }, 800);
+      // sx2_pending__<reg>__<examId> + the seal stay on the device until the
+      // submission syncs; pendingSealOnBoot() clears them afterwards.
+    }, Math.max(4000, (seconds || 12) * 1000));
+  }
+  function pendingSealOnBoot() {
+    listOwned("sealed").forEach(function (item) {
+      if (!lsGet(K.pend(item.examId))) lsDel(item.key); // sync already finished — clear the seal
+    });
+  }
+
+  $("loginForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var reg = $("lgReg").value.trim(), code = $("lgCode").value.trim();
+    if (!isOnline()) return offlineLogin(reg, code);
+    var btn = $("lgBtn"), err = $("lgErr");
+    err.style.display = "none";
+    btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Logging in…';
+    S.loginTyped = { reg: reg, code: code };
+    rememberIdentity(reg, code);
+    api("/school-cbt/student/login", { method: "POST", body: { reg_number: reg, access_code: code } })
+      .then(function (d) {
+        S.token = d.access_token; S.me = d.student;
+        localStorage.setItem(TK, S.token);
+        localStorage.setItem(TU, JSON.stringify(d.student));
+        migrateLegacyState();
+        flushAllQueues();
+        enterHome();
+      })
+      .catch(function (ex) {
+        btn.disabled = false; btn.innerHTML = "⮕&nbsp; Login to Examination";
+        var dev = findOfflineIdentity(reg);
+        if (dev && !isOnline()) {
+          return offlineLogin(reg, code);
+        }
+        if (dev) {
+          err.innerHTML = "Cannot reach the server — but this device holds an offline exam for <b>" + esc(reg) + "</b>. <a href='#' id='offGo' style='color:var(--blue);font-weight:700'>Continue offline →</a>";
+          err.style.display = "block";
+          $("offGo").onclick = function (ev) { ev.preventDefault(); offlineLogin(reg, code); };
+          return;
+        }
+        err.textContent = ex.message || "Could not log in"; err.style.display = "block";
+      });
+  });
+
+  /* ── Offline identity: a downloaded package remembers WHO downloaded it
+        (reg + access code typed at login), so the device can authenticate
+        the student offline later. ── */
+  function findOfflineIdentity(reg) {
+    var found = null;
+    allPkgKeys().forEach(function (k) {
+      if (found) return;
+      var pkg = lsGet(k);
+      if (pkg && pkg.student && String(pkg.student.reg_number || "").toUpperCase() === String(reg || "").toUpperCase()) {
+        found = { examId: examIdFromPkgKey(k), student: pkg.student };
+      }
+    });
+    return found;
+  }
+  function storeOfflineIdentity(pkg, typed) {
+    var reg = (typed && typed.reg) || (S.me && S.me.reg_number) || "";
+    var id = knownIdentity(reg);
+    pkg.student = {
+      reg_number: reg,
+      access_code: (typed && typed.code) || (id && id.access_code) || "",
+      full_name: (S.me && S.me.full_name) || "",
+      class_name: (S.me && S.me.class_name) || "",
+    };
+    lsSet(K.pkg(pkg.exam.id), pkg);
+  }
+  function offlineLogin(reg, code) {
+    var err = $("lgErr"), btn = $("lgBtn");
+    btn.disabled = false; btn.innerHTML = "⮕&nbsp; Login to Examination";
+    var dev = findOfflineIdentity(reg);
+    if (!dev) { err.textContent = "This device has no offline exam for that registration number."; err.style.display = "block"; return; }
+    if (String(dev.student.access_code || "").toUpperCase() !== String(code || "").toUpperCase()) {
+      err.textContent = "Wrong access code for this offline examination."; err.style.display = "block"; return;
+    }
+    S.me = { full_name: dev.student.full_name, reg_number: dev.student.reg_number };
+    S.token = null; // offline session — sealed submissions log back in to sync
+    S.loginTyped = { reg: reg, code: code };
+    rememberIdentity(reg, code);
+    localStorage.setItem(TU, JSON.stringify(S.me));
+    migrateLegacyState();
+    enterHome();
+    toast("📴 Offline mode — answers are saved on this device and sync automatically.");
+  }
+
+  function enterHome() {
+    $("login").style.display = "none";
+    $("app").classList.remove("hidden");
+    $("whoBox").innerHTML = '<span class="ava">' + esc((S.me && S.me.full_name || "S").charAt(0).toUpperCase()) + '</span><span class="wname">' + esc(S.me && S.me.full_name || "") + '</span>' +
+      ' <button class="btn-nav" style="padding:8px 14px;margin-left:8px" onclick="examLogout()">Log out</button>';
+    $("hello").textContent = "Welcome, " + ((S.me && S.me.full_name || "").split(" ")[0] || "student");
+    loadExams();
+  }
+  function tryResume() {
+    var u = localStorage.getItem(TU);
+    if (S.token && u) { try { S.me = JSON.parse(u); migrateLegacyState(); enterHome(); } catch (e) { logout(); return; } }
+    else if (!S.token && u && !isOnline()) { try { S.me = JSON.parse(u); migrateLegacyState(); enterHome(); } catch (e2) { localStorage.removeItem(TU); } }
+    pendingSealOnBoot();
+  }
+
+  function fmtDur(mins) {
+    var h = Math.floor(mins / 60), m = mins % 60;
+    return (h ? h + " Hour" + (h > 1 ? "s" : "") + (m ? " " : "") : "") + (m || !h ? m + " Minutes" : "");
+  }
+  function loadExams() {
+    if (!S.token) { renderOfflineExams(); return; }
+    api("/school-cbt/student/my-exams").then(function (d) {
+      S.exams = d.exams || [];
+      // A granted retake invalidates anything cached on this device: drop the
+      // old attempt and the old downloaded paper so the next start/download
+      // gets a fresh randomized set of questions. Clear it exactly once so a
+      // freshly downloaded paper is not wiped on the next refresh.
+      S.exams.forEach(function (x) {
+        var rk = K.retake(x.id);
+        if (x.retake_granted) {
+          if (!lsGet(rk)) {
+            lsDel(K.att(x.id));
+            lsDel(K.pkg(x.id));
+            lsSet(rk, true);
+          }
+        } else {
+          lsDel(rk);
+        }
+      });
+      $("examGrid").innerHTML = S.exams.length ? S.exams.map(examCard).join("") : '<div class="ecard">No examinations assigned to you yet.</div>';
+      flushAllQueues();
+    }).catch(function (e) {
+      if (!isOnline()) renderOfflineExams();
+      else $("examGrid").innerHTML = '<div class="ecard">' + esc(e.message) + '</div>';
+    });
+  }
+  function examCard(x) {
+    var mode = (x.exam_mode || "ONLINE").toUpperCase();
+    var pill = '<span class="mode-pill ' + mode.toLowerCase() + '">' + (mode === "ONLINE" ? "🌐" : mode === "OFFLINE" ? "⬇" : "🔄") + " " + mode + "</span>";
+    var pkg = lsGet(K.pkg(x.id));
+    if (pkg) pill += ' <span class="mode-pill offline">📥 On this device</span>';
+    var body = "";
+    if (x.attempt_status === "submitted") {
+      body = '<div class="okrow">✓ Completed</div>';
+      if (x.result) body += '<div class="scorecard">Score: ' + esc(x.result.final_score) + " / " + esc(x.result.total_mark) + " (" + esc(x.result.grade) + ")</div>";
+      else body += '<div class="scorecard" style="background:var(--warnbg);color:var(--warn)">Result waiting for your school to publish</div>';
+    } else if (x.needs_download) {
+      body = '<button class="btn-go dlbtn" onclick="downloadExam(\'' + x.id + '\')">⬇ Download Examination</button>';
+    } else {
+      body = '<button class="btn-go" onclick="openExam(\'' + x.id + '\')">' + (pkg && mode !== "ONLINE" ? "OPEN EXAM" : "START EXAM") + "</button>";
+    }
+    if (!x.window_open && x.attempt_status !== "submitted") {
+      body = '<div class="okrow" style="color:var(--warn)">⏰ Not available yet — check your exam date</div>';
+    }
+    return '<div class="ecard">' +
+      '<h3>' + esc(x.subject) + '</h3>' +
+      '<div class="esub">' + esc(x.class_name) + (x.term ? " · " + esc(x.term) : "") + (x.session ? " · " + esc(x.session) : "") + '</div>' +
+      '<div class="emeta"><span><b>' + x.questions + '</b> Questions</span><span><b>' + fmtDur(x.duration_minutes) + '</b></span><span>Total Mark: <b>' + x.total_mark + '</b></span></div>' +
+      pill + body + '</div>';
+  }
+  /* Offline home: everything downloaded on this device for THIS student + pending syncs. */
+  function renderOfflineExams() {
+    var rows = [];
+    listOwned("exam_pkg").forEach(function (item) {
+      var examId = item.examId;
+      var pkg = lsGet(item.key); if (!pkg || !pkg.exam) return;
+      var pend = lsGet(K.pend(examId));
+      var att = lsGet(K.att(examId));
+      var st = pend ? '<div class="scorecard" style="background:var(--warnbg);color:var(--warn)">⏳ Completed — waiting for secure sync</div>'
+        : '<button class="btn-go" onclick="openExamOffline(\'' + examId + '\')">' + (att ? "CONTINUE EXAM" : "START EXAM") + " (offline)</button>";
+      rows.push('<div class="ecard"><h3>' + esc(pkg.exam.subject || pkg.exam.title) + '</h3>' +
+        '<div class="esub">' + esc(pkg.exam.class_name || "") + '</div>' +
+        '<div class="emeta"><span><b>' + (pkg.questions || []).length + '</b> Questions</span><span><b>' + fmtDur(pkg.exam.duration_minutes) + '</b></span><span>Total Mark: <b>' + pkg.exam.total_mark + '</b></span></div>' +
+        '<span class="mode-pill offline">📴 Offline — on this device</span>' + st + '</div>');
+    });
+    $("examGrid").innerHTML = rows.length ? rows.join("") :
+      '<div class="ecard">You are offline and this device has no downloaded examinations.<br/><br/>Connect to the internet once, log in, and press <b>⬇ Download Examination</b> — after that the exam works fully offline.</div>';
+  }
+
+  window.downloadExam = function (examId) {
+    toast("Downloading examination…");
+    api("/school-cbt/student/exams/" + examId + "/download", { method: "POST" }).then(function (pkg) {
+      storeOfflineIdentity(pkg, S.loginTyped || {});
+      lsSet(K.pkg(examId), pkg);
+      loadExams();
+      toast("✓ Exam downloaded, verified and ready — works offline now");
+    }).catch(function (e) { toast("⚠️ " + e.message); });
+  };
+
+  /* ══ CBT RUNNER — online and offline share one code path ══ */
+  var R = null; // active runner state
+
+  window.openExam = function (examId) {
+    var pkg = lsGet(K.pkg(examId));
+    if ((!isOnline() || !S.token) && pkg) return openExamOffline(examId);
+    if (!isOnline()) { toast("You are offline — only downloaded exams can open."); return; }
+    // Always let the server decide which attempt is live. Resuming from a
+    // local cached attempt used to hide a granted retake (the old paper kept
+    // reappearing). /start returns the in-progress attempt + saved answers.
+    api("/school-cbt/student/exams/" + examId + "/start", { method: "POST" }).then(function (d) {
+      R = {
+        attemptId: d.attempt_id,
+        exam: d.exam,
+        seconds: d.seconds_remaining,
+        questions: d.questions,
+        idx: 0,
+        answers: {},
+        flags: {},
+        pkgExamId: examId,
+        offline: false,
+      };
+      d.questions.forEach(function (q) {
+        if (q.saved_answer) R.answers[q.id] = q.saved_answer;
+        if (q.is_flagged) R.flags[q.id] = true;
+      });
+      persistAttempt();
+      startRunner();
+    }).catch(function (e) { toast("⚠️ " + e.message); });
+  };
+
+  /* Offline start: run entirely from the downloaded package. The server
+     attempt is created by /sync (start_offline) when internet returns. */
+  window.openExamOffline = function (examId) {
+    var pkg = lsGet(K.pkg(examId));
+    if (!pkg) { toast("Package missing on this device."); return; }
+    var att = lsGet(K.att(examId));
+    if (att && att.questions) {
+      R = att; R.idx = R.idx || 0; startRunner(); return;
+    }
+    R = {
+      attemptId: null,
+      exam: pkg.exam,
+      seconds: (pkg.exam.duration_minutes || 60) * 60,
+      questions: pkg.questions,
+      idx: 0,
+      answers: {},
+      flags: {},
+      pkgExamId: examId,
+      offline: true,
+      startedAt: new Date().toISOString(),
+    };
+    persistAttempt();
+    startRunner();
+    toast("📴 Offline exam started — everything saves on this device.");
+  };
+
+  function persistAttempt() {
+    if (!R) return;
+    lsSet(K.att(R.pkgExamId || R.exam.id), {
+      attemptId: R.attemptId, exam: R.exam, seconds: R.seconds, questions: R.questions,
+      idx: R.idx, answers: R.answers, flags: R.flags, offline: !!R.offline, startedAt: R.startedAt,
+    });
+  }
+
+  function startRunner() {
+    $("home").classList.add("hidden");
+    $("exam").classList.remove("hidden");
+    $("qSubject").textContent = R.exam.subject;
+    var offlineTag = R.offline || !S.token ? " · 📴 Offline mode" : "";
+    $("qSub").textContent = R.exam.title + " · " + R.questions.length + " Questions · " + fmtDur(R.exam.duration_minutes) + offlineTag;
+    if (!R.exam.allow_flagging) $("flagBtn").style.display = "none";
+    buildPalette();
+    renderQ();
+    tick(); clearInterval(R._th); R._th = setInterval(tick, 1000);
+    window.addEventListener("beforeunload", persistAttempt);
+  }
+  function tick() {
+    if (!R) return;
+    R.seconds--;
+    if (R.seconds % 15 === 0) persistAttempt();
+    if (R.seconds <= 0) { R.seconds = 0; clearInterval(R._th); persistAttempt(); toast("Time is up — submitting…"); doSubmit(true); return; }
+    var h = Math.floor(R.seconds / 3600), m = Math.floor((R.seconds % 3600) / 60), s = R.seconds % 60;
+    var p = function (n) { return (n < 10 ? "0" : "") + n; };
+    $("timer").textContent = p(h) + ":" + p(m) + ":" + p(s);
+    if (R.seconds === 300) toast("⏰ 5 minutes remaining!");
+  }
+  function renderQ() {
+    var q = R.questions[R.idx];
+    $("qNum").textContent = "Question " + (R.idx + 1) + " of " + R.questions.length;
+    $("qText").textContent = q.question_text;
+    var qi = $("qImg");
+    if (q.image_url) { qi.src = q.image_url; qi.style.display = "block"; } else { qi.removeAttribute("src"); qi.style.display = "none"; }
+    $("flagBtn").classList.toggle("on", !!R.flags[q.id]);
+    $("flagBtn").innerHTML = R.flags[q.id] ? "⚑ Flagged ✓" : "⚑ Flag Question";
+    $("btnPrev").style.display = R.exam.allow_previous === false && R.idx === 0 ? "none" : "";
+    $("qOpts").innerHTML = (q.options || []).map(function (o) {
+      var sel = R.answers[q.id] === o.label;
+      return '<div class="opt' + (sel ? " sel" : "") + '" onclick="pick(\'' + o.label + '\')">' +
+        '<span class="radio"></span><span class="ol">' + esc(o.label) + "</span><span>" + esc(o.text) + "</span></div>";
+    }).join("");
+    buildPalette();
+  }
+  window.pick = function (label) {
+    var q = R.questions[R.idx];
+    R.answers[q.id] = label;
+    saveAnswer(q.id, label);
+    renderQ();
+  };
+  function saveAnswer(qid, answer) {
+    if (R.offline || !S.token || !isOnline()) {
+      queueOffline(R.pkgExamId, { question_id: qid, answer: answer });
+      return;
+    }
+    api("/school-cbt/student/answers", { method: "POST", body: { attempt_id: R.attemptId, question_id: qid, answer: answer } })
+      .catch(function () { queueOffline(R.pkgExamId, { question_id: qid, answer: answer }); });
+  }
+  window.toggleFlag = function () {
+    var q = R.questions[R.idx];
+    R.flags[q.id] = !R.flags[q.id];
+    if (!R.offline && S.token && isOnline()) {
+      api("/school-cbt/student/answers", { method: "POST", body: { attempt_id: R.attemptId, question_id: q.id, is_flagged: R.flags[q.id] } })
+        .catch(function () { queueOffline(R.pkgExamId, { question_id: q.id, is_flagged: R.flags[q.id] }); });
+    } else {
+      queueOffline(R.pkgExamId, { question_id: q.id, is_flagged: R.flags[q.id] });
+    }
+    renderQ();
+  };
+  window.move = function (dir) {
+    var n = R.idx + dir;
+    if (n < 0 || n >= R.questions.length) { if (n >= R.questions.length) openSummary(); return; }
+    R.idx = n;
+    persistAttempt();
+    renderQ();
+  };
+  function buildPalette() {
+    $("palette").innerHTML = R.questions.map(function (q, i) {
+      var cls = "pal";
+      if (i === R.idx) cls += " cur";
+      else if (R.answers[q.id]) cls += " ans";
+      if (R.flags[q.id]) cls += " mk";
+      return '<button class="' + cls + '" onclick="jump(' + i + ')">' + (i + 1) + "</button>";
+    }).join("");
+  }
+  window.jump = function (i) { R.idx = i; persistAttempt(); renderQ(); };
+
+  /* ── SUBMIT FLOW (§22) ── */
+  window.openSummary = function () {
+    var total = R.questions.length;
+    var answered = R.questions.filter(function (q) { return R.answers[q.id]; }).length;
+    var marked = R.questions.filter(function (q) { return R.flags[q.id]; }).length;
+    var b = document.createElement("div"); b.className = "mback"; b.id = "sumM";
+    b.innerHTML = '<div class="mmodal"><h3>Examination Summary</h3>' +
+      '<div class="sumrow"><span>Total Questions</span><b>' + total + "</b></div>" +
+      '<div class="sumrow"><span>Answered</span><b style="color:var(--ok)">' + answered + "</b></div>" +
+      '<div class="sumrow"><span>Not Answered</span><b style="color:var(--bad)">' + (total - answered) + "</b></div>" +
+      '<div class="sumrow" style="border:none"><span>Marked for Review</span><b style="color:var(--warn)">' + marked + "</b></div>" +
+      '<div class="mnote">Are you sure you want to submit? You will not be able to change your answers after final submission.</div>' +
+      '<div class="macts"><button class="btn-m" id="sumCancel">Review Answers</button><button class="btn-m danger" id="sumGo">Submit</button></div></div>';
+    document.body.appendChild(b);
+    $("sumCancel").onclick = function () { b.remove(); };
+    $("sumGo").onclick = function () { b.remove(); doSubmit(false); };
+  };
+  function allAnswers() {
+    return R.questions.map(function (q) {
+      var item = { question_id: q.id };
+      if (R.answers[q.id]) item.answer = R.answers[q.id];
+      if (R.flags[q.id]) item.is_flagged = true;
+      return item;
+    }).filter(function (it) { return it.answer || it.is_flagged; });
+  }
+  function doSubmit(auto) {
+    var examId = R.pkgExamId;
+    var payload = {
+      attempt_id: R.attemptId,
+      is_auto_submit: !!auto,
+      client: "web-portal",
+      started_at: R.startedAt || null,
+      submitted_at: new Date().toISOString(),
+      answers: allAnswers(),
+    };
+    if (!S.token || !isOnline()) { showOfflineWait(payload); return; }
+    var flush = drainOfflineQueue(examId).catch(function () {});
+    flush.then(function () {
+      return api("/school-cbt/student/exams/" + R.exam.id + "/submit", { method: "POST", body: payload });
+    }).then(function (d) {
+      lsDel(K.att(examId));
+      lsDel(K.offq(examId));
+      showCompletion(d);
+    }).catch(function () { showOfflineWait(payload); });
+  }
+  function showOfflineWait(payload) {
+    // §23 — seal the FULL submission (every answer) on the device; it syncs
+    // automatically when the network returns, then the device logs out.
+    var examId = R.pkgExamId;
+    payload.owner = currentOwner();
+    payload.reg_number = (S.me && S.me.reg_number) || "";
+    lsSet(K.pend(examId), payload);
+    lsSet(K.seal(examId), { at: payload.submitted_at, owner: payload.owner });
+    if (R && R._th) clearInterval(R._th);
+    persistAttempt();
+    var b = document.createElement("div"); b.className = "mback"; b.id = "pendModal";
+    b.innerHTML = '<div class="mmodal"><h3>Examination Completed</h3>' +
+      '<p style="font-size:14.5px;line-height:1.6">Your answers have been securely saved on this device.<br/><br/>' +
+      (isOnline() ? "Finalizing your submission…" : "Internet connection is currently unavailable.") +
+      '<br/>Your examination will be securely synchronized when a connection becomes available.</p>' +
+      '<div class="syncbox wait" id="syncBox">STATUS: Waiting for Secure Sync…</div>' +
+      '<div class="macts"><button class="btn-m primary" id="syncClose">OK</button></div></div>';
+    document.body.appendChild(b);
+    $("syncClose").onclick = function () { b.remove(); scheduledLogout(examId, 6); };
+    watchSync(payload);
+  }
+  function watchSync(payload) {
+    var tries = 0;
+    var examId = R ? R.pkgExamId : payload.exam_id;
+    var h = setInterval(function () {
+      tries++;
+      var box = $("syncBox");
+      if (!box) { clearInterval(h); return; }
+      box.textContent = "Connecting…";
+      syncPendingExam(examId, payload).then(function () {
+        clearInterval(h);
+        lsDel(K.att(examId));
+        lsDel(K.offq(examId));
+        lsDel(K.seal(examId));
+        box.className = "syncbox done";
+        box.textContent = "✓ Connecting… Verifying examination… Uploading answers… Submission Successful";
+        setTimeout(function () { var m = $("pendModal"); if (m) m.remove(); scheduledLogout(examId, 8); }, 1600);
+      }).catch(function () {
+        if (box) box.textContent = "STATUS: Waiting for Secure Sync…";
+        if (tries > 60) clearInterval(h);
+      });
+    }, 8000);
+  }
+  function sealAlreadyCounted(ex) {
+    // The school already counted this exam for the student (submitted on
+    // another device, or an old seal after a retake) — stop retrying forever.
+    return !!ex && (ex.status === 403 || ex.status === 409) && /already taken|already submitted/i.test(ex.message || "");
+  }
+  function clearSeal(examId) {
+    lsDel(K.pend(examId));
+    lsDel(K.seal(examId));
+  }
+  function syncPendingExam(examId, payloadOverride) {
+    var pend = payloadOverride || lsGet(K.pend(examId));
+    if (!pend) return Promise.reject(new Error("nothing pending"));
+    // Never upload another student's sealed answers under the current login.
+    var pendOwner = normOwner(pend.owner || pend.reg_number || "");
+    if (!currentOwner() || (pendOwner && pendOwner !== currentOwner())) {
+      return Promise.reject(new Error("submission belongs to another student"));
+    }
+    var body = {
+      attempt_id: pend.attempt_id || null,
+      exam_id: examId,
+      start_offline: !pend.attempt_id,
+      answers: pend.answers || [],
+      submit: true,
+      is_auto_submit: !!pend.is_auto_submit,
+      started_at: pend.started_at || null,
+      submitted_at: pend.submitted_at || null,
+      client: "web-portal-offline",
+    };
+    if (!S.token) {
+      // Offline session — log back in silently with the device identity, sync, logout.
+      var ident = (S.me && S.me.reg_number) || (lsGet(TU) || {}).reg_number || "";
+      var dev = findOfflineIdentity(ident);
+      if (dev && dev.student && !dev.student.access_code) {
+        var kid = knownIdentity(dev.student.reg_number);
+        if (kid) dev.student.access_code = kid.access_code;
+      }
+      if (!dev || !dev.student.access_code) return Promise.reject(new Error("no offline identity"));
+      return api("/school-cbt/student/login", { method: "POST", body: { reg_number: dev.student.reg_number, access_code: dev.student.access_code } })
+        .then(function (d) {
+          S.token = d.access_token;
+          localStorage.setItem(TK, S.token);
+          return api("/school-cbt/student/sync", { method: "POST", body: body });
+        })
+        .then(function () { clearSeal(examId); logout(); })
+        .catch(function (ex) { if (sealAlreadyCounted(ex)) { clearSeal(examId); return; } throw ex; });
+    }
+    return api("/school-cbt/student/sync", { method: "POST", body: body }).then(function () {
+      clearSeal(examId);
+    }).catch(function (ex) { if (sealAlreadyCounted(ex)) { clearSeal(examId); return; } throw ex; });
+  }
+  function showCompletion(d) {
+    var s = (d && d.summary) || {};
+    var b = document.createElement("div"); b.className = "mback";
+    var scoreHTML = "";
+    if (s.final_score != null) {
+      scoreHTML = '<div class="sumrow"><span>Your Score</span><b style="color:var(--ok)">' + s.final_score + " / " + s.total_mark + " (" + esc(s.grade || "") + ")</b></div>";
+    } else {
+      scoreHTML = '<div class="sumrow"><span>Result</span><b style="color:var(--warn)">Calculated — ready for your school to publish</b></div>';
+    }
+    b.innerHTML = '<div class="mmodal"><h3>✅ Examination Submitted</h3>' +
+      '<div class="sumrow"><span>Questions</span><b>' + (s.total_questions != null ? s.total_questions : (R ? R.questions.length : 0)) + "</b></div>" +
+      '<div class="sumrow"><span>Answered</span><b>' + (s.answered != null ? s.answered : answeredCount()) + "</b></div>" +
+      scoreHTML +
+      '<div class="mnote">' + esc((d && d.message) || "Submitted successfully. You will be logged out automatically.") + "</div>" +
+      '<div class="macts"><button class="btn-m primary" id="doneGo">Done</button></div></div>';
+    document.body.appendChild(b);
+    scheduledLogout(R ? R.pkgExamId : null, 12);
+    $("doneGo").onclick = function () { b.remove(); logout(); };
+  }
+  function answeredCount() { return R ? R.questions.filter(function (q) { return R.answers[q.id]; }).length : 0; }
+  function goHome() {
+    if (R) { clearInterval(R._th); persistAttempt(); }
+    R = null;
+    $("exam").classList.add("hidden");
+    $("home").classList.remove("hidden");
+    loadExams();
+  }
+
+  /* boot */
+  tryResume();
+  backfillPkgIdentities();
+  flushAllQueues();
+})();
+</script>
+</body>
+</html>

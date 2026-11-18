@@ -319,24 +319,51 @@ def _shuffle_options(
     *,
     randomize: bool,
 ) -> tuple[list[dict[str, str]], str]:
-    raw = [
-        ("A", q.option_a or ""),
-        ("B", q.option_b or ""),
-        ("C", q.option_c or ""),
-        ("D", q.option_d or ""),
-    ]
-    correct_text = dict(raw).get((q.correct_option or "A").upper(), q.option_a or "")
+    """Shuffle options and report which display label holds the right answer.
+
+    The correct entry is tracked by its ORIGINAL POSITION, never by matching
+    option text. Two options can legitimately carry the same wording (or both
+    be blank), and matching text handed out the wrong key — which marked a
+    right answer wrong and a wrong one right.
+    """
+    letters = "ABCD"
+    texts = [q.option_a or "", q.option_b or "", q.option_c or "", q.option_d or ""]
+    key = (q.correct_option or "A").strip().upper()[:1]
+    correct_idx = letters.index(key) if key in letters else 0
+    pairs = list(enumerate(texts))
     if randomize:
-        random.shuffle(raw)
-    letters = ["A", "B", "C", "D"]
+        random.shuffle(pairs)
     options = []
-    correct_key = "A"
-    for i, (_old, text) in enumerate(raw[:4]):
-        key = letters[i]
-        options.append({"key": key, "text": text})
-        if text == correct_text:
-            correct_key = key
+    correct_key = letters[correct_idx]
+    for i, (orig_idx, text) in enumerate(pairs):
+        options.append({"key": letters[i], "text": text})
+        if orig_idx == correct_idx:
+            correct_key = letters[i]
     return options, correct_key
+
+
+def _question_fingerprint(value: str | None) -> str:
+    """Same wording ignoring case, spacing and punctuation."""
+    return re.sub(r"[^a-z0-9]+", "", (value or "").lower())
+
+
+def _dedupe_questions(rows: list[CBTQuestion]) -> list[CBTQuestion]:
+    """One entry per distinct question.
+
+    Re-uploading a question creates a second row with a new id, so a paper
+    built by id could show the same question twice ("Q1 comes back at Q10").
+    The paper must never repeat a question the student already saw.
+    """
+    seen: set[str] = set()
+    out: list[CBTQuestion] = []
+    for row in rows or []:
+        fp = _question_fingerprint(getattr(row, "question_text", ""))
+        if fp:
+            if fp in seen:
+                continue
+            seen.add(fp)
+        out.append(row)
+    return out
 
 
 async def _published_practice_exams(db: AsyncSession, exam_type: str) -> list[CBTExam]:
@@ -521,6 +548,7 @@ async def build_section(
             f"No practice questions available yet for {subject}. "
             "It will appear here as soon as questions are published."
         )
+    bank = _dedupe_questions(bank)
     pick_n = min(need, len(bank))
     chosen = random.sample(bank, pick_n) if randomize_questions else bank[:pick_n]
     questions_out = []

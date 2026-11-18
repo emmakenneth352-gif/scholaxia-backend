@@ -5091,6 +5091,8 @@ html[data-app-theme="dark"] .exam-confirm-cancel:hover { background: #463a5f; }
 }
 .pr-item.correct { border-left-color: #22a06b; }
 .pr-item.incorrect { border-left-color: #e34f78; }
+.pr-item.skipped { border-left-color: #9ca3af; }
+.pr-item.skipped .pr-item-mark { color: #4b5563; background: #eef0f3; }
 .pr-item-head { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
 .pr-item-mark {
   display: inline-flex;
