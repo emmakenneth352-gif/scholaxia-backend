@@ -23,6 +23,22 @@ AVAILABLE_SUBJECTS = [
     "Animal Husbandry",
     "Book Keeping",
     "Data Processing",
+    # Remaining JAMB UTME subjects
+    "Arabic",
+    "Art (Fine Art)",
+    "Hausa",
+    "History",
+    "Home Economics",
+    "Igbo",
+    "Music",
+    "Physical and Health Education",
+    "Principles of Accounts",
+    "Yoruba",
+    # Skill-acquisition papers schools register candidates for
+    "Coding & Programming",
+    "Graphics Design",
+    "Digital Marketing",
+    "Web Design",
 ]
 
 # Junior WAEC (BECE) — nine core Junior Secondary subjects, one paper at a time.
@@ -84,13 +100,24 @@ def subject_matches(exam_subject: str, selected_subjects: list[str]) -> bool:
         "book-keeping": "book keeping",
         "fine art": "fine arts",
         "visual arts": "fine arts",
-        "home economics": "home management",
         "animal husbandry": "animal husbandry",
         "livestock farming": "animal husbandry",
         "data processing": "data processing",
         "computer studies": "data processing",
         "computer studies/ict": "data processing",
         "office practice": "office practice",
+        "accounting": "principles of accounts",
+        "accounts": "principles of accounts",
+        "principles of accounts": "principles of accounts",
+        "financial accounting": "principles of accounts",
+        "art": "fine arts",
+        "coding": "coding & programming",
+        "programming": "coding & programming",
+        "graphics": "graphics design",
+        "graphic design": "graphics design",
+        "web design": "web design",
+        "websites": "web design",
+        "digital marketing": "digital marketing",
     }
     exam_norm = aliases.get(exam_s, exam_s)
     for s in selected_subjects:

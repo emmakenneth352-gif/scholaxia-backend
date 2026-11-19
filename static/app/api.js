@@ -591,7 +591,9 @@
     role = String(role || "")
       .toLowerCase()
       .replace(/^userrole\./, "");
-    if (role === "school_admin") return "office.html";
+    // Schools sign in to their own dashboard on the portal app — there is no
+    // office.html on this site, so the old redirect ended in a 404.
+    if (role === "school_admin") return API_BASE + "/app/portal-app.html";
     if (role === "teacher" || role === "admin") return "teacher.html";
     if (role === "kind") return "kind.html";
     if (role === "vendor") return "vendor.html";

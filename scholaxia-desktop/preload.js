@@ -39,6 +39,15 @@ contextBridge.exposeInMainWorld("scholaxiaDesktop", {
       console.error("setExamProtection failed", e);
     }
   },
+  // Question diagrams: the main process keeps a copy on disk so a picture
+  // still shows while the student is offline.
+  cacheImage: function (url) {
+    try {
+      return ipcRenderer.invoke("scholaxia:cache-image", String(url || ""));
+    } catch (e) {
+      return Promise.resolve({ ok: false, error: "Image cache unavailable." });
+    }
+  },
   openExternal: function (target) {
     try {
       ipcRenderer.send("scholaxia:open-external", String(target || ""));

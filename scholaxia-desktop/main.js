@@ -327,10 +327,89 @@ function openClassroomKeyboard() {
     ipcMain.on("scholaxia:run-installer", (ev, filePath) => {
       runInstallerFile(filePath, ev.sender);
     });
+    ipcMain.handle("scholaxia:cache-image", (_ev, url) => cacheQuestionImage(url));
   } catch (e) {
     console.error("Could not register desktop bridge", e);
   }
 })();
+
+// ── Question diagrams, cached on disk ───────────────────────────────────────
+// Exam pictures live on the server. When a paper is opened online we keep each
+// diagram in userData/diagram-cache, so it still renders with no internet.
+const DIAGRAM_CACHE_DIR = () => path.join(app.getPath("userData"), "diagram-cache");
+const DIAGRAM_MAX_BYTES = 4 * 1024 * 1024;
+
+function diagramCachePath(url) {
+  const crypto = require("crypto");
+  const fs = require("fs");
+  const key = crypto.createHash("sha1").update(String(url)).digest("hex");
+  const dir = DIAGRAM_CACHE_DIR();
+  try { fs.mkdirSync(dir, { recursive: true }); } catch (e) { /* exists */ }
+  return path.join(dir, key + ".bin");
+}
+
+function cacheQuestionImage(url) {
+  return new Promise((resolve) => {
+    let target;
+    try {
+      target = new URL(String(url || ""));
+      if (target.protocol !== "https:" && target.protocol !== "http:") {
+        resolve({ ok: false, error: "Not an image link." });
+        return;
+      }
+    } catch (e) {
+      resolve({ ok: false, error: "Not an image link." });
+      return;
+    }
+    const fs = require("fs");
+    let file = null;
+    try { file = diagramCachePath(target.toString()); } catch (e) { file = null; }
+    const fromFile = () => {
+      try {
+        const buf = fs.readFileSync(file);
+        const type = buf[0] === 0xff ? "image/jpeg" : buf[0] === 0x47 ? "image/png" : buf.slice(0, 3).toString() === "GIF" ? "image/gif" : "image/png";
+        resolve({ ok: true, cached: true, dataUrl: "data:" + type + ";base64," + buf.toString("base64") });
+      } catch (e) {
+        resolve({ ok: false, error: "Diagram not downloaded yet." });
+      }
+    };
+    if (file) {
+      try { if (fs.existsSync(file) && fs.statSync(file).size > 0) { fromFile(); return; } } catch (e) { /* fall through */ }
+    }
+    if (!file) { resolve({ ok: false, error: "Cache unavailable." }); return; }
+    const { net: electronNet } = require("electron");
+    const chunks = [];
+    let received = 0;
+    let done = false;
+    const finish = (result) => { if (!done) { done = true; resolve(result); } };
+    const req = electronNet.request({ method: "GET", url: target.toString(), redirect: "follow" });
+    req.on("error", () => finish({ ok: false, error: "Could not download the diagram." }));
+    req.on("response", (res) => {
+      if (res.statusCode !== 200) {
+        try { req.abort(); } catch (e) { /* ignore */ }
+        finish({ ok: false, error: "Diagram is not on the server (" + res.statusCode + ")." });
+        return;
+      }
+      res.on("data", (chunk) => {
+        received += chunk.length;
+        if (received > DIAGRAM_MAX_BYTES) {
+          try { req.abort(); } catch (e) { /* ignore */ }
+          finish({ ok: false, error: "Diagram is too large to save." });
+          return;
+        }
+        chunks.push(chunk);
+      });
+      res.on("end", () => {
+        const buf = Buffer.concat(chunks);
+        const type = String((res.headers && res.headers["content-type"]) || "image/png").split(";")[0];
+        try { fs.writeFileSync(file, buf); } catch (e) { /* keep going, still return it */ }
+        finish({ ok: true, cached: false, dataUrl: "data:" + type + ";base64," + buf.toString("base64") });
+      });
+      res.on("error", () => finish({ ok: false, error: "Diagram download broke off." }));
+    });
+    req.end();
+  });
+}
 
 // ── In-app update download + install ─────────────────────────────────────────
 // Downloads the new Setup exe inside the app (with progress) and launches it,

@@ -2194,6 +2194,7 @@ async function launchPortalExamFromCache(examId, year) {
   answers = {};
   currentQ = 0;
   secondsLeft = resolveExamDurationSeconds(portal.exam, portal);
+  prefetchExamImages(portal.exam);
 
   showCbtExamView();
   applyExamYearLabel(year, portal);
@@ -2232,6 +2233,7 @@ async function beginExam(examId, isSchool, utmeYear) {
       answers = {};
       currentQ = 0;
       secondsLeft = resolveExamDurationSeconds(portal.exam, portal);
+      prefetchExamImages(portal.exam);
 
       showCbtExamView();
       applyExamYearLabel(utmeYear, portal);
@@ -2251,6 +2253,8 @@ async function beginExam(examId, isSchool, utmeYear) {
     }
     currentSession = { ...session, is_school_exam: isSchool };
     currentExam = exam;
+    // Fetch the diagrams now, while the connection is up.
+    prefetchExamImages(exam);
     answers = {};
     currentQ = 0;
     secondsLeft = resolveExamDurationSeconds(exam, {
@@ -2359,6 +2363,66 @@ function updateTimerDisplay() {
   if (safe <= 60) el.classList.add("danger");
 }
 
+/* Diagrams live on the server. The desktop shell keeps a copy of each one on
+   disk (main process), so a picture still shows with no internet — and says so
+   plainly when a diagram was never downloaded. */
+var _diagramCache = {};
+function showQuestionImage(imgEl, url) {
+  if (!imgEl) return;
+  if (!url) {
+    imgEl.classList.add("hidden");
+    imgEl.innerHTML = "";
+    return;
+  }
+  imgEl.classList.remove("hidden");
+  var src = String(url);
+  if (Object.prototype.hasOwnProperty.call(_diagramCache, src)) {
+    imgEl.innerHTML = '<img src="' + escHtml(_diagramCache[src]) + '" alt="Question diagram" />';
+    return;
+  }
+  if (/^data:/i.test(src)) {
+    _diagramCache[src] = src;
+    imgEl.innerHTML = '<img src="' + escHtml(src) + '" alt="Question diagram" />';
+    return;
+  }
+  var bridge = window.scholaxiaDesktop;
+  if (!bridge || typeof bridge.cacheImage !== "function") {
+    imgEl.innerHTML = '<img src="' + escHtml(src) + '" alt="Question diagram" />';
+    return;
+  }
+  imgEl.innerHTML = '<div class="q-img-note">Loading diagram…</div>';
+  bridge
+    .cacheImage(src)
+    .then(function (res) {
+      if (res && res.ok && res.dataUrl) {
+        _diagramCache[src] = res.dataUrl;
+        imgEl.innerHTML = '<img src="' + escHtml(res.dataUrl) + '" alt="Question diagram" />';
+      } else {
+        imgEl.innerHTML =
+          '<div class="q-img-note">🖼 This question has a diagram that is not saved on this device. Open this exam once with internet so the picture downloads, and it will show offline too.</div>';
+      }
+    })
+    .catch(function () {
+      imgEl.innerHTML = '<div class="q-img-note">🖼 This diagram could not be loaded.</div>';
+    });
+}
+
+/* Quietly download every diagram in the paper while we still have internet. */
+function prefetchExamImages(exam) {
+  var bridge = window.scholaxiaDesktop;
+  if (!bridge || typeof bridge.cacheImage !== "function") return;
+  ((exam && exam.questions) || []).forEach(function (q) {
+    var url = q && q.image_url;
+    if (!url || /^data:/i.test(url) || _diagramCache[url]) return;
+    bridge
+      .cacheImage(url)
+      .then(function (res) {
+        if (res && res.ok && res.dataUrl) _diagramCache[url] = res.dataUrl;
+      })
+      .catch(function () {});
+  });
+}
+
 function buildQNav() {
   if (!currentExam || !currentExam.questions) return;
   const nav = document.getElementById("q-nav");
@@ -2383,14 +2447,7 @@ function renderQuestion() {
   document.getElementById("q-num").textContent =
     `Question ${currentQ + 1} of ${currentExam.questions.length}${q.topic ? " · " + subjectLabelFromTopic(q.topic) : ""}`;
   document.getElementById("q-text").textContent = q.question_text;
-  const imgEl = document.getElementById("q-image");
-  if (q.image_url) {
-    imgEl.classList.remove("hidden");
-    imgEl.innerHTML = `<img src="${escHtml(q.image_url)}" alt="Question diagram" />`;
-  } else {
-    imgEl.classList.add("hidden");
-    imgEl.innerHTML = "";
-  }
+  showQuestionImage(document.getElementById("q-image"), q.image_url);
   const opts = ["A", "B", "C", "D"];
   document.getElementById("q-options").innerHTML = opts.map((k) => {
     const text = q[`option_${k.toLowerCase()}`] || q.options?.[k] || "";

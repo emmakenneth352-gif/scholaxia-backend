@@ -13,6 +13,14 @@ IRS = "Islamic Religious Studies (IRS)"
 NIG_LANG = "Nigerian Language"
 COMPUTER = "Computer Studies / ICT"
 
+# Skill-acquisition papers — schools register candidates to sit these as exams.
+SKILLS = [
+    "Coding & Programming",
+    "Graphics Design",
+    "Digital Marketing",
+    "Web Design",
+]
+
 PRIMARY_SUBJECTS = [
     "English Studies",
     "Mathematics",
@@ -39,7 +47,7 @@ PRIMARY_SUBJECTS = [
     "Physical Education",
     "Music",
     "Fine Arts",
-]
+] + SKILLS
 
 JSS_SUBJECTS = [
     "English Language",
@@ -65,7 +73,7 @@ JSS_SUBJECTS = [
     "Entrepreneurship",
     "Technical Drawing",
     "Reading and Writing",
-]
+] + SKILLS
 
 SSS_SUBJECTS = [
     "English Language",
@@ -106,7 +114,7 @@ SSS_SUBJECTS = [
     "Food and Nutrition",
     "Home Management",
     "Clothing and Textiles",
-]
+] + SKILLS
 
 # level -> subjects offered in every class of that level by default.
 CATALOGUE: dict[str, list[str]] = {

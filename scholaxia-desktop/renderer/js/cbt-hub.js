@@ -10,10 +10,35 @@ var cbtHubState = {
   offlineMode: false,
 };
 
+/* The 25 subjects JAMB approves for UTME. Use of English is compulsory;
+   every candidate then picks 3 more. Keep this list complete — a missing
+   subject means the student cannot sit that paper. */
 var DEFAULT_JAMB_SUBJECTS = [
-  "Use of English", "Mathematics", "Physics", "Chemistry", "Biology",
-  "Economics", "Government", "Literature in English", "Geography",
-  "Christian Religious Studies", "Islamic Religious Studies", "Commerce", "Accounting",
+  "Use of English",
+  "Agricultural Science",
+  "Arabic",
+  "Art (Fine Art)",
+  "Biology",
+  "Chemistry",
+  "Christian Religious Studies",
+  "Commerce",
+  "Computer Studies",
+  "Economics",
+  "French",
+  "Geography",
+  "Government",
+  "Hausa",
+  "History",
+  "Home Economics",
+  "Igbo",
+  "Islamic Religious Studies",
+  "Literature in English",
+  "Mathematics",
+  "Music",
+  "Physical and Health Education",
+  "Physics",
+  "Principles of Accounts",
+  "Yoruba",
 ];
 var DEFAULT_SSCE_SUBJECTS = [
   "English Language", "Mathematics", "Biology", "Chemistry", "Physics",
