@@ -1868,3 +1868,44 @@ html[data-app-theme="dark"] .study-mat-meta { color: #b9b1d8; }
   }
   .exam-section-tab { flex: 0 0 auto; white-space: nowrap; }
 }
+
+/* ── In-app confirm dialog (replaces native confirm popups) ───────────── */
+.sx-confirm-card { max-width: 430px; width: 100%; }
+.sx-confirm-msg { margin: 2px 0 18px; font-size: 0.95rem; line-height: 1.55; color: var(--sx-text); }
+.sx-confirm-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+.sx-confirm-actions button { min-width: 130px; }
+html[data-app-theme="dark"] .sx-confirm-card { background: #2b2d31 !important; }
+html[data-app-theme="dark"] .sx-confirm-msg { color: #f2f3f5 !important; }
+
+/* ── Back arrow: always visible, light + dark ─────────────────────────── */
+#page-back-btn,
+#kind-page-back-btn {
+  background: #7c3aed !important;
+  border: 2px solid #7c3aed !important;
+  color: #ffffff !important;
+}
+#page-back-btn:hover,
+#kind-page-back-btn:hover {
+  background: #6d28d9 !important;
+  border-color: #6d28d9 !important;
+}
+html[data-app-theme="dark"] #page-back-btn,
+html[data-app-theme="dark"] #kind-page-back-btn {
+  background: #a78bfa !important;
+  border-color: #c4b5fd !important;
+  color: #1e1b2e !important;
+}
+
+/* ── Sidebar promo button: readable text and arrow on the purple card ── */
+.sidebar-promo-btn {
+  background: #ffffff !important;
+  color: #5b21b6 !important;
+  border: none !important;
+}
+.sidebar-promo-btn:hover {
+  background: #f3eeff !important;
+  color: #4c1d95 !important;
+}
+
+/* ── Exam calculator button ──────────────────────────────────────────── */
+.exam-calc-btn { white-space: nowrap; }

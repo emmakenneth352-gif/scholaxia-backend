@@ -41,9 +41,23 @@ function initAppTheme() {
   applyAppTheme(getAppTheme());
 }
 
+function bindThemeToggle() {
+  var btn = document.getElementById("profile-theme-toggle");
+  if (!btn || btn.dataset.themeBound === "1") return;
+  btn.dataset.themeBound = "1";
+  btn.addEventListener("click", function (e) {
+    e.preventDefault();
+    toggleAppTheme();
+  });
+  updateThemeToggleUi(getAppTheme());
+}
+
 document.addEventListener("DOMContentLoaded", function () {
   initAppTheme();
+  bindThemeToggle();
 });
+
+if (typeof window !== "undefined") window.bindThemeToggle = bindThemeToggle;
 
 (function applyThemeEarly() {
   var theme = getAppTheme();

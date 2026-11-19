@@ -283,13 +283,22 @@ async function startOfflinePack(examId, year) {
 window.startOfflinePack = startOfflinePack;
 
 function exitPracticeExam() {
-  if (
-    !currentSession ||
-    !currentSession.is_practice ||
-    !confirm("Leave this practice exam? Your answers so far are kept and you can resume when the teacher's timer allows.")
-  ) {
+  if (!currentSession || !currentSession.is_practice) return;
+  var msg = "Leave this practice exam? Your answers so far are kept and you can resume when the teacher's timer allows.";
+  if (typeof window.sxConfirm === "function") {
+    window.sxConfirm(msg, doExitPracticeExam, {
+      title: "Leave practice exam?",
+      okText: "Leave exam",
+      cancelText: "Keep practising",
+    });
     return;
   }
+  if (!confirm(msg)) return;
+  doExitPracticeExam();
+}
+window.exitPracticeExam = exitPracticeExam;
+
+function doExitPracticeExam() {
   stopCbtTimer();
   hideSubjectStartPicker();
   setExamLockMode(false);
@@ -311,7 +320,6 @@ function exitPracticeExam() {
   showCbtListView();
   if (typeof loadCbtHubPage === "function") loadCbtHubPage();
 }
-window.exitPracticeExam = exitPracticeExam;
 
 function renderCbtHub() {
   var grid = document.getElementById("cbt-grid");

@@ -215,6 +215,7 @@
           <div class="q-actions">
             <button type="button" class="btn-secondary" onclick="prevQuestion()">Previous</button>
             <button type="button" class="btn-action" onclick="nextQuestion()">Next</button>
+            <button type="button" class="btn-secondary exam-calc-btn" id="exam-calc-btn" onclick="window.SxCalcToggle&&window.SxCalcToggle()" title="Open calculator">&#129518; Calculator</button>
             <button type="button" class="btn-submit-exam" onclick="submitExam()">Submit Exam</button>
           </div>
         </div>
@@ -943,7 +944,7 @@
             <label>Appearance</label>
             <p class="profile-theme-hint">Light or dark mode for the whole app</p>
           </div>
-          <button type="button" id="profile-theme-toggle" class="theme-toggle-btn" onclick="toggleAppTheme()" aria-pressed="false">
+          <button type="button" id="profile-theme-toggle" class="theme-toggle-btn" aria-pressed="false">
             <span id="profile-theme-icon" aria-hidden="true">🌙</span>
             <span id="profile-theme-label">Switch to dark mode</span>
           </button>
@@ -1152,6 +1153,7 @@
 
 
 
+<script src="js/sx-calc.js"></script>
 <script src="js/api.js"></script>
 <script src="js/feature-lock.js"></script>
 <script src="js/cbt-portal-config.js"></script>

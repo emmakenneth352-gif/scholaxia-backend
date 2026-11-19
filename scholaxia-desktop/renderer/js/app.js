@@ -3065,8 +3065,43 @@ function showResult(result) {
   stopCamera();
 }
 
-/* Answer review for board practice attempts — every question with the
-   student's pick, the correct option and the explanation (top-down list). */
+/* In-app confirm dialog — replaces the native "127.0.0.1:17890 says" popup
+   with a styled card that matches the rest of the app. */
+function sxConfirm(message, onConfirm, opts) {
+  opts = opts || {};
+  var overlay = document.createElement("div");
+  overlay.className = "practice-review-overlay";
+  overlay.id = "sx-confirm-overlay";
+  var box = document.createElement("div");
+  box.className = "practice-review-card sx-confirm-card";
+  box.innerHTML =
+    '<div class="practice-review-head">' +
+    '<h3>' + escHtml(opts.title || "Please confirm") + "</h3>" +
+    "</div>" +
+    '<p class="sx-confirm-msg">' + escHtml(message || "") + "</p>" +
+    '<div class="sx-confirm-actions">' +
+    '<button type="button" class="btn-secondary" data-act="cancel">' + escHtml(opts.cancelText || "Cancel") + "</button>" +
+    '<button type="button" class="btn-action" data-act="ok">' + escHtml(opts.okText || "OK") + "</button>" +
+    "</div>";
+  overlay.appendChild(box);
+  function close() { overlay.remove(); document.removeEventListener("keydown", onKey, true); }
+  function onKey(e) { if (e.key === "Escape") { e.preventDefault(); close(); } }
+  box.querySelector('[data-act="cancel"]').onclick = close;
+  box.querySelector('[data-act="ok"]').onclick = function () {
+    close();
+    if (typeof onConfirm === "function") onConfirm();
+  };
+  overlay.addEventListener("click", function (e) { if (e.target === overlay) close(); });
+  document.addEventListener("keydown", onKey, true);
+  document.body.appendChild(overlay);
+  var ok = box.querySelector('[data-act="ok"]');
+  if (ok) ok.focus();
+}
+window.sxConfirm = sxConfirm;
+
+/* Answer review for board practice attempts — the questions the student
+   actually answered, with their pick, the correct option and the explanation
+   (top-down list). Unanswered questions are left out. */
 function showPracticeReviewModal(review, boardLabel) {
   var reviewItems = (review || []).filter(Boolean);
   if (!reviewItems.length) {
@@ -3074,7 +3109,15 @@ function showPracticeReviewModal(review, boardLabel) {
     return;
   }
   var answeredItems = reviewItems.filter(function (q) { return q.your_answer; });
+  if (!answeredItems.length) {
+    showExamLockNotice("You did not answer any question on this paper, so there is nothing to review.");
+    return;
+  }
+  // Only the questions the student actually answered. The unanswered ones were
+  // already scored wrong; listing all of them buries the student's own answers
+  // under dozens of empty cards.
   var items = reviewItems.map(function (q, i) {
+    if (!q.your_answer) return "";
     var opts = (q.options || []).map(function (o) {
       return { key: String(o.key || "").toUpperCase(), text: o.text || "" };
     });
@@ -3124,7 +3167,7 @@ function showPracticeReviewModal(review, boardLabel) {
     '<h3>Answer review <span>· ' + escHtml(boardLabel) + "</span></h3>" +
     '<button id="pr-close" class="practice-review-close" type="button">Close</button>' +
     "</div>" +
-    '<div class="practice-review-legend">' + answeredItems.length + ' of ' + reviewItems.length + ' answered · ' + (reviewItems.length - answeredItems.length) + ' not answered · Green = correct · Red = incorrect · Amber = explanation</div>' +
+    '<div class="practice-review-legend">Showing the ' + answeredItems.length + ' of ' + reviewItems.length + ' questions you answered · Green = correct · Red = incorrect · Amber = explanation</div>' +
     items;
   overlay.appendChild(box);
   overlay.addEventListener("click", function (e) {

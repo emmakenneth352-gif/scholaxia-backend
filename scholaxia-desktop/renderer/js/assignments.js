@@ -19,7 +19,7 @@ async function loadAssignmentsPage() {
     var announcements = [];
     var mine = [];
     try {
-      teachers = await api("/api/v1/community/teachers");
+      teachers = await api("/api/v1/profiles/teachers");
       if (!Array.isArray(teachers)) teachers = (teachers && teachers.teachers) || [];
     } catch (e) { teachers = []; }
     try {
