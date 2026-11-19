@@ -2284,3 +2284,179 @@ body.app-body {
   .pq-card-grid { grid-template-columns: 1fr; }
 }
 
+
+/* =============================================================
+   CBT REVIEW — only the questions you actually answered.
+   Card layout, status pill, readable answer rows, sticky header.
+   ============================================================= */
+.review-screen {
+  background: linear-gradient(180deg, #f7f5ff 0, #fbfcfe 260px, #f8fafc 100%);
+}
+.review-page { max-width: 880px; padding: 1rem 1.15rem 3.5rem; }
+.review-page-head {
+  position: sticky;
+  top: 0.75rem;
+  z-index: 3;
+  border-radius: 18px;
+  padding: 1.1rem 1.25rem;
+  border: 1px solid #ddd6fe;
+  background: linear-gradient(135deg, rgba(237, 233, 254, 0.96), rgba(224, 242, 254, 0.96));
+  box-shadow: 0 12px 30px rgba(91, 33, 182, 0.09);
+  backdrop-filter: blur(8px);
+}
+.review-page-head h2 { font-size: 1.45rem; letter-spacing: -0.01em; }
+.review-page-head .muted { font-size: 0.9rem; line-height: 1.5; margin: 0; max-width: 48rem; }
+
+.review-books-panel {
+  border-radius: 16px;
+  padding: 1rem 1.15rem;
+  box-shadow: 0 4px 18px rgba(91, 33, 182, 0.05);
+}
+.review-books-panel h3 { font-size: 0.95rem; letter-spacing: 0.01em; }
+.review-book-chip { background: #f7f5ff; border-color: #e4defc; }
+
+.review-list { gap: 1.1rem; }
+.review-item {
+  border-radius: 16px;
+  padding: 1.15rem 1.25rem;
+  border-left-width: 5px;
+  box-shadow: 0 3px 14px rgba(91, 33, 182, 0.05);
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+.review-item:hover { transform: translateY(-1px); box-shadow: 0 14px 30px rgba(91, 33, 182, 0.1); }
+
+.review-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+.review-meta {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6d28d9;
+}
+.review-badge {
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.review-badge.is-correct { background: #dcfce7; color: #166534; }
+.review-badge.is-wrong { background: #fee2e2; color: #b42318; }
+.review-badge.is-skipped { background: #eef2f7; color: #475569; }
+
+.review-q { font-size: 1.02rem; line-height: 1.55; margin-bottom: 0.7rem; }
+.review-answer-row {
+  padding: 0.45rem 0.7rem;
+  border-radius: 10px;
+  background: #f8fafc;
+  margin: 0 0 0.4rem;
+}
+.review-answer-row strong { font-weight: 800; }
+.review-answer-row.is-wrong { background: #fef3f2; }
+.review-answer-row.is-correct { background: #f0fdf4; }
+.review-expl { border-radius: 12px; background: #faf9ff; }
+.review-sia-actions .btn-mini { border-radius: 999px; }
+.review-sia { border-radius: 12px; }
+.review-empty {
+  background: #fff;
+  border: 1px dashed #c4b5fd;
+  border-radius: 16px;
+  padding: 1.6rem 1.2rem;
+  text-align: center;
+}
+.review-empty strong { display: block; color: #5b21b6; margin-bottom: 0.3rem; font-size: 1rem; }
+.review-empty p { margin: 0; color: #64748b; font-size: 0.92rem; }
+
+/* =============================================================
+   CBT EXAM — question numbers moved out of the left rail and
+   into a strip under the question, plus a cleaner question card.
+   ============================================================= */
+.exam-q-count {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.28rem 0.75rem;
+  border-radius: 999px;
+  background: #f5f3ff;
+  border: 1px solid #e4defc;
+  color: #6d28d9;
+}
+.exam-q-text { font-size: 1.14rem; line-height: 1.6; }
+.exam-options { gap: 0.7rem; }
+.exam-option {
+  border-radius: 14px;
+  padding: 0.9rem 1.05rem;
+  background: #fff;
+  transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease, background 0.14s ease;
+}
+.exam-option:hover { transform: translateY(-1px); box-shadow: 0 10px 22px rgba(91, 33, 182, 0.09); }
+.exam-option.is-selected { box-shadow: 0 10px 24px rgba(124, 58, 237, 0.18); }
+.exam-option .opt-key { transition: background 0.14s ease, color 0.14s ease; }
+
+@media (min-width: 901px) {
+  /* One column: question on top, numbers + submit underneath. */
+  .exam-body {
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+  }
+  .exam-question-area {
+    order: 1;
+    /* Grow so the number strip always sits on the bottom edge. */
+    flex: 1 1 auto;
+    padding: 1.75rem 2.25rem 1.25rem;
+  }
+  .exam-nav {
+    order: 2;
+    position: sticky;
+    bottom: 0;
+    z-index: 6;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.55rem 0.9rem;
+    padding: 0.8rem 1.6rem;
+    border-right: 0;
+    border-top: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 -10px 28px rgba(15, 23, 42, 0.07);
+    max-height: none;
+    overflow: visible;
+  }
+  .exam-nav-label { margin: 0; font-size: 0.68rem; }
+  .exam-nav-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    flex: 1 1 62%;
+  }
+  .exam-nav-grid button {
+    width: 2.15rem;
+    height: 2.15rem;
+    aspect-ratio: auto;
+    border-radius: 10px;
+    font-size: 0.8rem;
+    transition: transform 0.14s ease, background 0.14s ease, color 0.14s ease;
+  }
+  .exam-nav-grid button:hover { transform: translateY(-1px); }
+  .exam-legend { display: flex; flex-wrap: wrap; gap: 0.9rem; }
+  .exam-submit-btn {
+    width: auto;
+    margin: 0 0 0 auto;
+    padding: 0.7rem 1.5rem;
+    border-radius: 999px;
+  }
+}

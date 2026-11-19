@@ -351,10 +351,16 @@ tr:last-child td{border-bottom:none}
     return;
   }
 
+  /* Same-origin /api/v1 exists only where the API itself is served (Render,
+     and local dev). Opened from any static host (Netlify preview, marketing
+     domain) a same-origin POST is answered 405 "Method Not Allowed", so those
+     keep talking to the API host. */
   var API = "https://scholaxia1.onrender.com/api/v1";
-  if (!["scholaxia.com", "www.scholaxia.com"].includes(location.hostname.toLowerCase())) {
-    API = location.origin + "/api/v1";
-  }
+  (function () {
+    var h = location.hostname.toLowerCase();
+    var servedByApi = h === "localhost" || h === "127.0.0.1" || /\.onrender\.com$/.test(h);
+    if (servedByApi) API = location.origin + "/api/v1";
+  })();
 
   var S = { school: null, user: null, token: localStorage.getItem("sx_portal_token_" + slug) || null, pin: null, cache: {} };
   var $ = function (id) { return document.getElementById(id); };
@@ -525,22 +531,64 @@ tr:last-child td{border-bottom:none}
     if (!url) return;
     wrapEl.innerHTML = '<img src="' + esc(url) + '" alt="logo" onerror="this.parentNode.innerHTML=\'<span>🎓</span>\'" />';
   }
+  /* Opened WITHOUT a school link (plain /app/portal-app.html), the URL used to
+     become /api/v1/school-portal//login — the server answers 405 "Method Not
+     Allowed" and login was impossible. Sign in through the main account
+     endpoint instead, read the school slug back, then reopen the portal on
+     that school's link with the token already stored. */
+  function loginWithoutSchoolLink(identifier, password) {
+    return sxFetch(API + "/auth/login", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email_or_id: identifier, password: password }),
+    }).then(_handle).then(function (d) {
+      var token = d && d.access_token;
+      var user = (d && d.user) || {};
+      var role = String(user.role || d.role || "").toLowerCase();
+      if (!token) throw new Error("Could not log in. Please try again.");
+      if (role !== "school_admin" && role !== "teacher") {
+        throw new Error("This page is for school staff. Students should sign in from the Scholaxia student portal.");
+      }
+      return sxFetch(API + "/school/me/plan", {
+        headers: { Authorization: "Bearer " + token },
+      }).then(_handle).then(function (plan) {
+        var found = plan && plan.slug;
+        if (!found) throw new Error("This account is not linked to a school portal yet.");
+        try {
+          localStorage.setItem("sx_portal_token_" + found, token);
+          localStorage.setItem("sx_portal_user_" + found, JSON.stringify(user));
+        } catch (_) {}
+        var next = location.pathname + "?school=" + encodeURIComponent(found);
+        location.replace(next);
+      });
+    });
+  }
+
   $("loginForm").addEventListener("submit", function (e) {
     e.preventDefault();
     var btn = $("lgBtn"), err = $("lgErr");
+    var ident = $("lgId").value.trim();
+    var pass = $("lgPw").value;
     err.style.display = "none";
     btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Logging in…';
-    sxFetch(API + "/school-portal/" + slug + "/login", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ identifier: $("lgId").value.trim(), password: $("lgPw").value }),
-    }).then(_handle).then(function (d) {
+    var done = function (d) {
       // School admin and school teachers land on the SAME portal. What they can
       // save or delete is decided by the admin PIN, not by a different page.
       S.token = d.access_token; S.user = d.user; S.school = d.school;
       localStorage.setItem("sx_portal_token_" + slug, S.token);
       localStorage.setItem("sx_portal_user_" + slug, JSON.stringify(d.user));
       enter();
-    }).catch(function (ex) {
+    };
+    if (!slug) {
+      loginWithoutSchoolLink(ident, pass).catch(function (ex) {
+        err.textContent = errText(ex) || "Could not log in"; err.style.display = "block";
+        btn.disabled = false; btn.innerHTML = "→&nbsp; Log In";
+      });
+      return;
+    }
+    sxFetch(API + "/school-portal/" + slug + "/login", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identifier: ident, password: pass }),
+    }).then(_handle).then(done).catch(function (ex) {
       err.textContent = errText(ex) || "Could not log in"; err.style.display = "block";
       btn.disabled = false; btn.innerHTML = "→&nbsp; Log In";
     });

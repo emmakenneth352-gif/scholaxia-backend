@@ -2619,7 +2619,16 @@
     });
   }
 
-  function renderReviewQuestionCard(q, index) {
+  /* Only the questions the student actually answered belong in the review.
+     Skipped/blank ones are left out, and the real question number from the
+     paper is carried over so "Question 7" still means question 7. */
+  function isAnsweredReviewItem(q) {
+    if (!q) return false;
+    var a = q.your_answer;
+    return a != null && String(a).trim() !== "";
+  }
+
+  function renderReviewQuestionCard(q, number) {
     var expl = (q.explanation || "").trim();
     var cls = q.is_skipped ? "is-skipped" : q.is_correct ? "is-correct" : "is-wrong";
     var status = q.is_skipped ? "Skipped" : q.is_correct ? "Correct" : "Wrong";
@@ -2629,14 +2638,18 @@
       '" data-review-q="' +
       esc(q.id) +
       '">' +
+      '<div class="review-head">' +
       '<p class="review-meta">Question ' +
-      (index + 1) +
-      " · " +
-      esc(q.subject || "") +
-      " · " +
-      status +
+      number +
+      (q.subject ? " · " + esc(q.subject) : "") +
       (q.topic ? " · " + esc(q.topic) : "") +
       "</p>" +
+      '<span class="review-badge ' +
+      cls +
+      '">' +
+      status +
+      "</span>" +
+      "</div>" +
       '<p class="review-q">' +
       esc(q.question_text || "") +
       "</p>" +
@@ -2671,24 +2684,43 @@
     var titleEl = $("reviewPageTitle");
     var subEl = $("reviewPageSub");
     if (!wrap || !screen) return;
+    // Keep the paper's own numbering, then show only what was answered.
+    var marked = [];
+    items.forEach(function (q, i) {
+      if (!isAnsweredReviewItem(q)) return;
+      var no = q.question_number != null && q.question_number !== "" ? q.question_number : i + 1;
+      marked.push({ q: q, no: no });
+    });
     if (titleEl) {
       titleEl.textContent =
         (meta.title || "Your answers & explanations") +
         (meta.percent != null ? " · " + meta.percent + "%" : "");
     }
     if (subEl) {
-      subEl.textContent =
-        items.length +
-        " questions · " +
-        (meta.wrong_count != null ? meta.wrong_count + " wrong · " : "") +
-        "Tap Ask Sia on any question for a deeper explanation and study tips.";
+      var wrong = meta.wrong_count != null ? meta.wrong_count + " wrong · " : "";
+      subEl.textContent = marked.length
+        ? marked.length +
+          (items.length > marked.length
+            ? " of " + items.length + " questions answered · "
+            : " question" + (marked.length === 1 ? "" : "s") + " · ") +
+          wrong +
+          "Tap Ask Sia on any question for a deeper explanation and study tips."
+        : "You did not answer any question in this attempt.";
     }
-    if (!items.length) {
-      wrap.innerHTML =
-        '<div class="empty-state"><strong>No review data yet</strong><p>Finish a CBT exam and tap Review all answers on the result screen.</p></div>';
+    if (!marked.length) {
+      wrap.innerHTML = items.length
+        ? '<div class="review-empty"><strong>Nothing to review</strong><p>You skipped every question in this attempt. Try again and answer at least one, then review it here.</p></div>'
+        : '<div class="review-empty"><strong>No review data yet</strong><p>Finish a CBT exam and tap Review all answers on the result screen.</p></div>';
     } else {
-      wrap.innerHTML = items.map(renderReviewQuestionCard).join("");
+      wrap.innerHTML = marked
+        .map(function (row) {
+          return renderReviewQuestionCard(row.q, row.no);
+        })
+        .join("");
     }
+    items = marked.map(function (row) {
+      return row.q;
+    });
     var examSubject = meta.subject || subjectFromExamTitle(meta.title);
     if (!examSubject) {
       var seen = {};
