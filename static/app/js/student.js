@@ -2325,6 +2325,44 @@
     await writeQueuedExams(remaining);
   }
 
+  /* The browser's own confirm() box cannot be styled and looks nothing like the
+     app, so questions are asked in the app's own modal. Resolves true/false. */
+  var _askResolve = null;
+  function askConfirm(message, okText) {
+    var overlay = $("askModal");
+    if (!overlay) return Promise.resolve(window.confirm(message));
+    $("askModalText").textContent = message;
+    $("askModalOk").textContent = okText || "OK";
+    overlay.classList.add("is-on");
+    return new Promise(function (resolve) {
+      _askResolve = resolve;
+    });
+  }
+  function closeAsk(result) {
+    var overlay = $("askModal");
+    if (overlay) overlay.classList.remove("is-on");
+    var resolve = _askResolve;
+    _askResolve = null;
+    if (resolve) resolve(!!result);
+  }
+  (function bindAskModal() {
+    function bind() {
+      var overlay = $("askModal");
+      if (!overlay) return;
+      $("askModalOk").addEventListener("click", function () { closeAsk(true); });
+      $("askModalCancel").addEventListener("click", function () { closeAsk(false); });
+      $("askModalClose").addEventListener("click", function () { closeAsk(false); });
+      overlay.addEventListener("click", function (e) {
+        if (e.target === overlay) closeAsk(false);
+      });
+      document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && overlay.classList.contains("is-on")) closeAsk(false);
+      });
+    }
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind);
+    else bind();
+  })();
+
   function confirmSubmitExam() {
     if (!Exam.current) return;
     var st = Exam.current;
@@ -2339,7 +2377,10 @@
       total = st.questions.length;
     }
     if (answered < total) {
-      if (!confirm("You have answered " + answered + " of " + total + " questions. Submit anyway?")) return;
+      askConfirm("You have answered " + answered + " of " + total + " questions. Submit anyway?", "Submit anyway").then(function (ok) {
+        if (ok) submitExam(false);
+      });
+      return;
     }
     submitExam(false);
   }

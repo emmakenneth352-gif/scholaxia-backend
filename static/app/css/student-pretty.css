@@ -2460,3 +2460,11 @@ body.app-body {
     border-radius: 999px;
   }
 }
+
+/* ---- Ask modal (styled replacement for the browser's confirm box) ---- */
+#askModal { z-index: 700; }
+#askModal .modal.ask-modal { width: min(420px, 100%); gap: 0.35rem; }
+.ask-modal .modal-sub { color: #0f172a; font-size: 0.95rem; line-height: 1.55; margin: 0.1rem 0 0; }
+.ask-actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 1rem; flex-wrap: wrap; }
+.ask-actions .btn { min-width: 106px; justify-content: center; }
+@media (max-width: 480px) { .ask-actions .btn { flex: 1 1 0; } }

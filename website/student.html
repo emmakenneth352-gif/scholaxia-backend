@@ -16,7 +16,7 @@
     <link rel="dns-prefetch" href="wss://scholaxia-neyu04kd.livekit.cloud" />
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="css/app.css?v=20261113aff2" />
-    <link rel="stylesheet" href="css/student-pretty.css?v=20261119c" />
+    <link rel="stylesheet" href="css/student-pretty.css?v=20261119d" />
     <script src="js/site-guard.js?v=20261112a"></script>
     <script>
       // Drop stale caches so CBT updates are not stuck on old JS
@@ -717,6 +717,21 @@
       </div>
     </div>
 
+    <!-- ================= CONFIRM MODAL (replaces window.confirm) ================= -->
+    <div class="modal-overlay" id="askModal" role="dialog" aria-modal="true" aria-labelledby="askModalTitle">
+      <div class="modal ask-modal">
+        <div class="modal-head">
+          <h3 id="askModalTitle">Please confirm</h3>
+          <button type="button" class="modal-close" id="askModalClose" aria-label="Close">✕</button>
+        </div>
+        <p class="modal-sub" id="askModalText"></p>
+        <div class="ask-actions">
+          <button type="button" class="btn btn-secondary" id="askModalCancel">Cancel</button>
+          <button type="button" class="btn btn-primary" id="askModalOk">OK</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ================= SKILL ENROLL MODAL ================= -->
     <div class="modal-overlay" id="skillEnrollModal">
       <div class="modal">
@@ -859,6 +874,6 @@
     <script src="js/paystack.js?v=20261024b"></script>
     <script src="js/games.js?v=20261024b"></script>
     <script src="js/sx-calc.js?v=20261113calc2"></script>
-    <script src="js/student.js?v=20261119c"></script>
+    <script src="js/student.js?v=20261119d"></script>
   </body>
 </html>
