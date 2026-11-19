@@ -639,7 +639,9 @@ async def confirm_bank_upload(
                     option_b=(q.get("option_b") or "").strip()[:1000],
                     option_c=(q.get("option_c") or "").strip()[:1000],
                     option_d=(q.get("option_d") or "").strip()[:1000],
-                    correct_option=(q.get("correct_option") or "A").strip().upper()[:12] or "A",
+                    # Never invent an answer key. A row without one is caught by
+                    # normalize_upload_row ("missing answer") and skipped above.
+                    correct_option=(q.get("correct_option") or "").strip().upper()[:12],
                     question_type=q.get("question_type") or "mcq",
                     topic=(q.get("topic") or "").strip() or topic_default,
                     marks=int(q.get("marks") or marks_default),

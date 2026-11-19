@@ -1392,8 +1392,12 @@ async def submit_session(
     weak_topics: set = set()
 
     for q in questions:
+        key = (q.correct_option or "").strip().upper()
+        if not key:
+            # No answer key on this question — never fail a student for it.
+            continue
         chosen = payload.answers.get(str(q.id))
-        if chosen and chosen.upper() == q.correct_option.upper():
+        if chosen and chosen.upper() == key:
             correct += 1
         else:
             wrong += 1
@@ -2033,8 +2037,12 @@ async def submit_internal_exam(
     wrong = 0
     weak_topics: set = set()
     for q in questions:
+        key = (q.correct_option or "").strip().upper()
+        if not key:
+            # No answer key on this question — never fail a student for it.
+            continue
         chosen = payload.answers.get(str(q.id))
-        if chosen and chosen.upper() == q.correct_option.upper():
+        if chosen and chosen.upper() == key:
             correct += 1
         else:
             wrong += 1

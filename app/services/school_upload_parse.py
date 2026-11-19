@@ -32,6 +32,14 @@ def _norm_text(v: Any) -> str:
     return str(v or "").strip()
 
 
+def _norm_key(key: Any) -> str:
+    """Column names from real school files are written "Correct Answer",
+    "Option A", "QUESTION TEXT". Compare them on one canonical key so a
+    perfectly good answer column is never missed (it used to miss, and the
+    answer quietly became A for every question)."""
+    return re.sub(r"[^a-z0-9]+", "_", str(key or "").strip().lower()).strip("_")
+
+
 def _normalize_answer_value(raw: Any) -> tuple[str, str | None]:
     """Return (letter or '', issue or None). Accepts A-D, 1-4, 'True'/'False'."""
     t = _norm_text(raw)
@@ -69,11 +77,12 @@ def normalize_upload_row(raw: dict[str, Any], number: int) -> dict[str, Any]:
         for k in keys:
             if raw.get(k) is not None and str(raw.get(k)).strip():
                 return str(raw.get(k)).strip()
-        # case-insensitive fallback
-        lowered = {str(k).lower(): v for k, v in (raw or {}).items()}
+        # case/spacing-insensitive fallback: "Correct Answer" == correct_answer
+        normalised = {_norm_key(k): v for k, v in (raw or {}).items()}
         for k in keys:
-            if lowered.get(k) is not None and str(lowered.get(k)).strip():
-                return str(lowered.get(k)).strip()
+            v = normalised.get(_norm_key(k))
+            if v is not None and str(v).strip():
+                return str(v).strip()
         return ""
 
     q = {
@@ -97,7 +106,20 @@ def normalize_upload_row(raw: dict[str, Any], number: int) -> dict[str, Any]:
             q["issues"].append(f"marks {marks_raw!r} ignored (use 1-100)")
 
     q["question_type"] = _detect_type({**q, "question_type": pick("question_type", "type", "qtype")})
-    letter, ans_issue = _normalize_answer_value(pick("correct_option", "answer", "correct", "correct_answer", "key"))
+    letter, ans_issue = _normalize_answer_value(
+        pick(
+            "correct_option",
+            "correct_option_letter",
+            "correctoption",
+            "correct_answer",
+            "correct",
+            "answer_key",
+            "answer",
+            "answers",
+            "ans",
+            "key",
+        )
+    )
     q["correct_option"] = letter
     if ans_issue and q["question_type"] != "theory":
         q["issues"].append(ans_issue)
@@ -132,8 +154,9 @@ def parse_xlsx_questions(content: bytes) -> list[dict[str, Any]]:
     if not rows:
         raise ValueError("This Excel sheet is empty.")
     headers = [str(h or "").strip() for h in rows[0]]
-    if not any(headers) or "question_text" not in [h.lower() for h in headers] and "question" not in [h.lower() for h in headers]:
-        raise ValueError("Excel needs a header row with at least a question_text (or question) column.")
+    header_keys = {_norm_key(h) for h in headers}
+    if not any(headers) or not header_keys.intersection({"question_text", "question", "text", "q"}):
+        raise ValueError("Excel needs a header row with at least a Question Text (or Question) column.")
     out: list[dict[str, Any]] = []
     for i, r in enumerate(rows[1:], start=2):
         if not any(v is not None and str(v).strip() for v in (r or [])):

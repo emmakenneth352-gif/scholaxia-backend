@@ -620,7 +620,7 @@ async def import_bank_questions(
                         "option_b": q.get("option_b"),
                         "option_c": q.get("option_c"),
                         "option_d": q.get("option_d"),
-                        "correct_option": q.get("correct_option") or "A",
+                        "correct_option": q.get("correct_option") or "",
                     }
                     for q in extracted
                 ],
@@ -632,7 +632,7 @@ async def import_bank_questions(
         for q in item.get("questions") or []:
             if not str(q.get("question_text") or "").strip():
                 continue
-            opt = str(q.get("correct_option") or "A").upper()[:1]
+            opt = str(q.get("correct_option") or "").strip().upper()[:1]
             qs.append(
                 {
                     "question_text": str(q.get("question_text"))[:4000],
@@ -640,13 +640,16 @@ async def import_bank_questions(
                     "option_b": str(q.get("option_b") or "")[:1000],
                     "option_c": str(q.get("option_c") or "")[:1000],
                     "option_d": str(q.get("option_d") or "")[:1000],
-                    "correct_option": opt if opt in ("A", "B", "C", "D") else "A",
+                    # No key stays empty — silently storing "A" made every
+                    # uploaded question look answered with A.
+                    "correct_option": opt if opt in ("A", "B", "C", "D") else "",
                     "topic": (str(q.get("topic") or topic or "").strip() or None),
                     "marks": int(q.get("marks") or marks or 1),
                 }
             )
     if not qs:
         raise HTTPException(status_code=400, detail="No usable questions found in the file")
+    flagged = sum(1 for q in qs if not q["correct_option"])
 
     # One bank per class+subject — reuse it, or create it on first upload.
     bank = (
@@ -4137,13 +4140,17 @@ async def submit_attempt(
     answers = {str(a.exam_question_id): (a.answer or "") for a in ans_rows}
 
     # §29 — AUTO MARKING: raw score → configured total mark.
-    total_q = len(qs)
+    # A question whose answer key was never set cannot be marked, so it is left
+    # out of the paper totals instead of failing the student for the school's
+    # missing key.
+    gradable = [q for q in qs if (q.correct_option or "").strip()] or list(qs)
+    total_q = len(gradable)
     answered = 0
     correct = 0
     wrong = 0
     raw_score = 0.0
     raw_total = 0.0
-    for q in qs:
+    for q in gradable:
         raw_total += float(q.marks or 1)
         given = answers.get(str(q.id), "")
         if given:

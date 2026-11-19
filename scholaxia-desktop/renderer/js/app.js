@@ -2595,6 +2595,9 @@ async function submitExam(force) {
       showResult({
         percentage: result.percent != null ? result.percent : result.percentage,
         correct: result.score,
+        // Use the server's own "not correct" count (wrong + never answered)
+        // so the summary always agrees with the Review Answers list.
+        wrong: result.wrong_count != null ? result.wrong_count : result.total_wrong,
         total: result.max_score,
         score: result.score,
         max_score: result.max_score,
