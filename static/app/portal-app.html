@@ -2060,7 +2060,7 @@ tr:last-child td{border-bottom:none}
         return '<tr><td>' + (i + 1) + '</td><td>' + esc((q.question_text || "").slice(0, 110)) + '<br>' +
           '<span style="color:#6b7280;font-size:11px">A. ' + esc(q.option_a || "—") + ' · B. ' + esc(q.option_b || "—") + ' · C. ' + esc(q.option_c || "—") + ' · D. ' + esc(q.option_d || "—") + '</span>' +
           (flags.length ? '<br><span class="uq-flag">⚠ ' + esc(flags.join("; ")) + '</span>' : '') + '</td>' +
-          '<td><select data-r="' + i + '" data-ed="correct_option"><option value=""' + (q.correct_option ? "" : " selected") + '>—</option>' + ["A", "B", "C", "D", "E"].map(function (o) {
+          '<td><select data-r="' + i + '" data-ed="correct_option"><option value=""' + (q.correct_option ? "" : " selected") + '>—</option>' + ["A", "B", "C", "D"].map(function (o) {
             return '<option value="' + o + '"' + ((q.correct_option || "") === o ? " selected" : "") + '>' + o + '</option>';
           }).join("") + '</select></td>' +
           '<td><input data-r="' + i + '" data-ed="topic" value="' + esc(q.topic || "") + '" placeholder="Topic" /></td>' +

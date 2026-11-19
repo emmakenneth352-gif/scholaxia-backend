@@ -471,7 +471,7 @@ class BankQuestionIn(BaseModel):
     option_b: str = ""
     option_c: str = ""
     option_d: str = ""
-    correct_option: str = "A"
+    correct_option: str = ""
     question_type: str = "mcq"
     topic: Optional[str] = None
     sub_topic: Optional[str] = None
@@ -792,9 +792,17 @@ async def add_bank_questions(
         raise HTTPException(status_code=400, detail="Add at least one question")
     made = []
     for q in payload[:500]:
-        copt = (q.correct_option or "A").upper().replace(" ", "")
-        if q.question_type == "mcq" and any(ch not in "ABCD" for ch in copt):
-            raise HTTPException(status_code=400, detail="correct_option must be letters A–D (e.g. A or AC)")
+        # An unanswered key stays empty. Defaulting it to "A" marked every
+        # student wrong on a question the school had not keyed yet, and made a
+        # theory question score as a failed MCQ.
+        copt = (q.correct_option or "").strip().upper().replace(" ", "")
+        if copt and q.question_type in ("mcq", "true_false", "multi_select") and any(
+            ch not in "ABCD," for ch in copt
+        ):
+            raise HTTPException(
+                status_code=400, detail="correct_option must be letters A–D (e.g. A or A,C)"
+            )
+        copt = ",".join(sorted({ch for ch in copt if ch in "ABCD"})) if "," in copt else copt
         row = SchoolExQuestion(
             bank_id=bank.id,
             school_id=bank.school_id,
@@ -1084,7 +1092,9 @@ async def create_exam(
                 option_b=b[:1000],
                 option_c=c[:1000],
                 option_d=d[:1000],
-                correct_option=copt or "A",
+                # Keep an empty key empty: inventing "A" marked every student
+                # wrong on a question the school had not keyed.
+                correct_option=copt or "",
                 question_type=qtype if qtype in ("mcq", "true_false", "multi_select", "theory") else "mcq",
                 topic=topic,
                 marks=marks,
@@ -2371,7 +2381,7 @@ async def add_exam_questions(
                 option_b=(q.option_b or "").strip()[:1000],
                 option_c=(q.option_c or "").strip()[:1000],
                 option_d=(q.option_d or "").strip()[:1000],
-                correct_option=(q.correct_option or "A").upper(),
+                correct_option=(q.correct_option or "").strip().upper(),
                 topic=(q.topic or "").strip() or None,
                 marks=max(1, min(int(q.marks or 1), 100)),
                 image_url=(q.image_url or "").strip() or None,
