@@ -51,7 +51,7 @@ from app.models.school_cbt import (
 )
 from app.models.user import User, UserRole, StudentProfile
 from app.models.school_campus import SchoolCampus
-from app.models.school_subjects import normalize_class_name
+from app.models.school_subjects import LEVEL_CLASSES, normalize_class_name
 
 router = APIRouter(
     prefix="/school-cbt",
@@ -530,11 +530,25 @@ async def create_bank(
     db: AsyncSession = Depends(get_db),
 ):
     sid = _staff_school_id(current_user, payload.school_id)
+    # A bank only feeds an exam when its class and subject match the exam's.
+    # Free text like "JSS2-SS3" or "CODING" matched nothing, so the bank sat
+    # full of questions that no exam could ever find.
+    cls_raw = (payload.class_name or "").strip()
+    cls_norm = normalize_class_name(cls_raw)
+    valid_classes = [c for classes in LEVEL_CLASSES.values() for c in classes]
+    if cls_norm not in {normalize_class_name(c) for c in valid_classes}:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Class must be one of: {', '.join(valid_classes)}. "
+            "One bank serves one class — create Coding & Programming for JSS 2 and another for SS 1.",
+        )
+    if not (payload.subject or "").strip():
+        raise HTTPException(status_code=400, detail="Pick the subject this bank belongs to")
     bank = SchoolExQuestionBank(
         school_id=sid,
-        name=payload.name.strip(),
+        name=(payload.name or "").strip() or f"{payload.subject.strip()} {cls_raw} Bank",
         subject=payload.subject.strip(),
-        class_name=payload.class_name.strip().upper(),
+        class_name=cls_raw.upper(),
         description=(payload.description or "").strip() or None,
         created_by=_uuid_or_none(current_user.get("sub")),
     )

@@ -2205,19 +2205,55 @@ tr:last-child td{border-bottom:none}
       openModal("☁️ Upload Questions", '<div class="empty">' + esc(errText(e)) + '</div>', '<button class="btn ghost" onclick="closeModal()">Close</button>', true);
     });
   };
+  /* A bank is matched to an exam by its CLASS and SUBJECT, so both come from
+     lists — typing "JSS2-SS3" or "CODING" made a bank no exam could find. */
   window.addBank = function () {
     openModal("New Question Bank",
-      '<div class="mrow"><label class="f-label">Bank name *</label><input class="f-in" id="bkName" placeholder="e.g. Mathematics SS2 Question Bank" /></div>' +
-      '<div class="form-grid"><div><label class="f-label">Subject *</label><input class="f-in" id="bkSubject" placeholder="e.g. Mathematics" /></div>' +
-      '<div><label class="f-label">Class *</label><input class="f-in" id="bkClass" placeholder="e.g. SS2" /></div></div>' +
+      '<div class="mrow"><label class="f-label">Bank name (optional)</label><input class="f-in" id="bkName" placeholder="Defaults to Subject + Class" /></div>' +
+      '<div class="form-grid"><div><label class="f-label">Class *</label><select class="f-in" id="bkClass"><option value="">Loading classes…</option></select></div>' +
+      '<div><label class="f-label">Subject *</label><select class="f-in" id="bkSubject" disabled><option value="">Pick a class first</option></select></div></div>' +
+      '<p class="mhint">One bank serves one class. These two choices decide which exams the questions feed, so pick them from the list.</p>' +
       '<div class="merr"></div>',
       '<button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn" id="bkSave">Create bank</button>');
+    cbtApi("/subjects/meta").then(function (d) {
+      var opts = ['<option value="">Choose class…</option>'];
+      (d.levels || []).forEach(function (lvl) {
+        (lvl.classes || []).forEach(function (c) {
+          opts.push('<option value="' + esc(c) + '" data-lvl="' + esc(lvl.id) + '">' + esc(c) + '</option>');
+        });
+      });
+      var pick = $("bkClass");
+      if (pick) pick.innerHTML = opts.join("");
+    }).catch(function (e) { mErr(errText(e)); });
+    $("bkClass").addEventListener("change", function () {
+      var chosen = this.options[this.selectedIndex];
+      var lvl = chosen ? chosen.getAttribute("data-lvl") : "";
+      var cls = this.value;
+      var subjSel = $("bkSubject");
+      if (!cls || !lvl) {
+        subjSel.innerHTML = '<option value="">Pick a class first</option>';
+        subjSel.disabled = true;
+        return;
+      }
+      subjSel.disabled = true;
+      subjSel.innerHTML = '<option value="">Loading subjects…</option>';
+      cbtApi("/subjects?level=" + encodeURIComponent(lvl) + "&class_name=" + encodeURIComponent(cls)).then(function (d) {
+        var subs = (d.subjects || []).filter(function (s) { return s.is_active !== false; });
+        subjSel.innerHTML = '<option value="">Choose subject…</option>' + subs.map(function (s) {
+          return '<option value="' + esc(s.name) + '">' + esc(s.name) + (s.scope === "school" ? " (your school)" : "") + '</option>';
+        }).join("");
+        subjSel.disabled = false;
+      }).catch(function (e) { subjSel.innerHTML = '<option value="">Could not load subjects</option>'; mErr(errText(e)); });
+    });
     $("bkSave").addEventListener("click", function () {
-      if (!$("bkName").value.trim()) return mErr("Enter a bank name.");
-      if (!$("bkSubject").value.trim()) return mErr("Enter the subject.");
-      if (!$("bkClass").value.trim()) return mErr("Enter the class.");
+      var cls = $("bkClass").value, subj = $("bkSubject").value;
+      if (!cls) return mErr("Choose the class this bank belongs to.");
+      if (!subj) return mErr("Choose the subject this bank belongs to.");
       busy($("bkSave"), true);
-      cbtApi("/banks", { method: "POST", body: { name: $("bkName").value.trim(), subject: $("bkSubject").value.trim(), class_name: $("bkClass").value.trim() } })
+      cbtApi("/banks", { method: "POST", body: {
+        name: $("bkName").value.trim() || (subj + " " + cls + " Bank"),
+        subject: subj, class_name: cls
+      } })
         .then(function () { closeModal(); toast("Question bank created"); renderExTab(); })
         .catch(function (e) { busy($("bkSave"), false, "Create bank"); mErr(errText(e)); });
     });
