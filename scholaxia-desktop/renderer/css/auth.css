@@ -806,3 +806,46 @@ body {
     font-size: 0.75rem;
   }
 }
+
+/* ── Guest entry (school labs: students without email need CBT) ── */
+.btn-guest {
+  display: block;
+  width: 100%;
+  margin-top: 18px;
+  padding: 13px 16px;
+  border: 2px solid #2d9b83;
+  border-radius: 14px;
+  background: #f1fbf6;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: center;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.btn-guest:hover { background: #e4f7ee; border-color: #1a5c3a; }
+.btn-guest-title {
+  display: block;
+  font-weight: 800;
+  font-size: 1rem;
+  color: #1a5c3a;
+}
+.btn-guest-sub {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.78rem;
+  color: #4b6b5d;
+}
+.auth-or {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 2px;
+  font-size: 0.76rem;
+  color: #7c8b84;
+}
+.auth-or::before,
+.auth-or::after {
+  content: "";
+  height: 1px;
+  background: #dfe7e2;
+  flex: 1;
+}

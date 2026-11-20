@@ -3020,11 +3020,18 @@ function showResult(result) {
   const pct = raw != null ? Math.round(raw) : "—";
   document.getElementById("score-display").textContent = result.score_pending ? "Pending" : `${pct}%`;
   const correct = result.correct ?? result.total_correct ?? 0;
-  const total = result.total ?? result.max_score ?? (correct + (result.wrong ?? result.total_wrong ?? 0));
+  const reportedWrong = result.wrong ?? result.total_wrong;
+  const total = result.total ?? result.max_score
+    ?? (Number(correct) + (Number.isFinite(Number(reportedWrong)) ? Number(reportedWrong) : 0));
   // Every question the student never answered is a wrong answer, so a paper
   // with 1 of 5 answered reads "1 correct · 4 wrong · 5 total" — never
-  // "1 correct · 0 wrong".
-  const wrong = result.wrong ?? result.total_wrong ?? Math.max(0, total - correct);
+  // "1 correct · 0 wrong". A response that claims 0 wrong on a paper with a
+  // 2% score is corrected here instead of trusted, or the count underneath the
+  // score circle contradicts the circle itself.
+  const wrong = Math.max(
+    Number.isFinite(Number(reportedWrong)) ? Number(reportedWrong) : 0,
+    Number.isFinite(Number(total)) ? Math.max(0, Number(total) - Number(correct)) : 0
+  );
   // Result screen shows only the score. No subject breakdown and no rating
   // line here — the motivation below is the single encouragement message.
   const lines = [result.score_pending
