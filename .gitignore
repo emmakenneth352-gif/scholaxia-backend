@@ -63,3 +63,6 @@ scholaxia-desktop/renderer/downloads/
 scholaxia-desktop/build/
 Scholaxia-Website-cPanel.zip
 scholaxia-desktop/.electron-profile/
+
+# one-shot GitHub release token (never commit)
+scripts/_gh_token.txt
