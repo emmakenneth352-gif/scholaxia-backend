@@ -132,11 +132,17 @@ async def require_student_or_cbt_guest(
         ).scalar_one_or_none()
         if not access:
             raise HTTPException(status_code=401, detail="Guest CBT access is invalid or expired")
+        # A code activates the whole CBT on that computer: every board, and with
+        # it every subject in the bank. Older codes were saved with a narrower
+        # board list, so their board is not trusted — the activation is.
+        boards = ["JAMB", "WAEC", "NECO", "JUNIOR_WAEC"]
+        if "COMMON_ENTRANCE" in [str(b).upper() for b in (access.boards or [])]:
+            boards.append("COMMON_ENTRANCE")
         return {
             "sub": str(access.id),
             "role": "guest",
             "guest_cbt": True,
-            "guest_boards": list(access.boards or []),
+            "guest_boards": boards,
             "guest_package_id": access.package_id,
         }
     current_user = await get_current_user(credentials=credentials, db=db)
