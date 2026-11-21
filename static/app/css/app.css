@@ -1382,6 +1382,17 @@ button { font: inherit; cursor: pointer; border: 0; background: none; color: inh
   max-width: 720px;
 }
 
+.exam-q-image { margin: 0.5rem 0 0.9rem; }
+.exam-q-image img {
+  max-width: 100%;
+  max-height: 320px;
+  border-radius: 10px;
+  border: 1px solid var(--line, #d4e8da);
+  background: #fff;
+  padding: 4px;
+}
+.exam-q-img-fail { font-size: 0.9rem; color: #b45309; }
+
 .exam-options {
   display: grid;
   gap: 0.65rem;

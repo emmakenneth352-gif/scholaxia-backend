@@ -1952,6 +1952,7 @@
       return {
         id: String(q.id || q.question_id || q._id || i),
         text: q.question || q.text || q.title || q.question_text || "Question " + (i + 1),
+        image: q.image_url || q.image || q.diagram_url || q.diagram || "",
         options: options,
         correct: correct,
       };
@@ -2058,6 +2059,17 @@
       .join("");
   }
 
+  /* A question figure is stored as a URL (https, /media/... or a bare path).
+     Resolve it against the API host so a relative path still loads. */
+  function examImageUrl(raw) {
+    var url = String(raw || "").trim();
+    if (!url) return "";
+    if (/^(https?:|data:)/i.test(url)) return url;
+    var base = (api && api.API_BASE) || "https://scholaxia1.onrender.com";
+    base = String(base).replace(/\/api-proxy\/?$/i, "").replace(/\/+$/, "");
+    return base + (url.charAt(0) === "/" ? url : "/" + url);
+  }
+
   function renderExamQuestion() {
     var st = Exam.current;
     if (!st) return;
@@ -2073,6 +2085,24 @@
     }
     if (qCount) qCount.textContent = "Question " + (st.index + 1) + " of " + st.questions.length;
     if (qText) qText.textContent = q.text || q.question_text || "";
+    var qImg = $("examQuestionImage");
+    if (qImg) {
+      var imgUrl = examImageUrl(q.image || q.image_url);
+      qImg.innerHTML = "";
+      if (imgUrl) {
+        var img = document.createElement("img");
+        img.src = imgUrl;
+        img.alt = "Question diagram";
+        img.loading = "lazy";
+        img.onerror = function () {
+          qImg.innerHTML = '<span class="exam-q-img-fail">Diagram could not load.</span>';
+        };
+        qImg.appendChild(img);
+        qImg.classList.remove("hidden");
+      } else {
+        qImg.classList.add("hidden");
+      }
+    }
     var selected = st.answers[q.id];
     var options = q.options || [];
     if (qOpts) {

@@ -2367,6 +2367,34 @@ function updateTimerDisplay() {
    disk (main process), so a picture still shows with no internet — and says so
    plainly when a diagram was never downloaded. */
 var _diagramCache = {};
+
+/* A question figure is stored either as a full URL or as a path such as
+   /media/xxx.png. Resolve a bare path against the API host — the desktop image
+   cache refuses anything that is not an absolute http(s) link, which is why a
+   relative figure never appeared. */
+function cbtDiagramSrc(url) {
+  var src = String(url == null ? "" : url).trim();
+  if (!src || /^(https?:|data:)/i.test(src)) return src;
+  var base = String(window.API_BASE || "https://scholaxia1.onrender.com")
+    .replace(/\/api-proxy\/?$/i, "")
+    .replace(/\/+$/, "");
+  return base + (src.charAt(0) === "/" ? src : "/" + src);
+}
+
+/* Nothing cached on this computer: show the live picture when the link works,
+   and only then say it was never downloaded. */
+function showLiveDiagram(imgEl, src) {
+  var img = document.createElement("img");
+  img.alt = "Question diagram";
+  img.onerror = function () {
+    imgEl.innerHTML =
+      '<div class="q-img-note">\ud83d\uddbc This question has a diagram that is not saved on this device. Open this exam once with internet so the picture downloads, and it will show offline too.</div>';
+  };
+  imgEl.innerHTML = "";
+  imgEl.appendChild(img);
+  img.src = src;
+}
+
 function showQuestionImage(imgEl, url) {
   if (!imgEl) return;
   if (!url) {
@@ -2375,7 +2403,7 @@ function showQuestionImage(imgEl, url) {
     return;
   }
   imgEl.classList.remove("hidden");
-  var src = String(url);
+  var src = cbtDiagramSrc(url);
   if (Object.prototype.hasOwnProperty.call(_diagramCache, src)) {
     imgEl.innerHTML = '<img src="' + escHtml(_diagramCache[src]) + '" alt="Question diagram" />';
     return;
@@ -2398,12 +2426,12 @@ function showQuestionImage(imgEl, url) {
         _diagramCache[src] = res.dataUrl;
         imgEl.innerHTML = '<img src="' + escHtml(res.dataUrl) + '" alt="Question diagram" />';
       } else {
-        imgEl.innerHTML =
-          '<div class="q-img-note">🖼 This question has a diagram that is not saved on this device. Open this exam once with internet so the picture downloads, and it will show offline too.</div>';
+        // Not cached yet: try the live link before declaring it missing.
+        showLiveDiagram(imgEl, src);
       }
     })
     .catch(function () {
-      imgEl.innerHTML = '<div class="q-img-note">🖼 This diagram could not be loaded.</div>';
+      showLiveDiagram(imgEl, src);
     });
 }
 
