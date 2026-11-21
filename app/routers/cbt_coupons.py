@@ -404,7 +404,14 @@ async def redeem_guest_coupon(
     if not package and not meta:
         raise HTTPException(status_code=400, detail="This coupon refers to an invalid CBT package")
     duration_days = int(package.duration_days if package else meta.get("duration_days") or 365)
-    boards = list(package.boards) if package else list(meta.get("boards") or [])
+    # One code activates the WHOLE CBT on that device: every board, and with it
+    # every subject in the bank. Schools buy one code per computer and expect a
+    # lab PC to sit any paper — JAMB, WAEC, NECO, Junior WAEC — not only the
+    # boards of the plan the code was generated from.
+    boards = ["JAMB", "WAEC", "NECO", "JUNIOR_WAEC"]
+    plan_boards = list(package.boards) if package else list(meta.get("boards") or [])
+    if "COMMON_ENTRANCE" in [str(b).upper() for b in plan_boards]:
+        boards.append("COMMON_ENTRANCE")
     token = secrets.token_urlsafe(32)
     access = GuestCbtAccess(
         token_hash=hashlib.sha256(token.encode("utf-8")).hexdigest(),

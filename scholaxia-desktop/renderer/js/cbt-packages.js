@@ -225,6 +225,9 @@ async function cbtUnlockRedeem() {
     );
     if (guest && res && res.guest_token) {
       localStorage.setItem("sia_cbt_guest_token", res.guest_token);
+      // Keep the activation on this computer so a restart or an offline day
+      // does not ask for the code again.
+      if (typeof cbtGuestSaveActivation === "function") cbtGuestSaveActivation(res);
     }
     var next = cbtUnlockAfter;
     try {

@@ -1055,14 +1055,14 @@ async def start_practice_attempt(
         profile = None
 
     if board == "JAMB":
-        need = int(settings["jamb_subjects_required"] or 4)
+        # A school lab sits any paper on any day, so a JAMB attempt may hold one
+        # subject or all of them. Only require at least one.
         profile_jamb = list((profile.jamb_subjects if profile else None) or [])
-        if len(subjects_clean) != need and len(profile_jamb) == need:
+        if not subjects_clean and profile_jamb:
             subjects_clean = [str(s).strip() for s in profile_jamb if str(s).strip()]
-        if len(subjects_clean) != need:
+        if not subjects_clean:
             raise ValueError(
-                f"Your profile must have exactly {need} JAMB subjects before starting CBT. "
-                "Update Profile → Exam subjects, then try again."
+                "Pick at least one JAMB subject before starting CBT."
             )
         # Remember the chosen combination so the next session opens with it
         # pre-selected (students kept re-ticking their subjects every time).

@@ -69,6 +69,64 @@ function cbtEsc(s) {
   return d.innerHTML;
 }
 
+/* ---- DEVICE ACTIVATION ----------------------------------------------------
+   A redeemed code belongs to THIS computer, so it is stored here as well as
+   on the server. Restarting the app or losing the internet must never make a
+   lab PC ask for a code again — the stored activation is trusted offline and
+   the server re-checks it whenever it answers. One code unlocks every board
+   and every subject on the device. */
+var CBT_ALL_BOARDS = ["JAMB", "WAEC", "NECO", "JUNIOR_WAEC"];
+
+function cbtGuestActivation() {
+  var raw = null;
+  try { raw = localStorage.getItem("sia_cbt_activation"); } catch (e) { return null; }
+  if (!raw) {
+    // Older installs only kept the token. Adopt it as an activation.
+    var token = "";
+    try { token = localStorage.getItem("sia_cbt_guest_token") || ""; } catch (e2) { token = ""; }
+    return token ? { token: token, boards: CBT_ALL_BOARDS.slice(), expires_at: "" } : null;
+  }
+  var act = null;
+  try { act = JSON.parse(raw); } catch (e3) { return null; }
+  if (!act || !act.token) return null;
+  var expires = act.expires_at ? Date.parse(act.expires_at) : 0;
+  if (expires && expires < Date.now()) return null;
+  return act;
+}
+
+function cbtGuestSaveActivation(res) {
+  if (!res || !res.guest_token) return;
+  try {
+    var existing = cbtGuestActivation() || {};
+    localStorage.setItem(
+      "sia_cbt_activation",
+      JSON.stringify({
+        token: res.guest_token,
+        package_id: res.package_id || existing.package_id || "",
+        boards: (res.boards && res.boards.length ? res.boards : existing.boards) || CBT_ALL_BOARDS.slice(),
+        expires_at: res.expires_at || existing.expires_at || "",
+        saved_at: Date.now(),
+      })
+    );
+    localStorage.setItem("sia_cbt_guest_token", res.guest_token);
+  } catch (e) { /* storage full — the server check still works online */ }
+}
+
+/* An activated device sees every board open, even when the server is silent. */
+function cbtHomeWithLocalActivation(home) {
+  var act = cbtGuestActivation();
+  var next = Object.assign({}, home || {});
+  next.settings = Object.assign({ cbt_enabled: true }, next.settings || {});
+  next.profile = next.profile || {};
+  var types = (next.exam_types && next.exam_types.length)
+    ? next.exam_types
+    : CBT_ALL_BOARDS.map(function (b) { return { exam_type: b, package_id: b.toLowerCase() }; });
+  next.exam_types = types.map(function (t) {
+    return Object.assign({}, t, { has_access: act ? true : !!t.has_access });
+  });
+  return next;
+}
+
 function cbtAttemptToPack(attempt) {
   var allQuestions = [];
   var sections = [];
@@ -134,30 +192,49 @@ async function loadCbtHubPage() {
   if (cbtHubState.guestMode) {
     var guestHome = null;
     var guestOffline = false;
-    if (localStorage.getItem("sia_cbt_guest_token")) {
+    var guestToken = "";
+    try { guestToken = localStorage.getItem("sia_cbt_guest_token") || ""; } catch (eT) { guestToken = ""; }
+    var storedAct = cbtGuestActivation();
+    if (storedAct && !guestToken) {
+      try { localStorage.setItem("sia_cbt_guest_token", storedAct.token); guestToken = storedAct.token; } catch (eT2) {}
+    }
+    if (guestToken) {
       try {
         guestHome = await api("/api/v1/cbt/practice/home");
       } catch (eGuest) {
         if (eGuest && eGuest.status === 401) {
-          localStorage.removeItem("sia_cbt_guest_token");
+          // The server rejected this device's code — really expired.
+          try {
+            localStorage.removeItem("sia_cbt_guest_token");
+            localStorage.removeItem("sia_cbt_activation");
+          } catch (eR) {}
         } else {
           guestOffline = true;
         }
       }
     }
     if (guestHome && guestHome.exam_types) {
-      cbtHubState.home = guestHome;
+      cbtHubState.home = cbtHomeWithLocalActivation(guestHome);
       cbtHubState.offlineMode = false;
+      try { localStorage.setItem("sia_cbt_guest_home", JSON.stringify(guestHome)); } catch (eC) {}
       renderCbtHub();
       return;
     }
-    cbtHubState.home = {
-      settings: { cbt_enabled: true, jamb_subjects_required: 4 },
-      exam_types: ["JAMB", "WAEC", "NECO", "JUNIOR_WAEC"].map(function (examType) {
-        return { exam_type: examType, has_access: false, package_id: examType.toLowerCase() };
-      }),
-    };
-    cbtHubState.offlineMode = guestOffline || (typeof navigator !== "undefined" && !navigator.onLine);
+    // Server silent (no data / still waking): reuse the boards and subjects this
+    // computer saw last time, and keep the device activation unlocked.
+    var cachedGuest = null;
+    try { cachedGuest = JSON.parse(localStorage.getItem("sia_cbt_guest_home") || "null"); } catch (eCG) { cachedGuest = null; }
+    cbtHubState.home = cbtHomeWithLocalActivation(
+      cachedGuest && cachedGuest.exam_types
+        ? cachedGuest
+        : {
+            settings: { cbt_enabled: true, jamb_subjects_required: 4 },
+            exam_types: CBT_ALL_BOARDS.map(function (examType) {
+              return { exam_type: examType, package_id: examType.toLowerCase() };
+            }),
+          }
+    );
+    cbtHubState.offlineMode = guestOffline || !guestHome || (typeof navigator !== "undefined" && !navigator.onLine);
     renderCbtHub();
     return;
   }
@@ -205,30 +282,6 @@ function cbtHubDownloadedPacks() {
     }
   } catch (e3) { /* ignore */ }
   return out.sort(function (a, b) { return (b.cachedAt || 0) - (a.cachedAt || 0); });
-}
-
-/* Downloaded exams strip — shows on the hub so offline practice is obvious. */
-function renderCbtHubDownloadedHtml() {
-  var packs = cbtHubDownloadedPacks();
-  if (!packs.length) return "";
-  var html = '<div class="cbt-hub-note" style="margin-top:10px"><strong>Ready offline</strong> — downloaded exams you can practice without data:</div>';
-  html += '<div class="cbt-subject-grid" style="margin-bottom:18px">';
-  html += packs
-    .map(function (p) {
-      return (
-        '<div class="cbt-type-card cbt-type-subject" onclick="startOfflinePack(\'' +
-        cbtEsc(p.examId).replace(/'/g, "\\'") + "','" +
-        cbtEsc(p.year).replace(/'/g, "\\'") +
-        "')\">" +
-        '<div class="cbt-type-icon">&#11014;</div>' +
-        '<div class="cbt-type-body"><h3>' + cbtEsc(p.title) + "</h3>" +
-        '<p class="cbt-type-sub">' + cbtEsc(p.subject || "Downloaded") + " · " + p.count + " questions</p></div>" +
-        '<span class="cbt-type-arrow">&#9654;</span></div>'
-      );
-    })
-    .join("");
-  html += "</div>";
-  return html;
 }
 
 function renderCbtHubOffline(err) {
@@ -347,7 +400,6 @@ function renderCbtHub() {
   grid.innerHTML = '<div class="cbt-hub-wrap">' +
     offlineBanner +
     '<p class="cbt-hub-note">Choose <strong>JAMB</strong>, <strong>WAEC</strong>, <strong>NECO</strong>, or <strong>Junior WAEC</strong>. Question counts and timers come from admin CBT Settings.</p>' +
-    (cbtHubState.guestMode ? "" : renderCbtHubDownloadedHtml()) +
     '<div class="cbt-type-grid">' +
     types
       .map(function (t) {
@@ -375,7 +427,7 @@ function renderCbtHub() {
           "<h3>" + cbtEsc(label) + "</h3>" +
           '<p class="cbt-type-sub">' +
           (t.exam_type === "JAMB"
-            ? "Combined package · pick " + (settings.jamb_subjects_required || 4) + " subjects"
+            ? "All subjects · sit any paper"
             : t.exam_type === "JUNIOR_WAEC"
             ? "BECE practice · pick your 9 subjects"
             : "Subject practice from your registered list") +
@@ -459,16 +511,13 @@ function renderCbtBoard(grid) {
   }
 
   if (board === "JAMB") {
-    var need = settings.jamb_subjects_required || 4;
     var jambSubs =
       profile.jamb_subjects && profile.jamb_subjects.length
         ? profile.jamb_subjects
         : DEFAULT_JAMB_SUBJECTS;
     var pickedCount = Object.keys(cbtHubState.jambPicked).length;
     html +=
-      '<p class="cbt-hub-note">Select exactly <strong>' +
-      need +
-      "</strong> subjects, then START CBT. Subjects run as separate sections in one exam.</p>";
+      '<p class="cbt-hub-note">Tick one or more subjects, then START CBT. Each subject runs as its own section in one exam.</p>';
     html += '<div class="cbt-subject-grid">';
     html += jambSubs
       .map(function (s) {
@@ -486,7 +535,7 @@ function renderCbtBoard(grid) {
     html += "</div>";
     html +=
       '<div class="cbt-start-bar"><span id="cbt-jamb-count" class="cbt-start-count">' +
-      pickedCount + " / " + need + " selected</span>" +
+      pickedCount + " subject(s) selected</span>" +
       '<button type="button" class="btn-join" onclick="cbtHubStartJambPractice()">START CBT &#8594;</button></div>';
     grid.innerHTML = html;
     return;
@@ -670,11 +719,9 @@ function cbtHubUnlockBoard() {
 }
 
 async function cbtHubStartJambPractice() {
-  var settings = (cbtHubState.home && cbtHubState.home.settings) || {};
-  var need = settings.jamb_subjects_required || 4;
   var picked = Object.keys(cbtHubState.jambPicked || {});
-  if (picked.length !== need) {
-    alert("Select exactly " + need + " JAMB subjects.");
+  if (!picked.length) {
+    alert("Tick at least one JAMB subject.");
     return;
   }
   await cbtHubStartPractice("JAMB", picked);
@@ -876,8 +923,8 @@ async function cbtHubRegisterSubjects(board, subjects, btn) {
 
 async function cbtHubStartPractice(examType, subjects) {
   if (cbtHubState.busy) return;
-  // Starting a new practice needs the server — downloaded exams are the
-  // offline path (hub shows them in "Ready offline").
+  // Starting a new practice needs the server — downloaded exams listed on the
+  // offline hub are the offline path.
   if (cbtHubState.offlineMode || (typeof navigator !== "undefined" && !navigator.onLine)) {
     // OFFLINE RESUME: relaunch the cached attempt + downloaded questions.
     var saved = await _cbtOfflinePackLoad();
@@ -892,11 +939,11 @@ async function cbtHubStartPractice(examType, subjects) {
     }
     alert(
       "You are offline — starting a new CBT needs data.\n\n" +
-      "Your downloaded exams still work: go back and tap one under \"Ready offline\"."
+      "Your downloaded exams still work: go back and tap one of the saved exams."
     );
     return;
   }
-  if (cbtHubState.guestMode && !localStorage.getItem("sia_cbt_guest_token")) {
+  if (cbtHubState.guestMode && !localStorage.getItem("sia_cbt_guest_token") && !cbtGuestActivation()) {
     if (typeof openCbtUnlockModal === "function") {
       openCbtUnlockModal(function () {
         cbtHubStartPractice(examType, subjects);

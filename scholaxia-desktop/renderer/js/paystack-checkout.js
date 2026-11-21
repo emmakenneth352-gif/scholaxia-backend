@@ -46,6 +46,13 @@
     if (initialized && (initialized.already_owned || initialized.already_paid)) return true;
     if (guestCbt && initialized && initialized.guest_token) {
       localStorage.setItem("sia_cbt_guest_token", initialized.guest_token);
+      if (typeof cbtGuestSaveActivation === "function") {
+        cbtGuestSaveActivation({
+          guest_token: initialized.guest_token,
+          package_id: String(productId || ""),
+          boards: ["JAMB", "WAEC", "NECO", "JUNIOR_WAEC"],
+        });
+      }
     }
 
     var url = (initialized && initialized.authorization_url) || "";

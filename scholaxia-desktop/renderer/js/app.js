@@ -3023,20 +3023,37 @@ function showResult(result) {
   const reportedWrong = result.wrong ?? result.total_wrong;
   const total = result.total ?? result.max_score
     ?? (Number(correct) + (Number.isFinite(Number(reportedWrong)) ? Number(reportedWrong) : 0));
-  // Every question the student never answered is a wrong answer, so a paper
-  // with 1 of 5 answered reads "1 correct · 4 wrong · 5 total" — never
-  // "1 correct · 0 wrong". A response that claims 0 wrong on a paper with a
-  // 2% score is corrected here instead of trusted, or the count underneath the
-  // score circle contradicts the circle itself.
-  const wrong = Math.max(
-    Number.isFinite(Number(reportedWrong)) ? Number(reportedWrong) : 0,
-    Number.isFinite(Number(total)) ? Math.max(0, Number(total) - Number(correct)) : 0
-  );
+  // Only an ATTEMPTED question can be wrong. A student who sits 4 of 40
+  // questions reads "2 correct · 2 wrong · 36 not answered" — the old count
+  // called every untouched question wrong and showed "2 correct · 38 wrong".
+  const correctN = Number(correct) || 0;
+  const totalN = Number(total);
+  let answeredCount = Number.isFinite(Number(result.answered_count))
+    ? Number(result.answered_count)
+    : Object.keys(answers || {}).filter(function (k) {
+        return answers[k] !== undefined && answers[k] !== null && String(answers[k]).trim() !== "";
+      }).length;
+  if (!Number.isFinite(answeredCount)) answeredCount = correctN;
+  answeredCount = Math.max(answeredCount, correctN);
+  if (Number.isFinite(totalN)) answeredCount = Math.min(answeredCount, totalN);
+  const wrong = answeredCount > 0 || correctN > 0
+    ? Math.max(0, answeredCount - correctN)
+    : (Number.isFinite(Number(reportedWrong)) ? Number(reportedWrong) : 0);
+  const unanswered = Number.isFinite(totalN) ? Math.max(0, totalN - answeredCount) : 0;
   // Result screen shows only the score. No subject breakdown and no rating
   // line here — the motivation below is the single encouragement message.
+  const unansweredText = unanswered ? ` · ${unanswered} not answered` : "";
   const lines = [result.score_pending
     ? "Score will be available after reconnecting."
-    : (result.offline ? `${correct} correct · ${wrong} wrong · ${total} total (unsynced)` : `${correct} correct · ${wrong} wrong · ${total} total`)];
+    : (result.offline
+        ? `${correctN} correct · ${wrong} wrong${unansweredText} · ${total} total (unsynced)`
+        : `${correctN} correct · ${wrong} wrong${unansweredText} · ${total} total`)];
+  if (!result.score_pending && answeredCount > 0 && unanswered > 0) {
+    lines.push(
+      "You answered " + answeredCount + " of " + totalN + " · " +
+      Math.round((correctN / answeredCount) * 100) + "% of the questions you answered"
+    );
+  }
   if (result.offline_note) lines.push("📌 " + escHtml(result.offline_note));
   document.getElementById("result-detail").innerHTML = lines.join("<br>");
   const encouragementEl = document.getElementById("result-encouragement");
