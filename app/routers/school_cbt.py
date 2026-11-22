@@ -32,6 +32,8 @@ from app.core.database import get_db
 from app.core.deps import require_school_staff
 from app.core.purge import purge_user
 from app.core.school_pin import require_write_pin
+from app.core.subject_catalog_seed import JSS_SUBJECTS, SKILLS
+from app.core.subjects import JAMB_UTME_SUBJECTS
 from app.core.datetime_utils import naive_utc_now, to_naive_utc
 from app.core.security import decode_token, hash_password
 from app.models.school_cbt import (
@@ -1466,6 +1468,22 @@ def _class_subject_map(campus) -> dict[str, list[str]]:
     return out
 
 
+# A class the school has not configured yet still needs real subjects: the
+# junior curriculum for JSS/primary, the 25 JAMB UTME subjects for senior.
+# Before this, a class whose only papers were Basic Science and English showed
+# exactly those two in Register Student.
+_JUNIOR_DEFAULT_SUBJECTS = [s for s in JSS_SUBJECTS if s not in SKILLS]
+
+
+def _default_subjects_for_class(cls: str) -> list[str]:
+    key = _class_key(cls)
+    if not key:
+        return []
+    if key.startswith(("JS", "PRI", "BAS", "NUR")):
+        return list(_JUNIOR_DEFAULT_SUBJECTS)
+    return list(JAMB_UTME_SUBJECTS)
+
+
 def _subjects_for_class(configured: dict[str, list[str]], cls: str, school_subjects: list[str]) -> list[str]:
     """The subjects a class offers during registration.
 
@@ -1473,7 +1491,9 @@ def _subjects_for_class(configured: dict[str, list[str]], cls: str, school_subje
        differ), else
     2. the same track's first class — SS2/SS3 carry SS1's subjects, so the
        school only configures SS1 and then picks per student, else
-    3. the school-wide subject list, so a fresh school is never blocked.
+    3. the school-wide subject list, else
+    4. the class's own curriculum (junior list / JAMB UTME list), so a class
+       is never down to only the subjects that already have exams.
     """
     key = _class_key(cls)
     if key in configured:
@@ -1487,7 +1507,7 @@ def _subjects_for_class(configured: dict[str, list[str]], cls: str, school_subje
                 inherited.extend(subs)
         if inherited:
             return sorted(set(inherited), key=str.lower)
-    return list(school_subjects or [])
+    return list(school_subjects or _default_subjects_for_class(cls))
 
 
 @router.get("/students/register")

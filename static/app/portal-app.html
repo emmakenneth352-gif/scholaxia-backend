@@ -1204,7 +1204,6 @@ tr:last-child td{border-bottom:none}
     openModal("Add Subject",
       '<div class="form-grid"><div><label class="f-label">Subject name *</label><input class="f-in" id="sjName" placeholder="e.g. Mathematics" /></div>' +
       '<div><label class="f-label">Code *</label><input class="f-in" id="sjCode" placeholder="e.g. MTH" maxlength="20" /></div></div>' +
-      '<div class="mrow"><label class="f-label">Type</label><select class="f-in" id="sjType"><option value="core">Core — compulsory for all students</option><option value="general">General — school-wide</option><option value="elective">Elective — students choose it</option></select></div>' +
       '<div class="mrow"><label class="f-label">Offered to classes (optional)</label><input class="f-in" id="sjLevels" placeholder="e.g. JSS1, JSS2 — leave empty for all" /></div>' +
       '<div class="merr"></div>',
       '<button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn" id="sjSave">Add subject</button>');
@@ -1213,7 +1212,7 @@ tr:last-child td{border-bottom:none}
       if (!name) return mErr("Enter a subject name.");
       if (!code) return mErr("Enter a subject code.");
       busy($("sjSave"), true);
-      api("/subjects", { method: "POST", body: { name: name, code: code, subject_type: $("sjType").value,
+      api("/subjects", { method: "POST", body: { name: name, code: code, subject_type: "core",
         class_levels: $("sjLevels").value.split(",").map(function (s) { return s.trim(); }).filter(Boolean) } }).then(function () {
         closeModal(); toast("Subject added"); showPage("subjects");
       }).catch(function (e) { busy($("sjSave"), false, "Add subject"); mErr(errText(e)); });
