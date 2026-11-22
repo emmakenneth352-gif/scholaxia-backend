@@ -665,7 +665,7 @@ tr:last-child td{border-bottom:none}
   var PAGES = [
     ["dashboard", "🏠", "Dashboard"],
     ["students", "👥", "Students"], ["teachers", "👨‍🏫", "Teachers"],
-    ["classes", "🎓", "Classes"],
+    ["classes", "🎓", "Classes"], ["classsubjects", "📚", "Subjects per Class"],
     ["attendance", "📋", "Attendance"], ["fees", "💳", "Fees & Payments"],
     ["exreg", "🧾", "Register Student"], ["exstudents", "✅", "Approve Students"],
     ["exsched", "🗓️", "Exam Schedule"], ["exbank", "🏦", "Upload Exams"],
@@ -677,7 +677,7 @@ tr:last-child td{border-bottom:none}
   ];
   var NAV_SECTIONS = {
     dashboard: "Overview",
-    students: "School", teachers: "School", classes: "School",
+    students: "School", teachers: "School", classes: "School", classsubjects: "School",
     attendance: "School", fees: "School",
     exreg: "Exams", exstudents: "Exams", exsched: "Exams", exbank: "Exams",
     exresults: "Exams", exretake: "Exams",
@@ -1226,6 +1226,114 @@ tr:last-child td{border-bottom:none}
     }, "Delete", true);
   };
 
+  /* ═══ SUBJECTS PER CLASS ═══
+     Pick a class once, tick every subject it offers, save. Registration then
+     lists only those subjects for that class instead of the whole
+     curriculum, so nobody clicks 30 boxes for every student. */
+  var CS = { map: {}, available: [], meta: null, cls: "" };
+  function csErr(m) { var e = $("csErr"); if (e) { e.textContent = m || ""; e.style.display = m ? "block" : "none"; } }
+  function csSavedFor(cls) {
+    var want = clsKey(cls);
+    var hit = Object.keys(CS.map).filter(function (k) { return clsKey(k) === want; })[0];
+    return hit ? (CS.map[hit] || []) : [];
+  }
+  function csBase(cls) {
+    var m = String(cls || "").toUpperCase().match(/^([A-Z]+)\s*(\d+)/);
+    if (!m || Number(m[2]) < 2) return cls;
+    return m[1] + "1";
+  }
+  function csInheritFor(cls) {
+    var key = clsKey(csBase(cls));
+    if (!key || key === clsKey(cls)) return [];
+    var out = [];
+    Object.keys(CS.map).forEach(function (k) {
+      if (clsKey(k).indexOf(key) === 0) out = out.concat(CS.map[k] || []);
+    });
+    return out.filter(function (v, i, a) { return a.indexOf(v) === i; });
+  }
+  R.classsubjects = function () {
+    $("pages").innerHTML = head("Subjects per Class", "Choose a class once and tick the subjects it offers — registration then shows only those.", '<button class="btn ghost" onclick="showPage(\'classsubjects\')">🔄 Refresh</button>') +
+      '<div class="panel"><div class="form-grid rg2"><div><label class="f-label">🎓 Class *</label><select class="f-in" id="csClass" onchange="csClassPicked()"><option value="">Loading…</option></select><div class="mhint">Classes come from your Classes tab.</div></div>' +
+      '<div><label class="f-label">✅ Currently saved for this class</label><div id="csSaved" class="mhint">—</div></div></div>' +
+      '<div id="csGrid" style="margin-top:12px"><div class="empty">Select a class to add its subjects.</div></div>' +
+      '<div class="radio-row" style="margin-top:14px"><button class="btn green" onclick="csSave()">💾 Save subjects for this class</button>' +
+      '<button class="btn ghost" onclick="csSetAll(true)">Select all</button><button class="btn ghost" onclick="csSetAll(false)">Clear</button></div>' +
+      '<div class="merr" id="csErr" style="display:none"></div></div>';
+    csLoad();
+  };
+  function csLoad() {
+    Promise.all([
+      api("/class-subjects").catch(function () { return {}; }),
+      cbtApi("/students/register").catch(function () { return {}; })
+    ]).then(function (r) {
+      CS.map = (r[0] && r[0].class_subjects) || {};
+      CS.available = (r[0] && r[0].available) || [];
+      CS.meta = r[1] || {};
+      var classes = [];
+      ((CS.meta.categories) || []).forEach(function (c) { (c.classes || []).forEach(function (x) { classes.push(x); }); });
+      Object.keys(CS.map).forEach(function (k) { classes.push(k); });
+      classes = classes.filter(function (v, i, a) { return v && a.map(clsKey).indexOf(clsKey(v)) === i; });
+      var sel = $("csClass");
+      if (!sel) return;
+      sel.innerHTML = '<option value="">-- Select class --</option>' + classes.map(function (c) {
+        return '<option value="' + esc(c) + '"' + (clsKey(c) === clsKey(CS.cls) ? " selected" : "") + '>' + esc(c) + ' — ' + csSavedFor(c).length + ' subject' + (csSavedFor(c).length === 1 ? "" : "s") + '</option>';
+      }).join("");
+      csClassPicked();
+    }).catch(function (e) { csErr(errText(e)); });
+  }
+  window.csClassPicked = function () {
+    var cls = $("csClass") ? $("csClass").value : "";
+    CS.cls = cls;
+    var grid = $("csGrid"), savedBox = $("csSaved");
+    if (!grid) return;
+    if (!cls) {
+      grid.innerHTML = '<div class="empty">Select a class to add its subjects.</div>';
+      if (savedBox) savedBox.textContent = "—";
+      return;
+    }
+    var saved = csSavedFor(cls);
+    var inherited = !saved.length;
+    var ticked = saved.length ? saved : csInheritFor(cls);
+    var lower = function (x) { return String(x || "").toLowerCase(); };
+    var list = (CS.available && CS.available.length ? CS.available.slice() : SX_SUBJECTS.slice());
+    ticked.forEach(function (s) { if (list.map(lower).indexOf(lower(s)) < 0) list.push(s); });
+    list.sort(function (a, b) { return lower(a) < lower(b) ? -1 : 1; });
+    if (savedBox) savedBox.innerHTML = saved.length
+      ? saved.map(function (s) { return '<span class="pill blue" style="margin:0 4px 4px 0">' + esc(s) + '</span>'; }).join("")
+      : '<span class="pill warn">Not saved yet</span>';
+    grid.innerHTML = '<div class="mnote" style="margin-bottom:10px">' +
+      (inherited
+        ? (ticked.length
+            ? '💡 <strong>' + esc(cls) + '</strong> has no subjects of its own yet — showing <strong>' + esc(csBase(cls)) + '</strong>\'s list. Tick, then save to give ' + esc(cls) + ' its own subjects.'
+            : 'No subjects saved for <strong>' + esc(cls) + '</strong> yet — tick what it offers and save.')
+        : 'Tick or untick, then save. Registration will show exactly this list for <strong>' + esc(cls) + '</strong>.') + '</div>' +
+      (list.length ? '<div style="display:flex;flex-wrap:wrap;gap:6px">' + list.map(function (s) {
+        var on = ticked.map(lower).indexOf(lower(s)) >= 0;
+        return '<label class="pill ' + (on ? "ok" : "gray") + '" style="margin:0;cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:6px 10px;font-weight:600">' +
+          '<input type="checkbox" class="csChk" value="' + esc(s) + '"' + (on ? " checked" : "") + ' onchange="this.parentNode.className=\'pill \'+(this.checked?\'ok\':\'gray\')" /> ' + esc(s) + '</label>';
+      }).join("") + '</div>' : '<div class="empty">No subjects in your school yet — add them on the Subjects tab first.</div>');
+  };
+  window.csSetAll = function (on) {
+    Array.prototype.forEach.call(document.querySelectorAll("#csGrid .csChk"), function (c) {
+      c.checked = !!on;
+      c.parentNode.className = "pill " + (on ? "ok" : "gray");
+    });
+  };
+  window.csSave = function () {
+    var cls = CS.cls || ($("csClass") ? $("csClass").value : "");
+    if (!cls) return csErr("Select a class first.");
+    var subs = [];
+    Array.prototype.forEach.call(document.querySelectorAll("#csGrid .csChk"), function (c) { if (c.checked) subs.push(c.value); });
+    if (!subs.length) return csErr("Tick at least one subject for " + cls + ".");
+    csErr("");
+    api("/class-subjects", { method: "POST", body: { class_name: cls, subjects: subs } }).then(function (d) {
+      CS.map = (d && d.class_subjects) || CS.map;
+      CS.cls = cls;
+      toast("✅ " + subs.length + " subjects saved for " + cls + " — registration will use them");
+      csLoad();
+    }).catch(function (e) { csErr(errText(e)); });
+  };
+
   /* ═══ EXAMS & CBT — full CBT engine (reference admin-dashboard pattern) ═══ */
   var CB = ""; // api base for the school-CBT engine
   function cbtApi(path, opts) {
@@ -1332,20 +1440,39 @@ tr:last-child td{border-bottom:none}
     if (!$("rgClass").value) return;
     rgBuildSubjects();
   };
+  /* The subjects on offer are the ones the school saved for THAT class on
+     "Subjects per Class" — a GS1 student no longer sees Physics and Chemistry.
+     A class that was never configured falls back to the full curriculum so a
+     brand-new school can still register students. */
+  window.rgClassSubjects = function (cls) {
+    var meta = window.__regMeta || { class_subjects: {} };
+    var map = meta.class_subjects || {};
+    var want = clsKey(cls);
+    var hit = Object.keys(map).filter(function (k) { return clsKey(k) === want; })[0];
+    return hit ? (map[hit] || []) : [];
+  };
   window.rgBuildSubjects = function () {
     var wrap = $("rgSubjectWrap");
     if (!wrap) return;
+    var cls = ($("rgClass") && $("rgClass").value) || "";
+    var saved = window.rgClassSubjects(cls);
+    var configured = saved.length > 0;
+    var list = configured ? saved : SX_SUBJECTS;
     wrap.innerHTML =
       '<button type="button" id="rgSubBtn" class="f-in" style="width:100%;text-align:left;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px" onclick="event.preventDefault();rgSubjectMenuToggle()">' +
       '<span id="rgSubLabel">Select subjects…</span><span>▾</span></button>' +
       '<div id="rgSubMenu" style="display:none;position:absolute;z-index:40;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 16px 40px rgba(15,23,42,.16);padding:10px;max-height:300px;overflow:auto">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
-      '<strong style="font-size:13px;color:#0f172a">📚 Junior &amp; Senior subjects</strong>' +
+      '<strong style="font-size:13px;color:#0f172a">' + (configured ? "📚 " + esc(cls) + " subjects (" + list.length + ")" : "📚 All subjects — none added for " + esc(cls) + " yet") + '</strong>' +
       '<span style="display:flex;gap:6px"><button type="button" class="btn sm ghost" onclick="rgSubjectSetAll(true)">Select all</button>' +
       '<button type="button" class="btn sm ghost" onclick="rgSubjectSetAll(false)">Clear</button></span></div>' +
-      '<label style="display:flex;gap:8px;align-items:center;padding:7px 8px;border-radius:8px;background:#f0fdf4;border:1px solid #bbf7d0;margin-bottom:6px;cursor:pointer">' +
-      '<input type="checkbox" id="rgSubALL" onchange="rgSubjectSync()" /><strong>All subjects</strong></label>' +
-      SX_SUBJECTS.map(function (s) {
+      (configured ? "" : '<div style="font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:6px 8px;margin-bottom:8px">Save this class\'s own subjects once on <a href="#" onclick="showPage(\'classsubjects\');return false;" style="color:#1d4ed8;font-weight:600">Subjects per Class</a> — then only those appear here.</div>') +
+      // Configured classes send their exact subject list ("Select all" ticks
+      // the saved list), so a student is never attached to an exam the school
+      // did not add for that class.
+      (configured ? "" : '<label style="display:flex;gap:8px;align-items:center;padding:7px 8px;border-radius:8px;background:#f0fdf4;border:1px solid #bbf7d0;margin-bottom:6px;cursor:pointer">' +
+      '<input type="checkbox" id="rgSubALL" onchange="rgSubjectSync()" /><strong>All subjects</strong></label>') +
+      list.map(function (s) {
         return '<label style="display:flex;gap:8px;align-items:center;padding:5px 8px;border-radius:8px;cursor:pointer"><input type="checkbox" class="rgSubChk" value="' + esc(s) + '" onchange="rgSubjectSync()" /><span style="font-size:14px">' + esc(s) + '</span></label>';
       }).join("") +
       '</div>';
@@ -1364,7 +1491,7 @@ tr:last-child td{border-bottom:none}
       if (c.checked) { n++; if (first2.length < 2) first2.push(c.value); }
     });
     var label;
-    if (all && all.checked) label = "All subjects (" + SX_SUBJECTS.length + ")";
+    if (all && all.checked) label = "All subjects (" + document.querySelectorAll("#rgSubMenu .rgSubChk").length + ")";
     else if (!n) label = "Select subjects…";
     else label = n + " selected — " + first2.join(", ") + (n > 2 ? "…" : "");
     $("rgSubLabel").textContent = label;

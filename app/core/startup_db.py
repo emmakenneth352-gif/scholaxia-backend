@@ -407,6 +407,7 @@ async def ensure_school_campus_schema() -> None:
         "ALTER TABLE school_campuses ADD COLUMN IF NOT EXISTS category VARCHAR(20) NULL",
         "ALTER TABLE school_campuses ADD COLUMN IF NOT EXISTS portal_subjects JSONB NULL",
         "ALTER TABLE school_campuses ADD COLUMN IF NOT EXISTS portal_classes JSONB NULL",
+        "ALTER TABLE school_campuses ADD COLUMN IF NOT EXISTS portal_class_subjects JSONB NULL",
         "ALTER TABLE school_campuses ADD COLUMN IF NOT EXISTS portal_attendance JSONB NULL",
         "ALTER TABLE school_campuses ADD COLUMN IF NOT EXISTS portal_fees JSONB NULL",
         "ALTER TABLE school_campuses ADD COLUMN IF NOT EXISTS portal_results JSONB NULL",

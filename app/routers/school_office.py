@@ -330,6 +330,77 @@ async def portal_delete_class(slug: str, class_id: str, request: Request, curren
     return {"ok": True, "classes": rows}
 
 
+class ClassSubjectsIn(BaseModel):
+    class_name: str = Field(min_length=1, max_length=40)
+    subjects: list[str] = Field(default_factory=list, max_length=80)
+
+
+def _class_key(name: str) -> str:
+    """Class keys ignore case and spacing: "JSS 1" == "jss1"."""
+    import re
+
+    return re.sub(r"\s+", "", (name or "").strip().upper())
+
+
+def _class_subject_map(campus: SchoolCampus) -> dict[str, list[str]]:
+    raw = getattr(campus, "portal_class_subjects", None) or {}
+    out: dict[str, list[str]] = {}
+    if isinstance(raw, dict):
+        for key, vals in raw.items():
+            k = _class_key(str(key))
+            subs = [str(s).strip() for s in (vals or []) if str(s or "").strip()]
+            if k and subs:
+                out[k] = sorted(set(subs), key=str.lower)
+    return out
+
+
+@portal_router.get("/{slug}/class-subjects")
+async def portal_class_subjects(slug: str, current_user: dict = Depends(require_school_staff), db: AsyncSession = Depends(get_db)):
+    """Subjects the school added per class, plus every subject it can pick from."""
+    info = await portal_public_info(slug, db)
+    campus = await _campus(db, current_user, info["school_id"])
+    saved = _class_subject_map(campus)
+    available = [str((s.get("name") if isinstance(s, dict) else s) or "").strip() for s in _subjects_of(campus)]
+    for subs in saved.values():
+        available.extend(subs)
+    seen = set()
+    clean: list[str] = []
+    for s in sorted(available, key=str.lower):
+        if s and s.lower() not in seen:
+            seen.add(s.lower())
+            clean.append(s)
+    classes = [_class_key(c.get("name") if isinstance(c, dict) else c) for c in _classes_of(campus)]
+    return {
+        "class_subjects": saved,
+        "available": clean,
+        "classes": [c for c in classes if c],
+    }
+
+
+@portal_router.post("/{slug}/class-subjects")
+async def portal_save_class_subjects(slug: str, payload: ClassSubjectsIn, current_user: dict = Depends(require_school_staff), db: AsyncSession = Depends(get_db)):
+    """Save the subject list for ONE class ("Add subject each class").
+
+    Saving replaces that class's list; the next class inherits its own copy
+    only when it has never been configured (SS2/SS3 fall back to SS1).
+    """
+    info = await portal_public_info(slug, db)
+    campus = await _campus(db, current_user, info["school_id"])
+    key = _class_key(payload.class_name)
+    if not key:
+        raise HTTPException(status_code=400, detail="Class name is required")
+    saved = _class_subject_map(campus)
+    subs = [s.strip() for s in payload.subjects if s and s.strip()]
+    if subs:
+        saved[key] = sorted(set(subs), key=str.lower)
+    else:
+        saved.pop(key, None)
+    campus.portal_class_subjects = saved
+    flag_modified(campus, "portal_class_subjects")
+    await db.commit()
+    return {"ok": True, "class_name": key, "subjects": saved.get(key, []), "class_subjects": saved}
+
+
 @portal_router.get("/{slug}/attendance")
 async def portal_attendance(slug: str, date: Optional[str] = Query(None), current_user: dict = Depends(require_school_staff), db: AsyncSession = Depends(get_db)):
     """Attendance register for a date. Real student roster; marks stored per

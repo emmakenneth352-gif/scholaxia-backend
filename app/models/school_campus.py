@@ -42,6 +42,10 @@ class SchoolCampus(Base):
     # self-contained without extra tables.
     portal_subjects: Mapped[list | None] = mapped_column(JSON, nullable=True)
     portal_classes: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # Subjects the school added per class ({"GS1": ["Mathematics", ...]}).
+    # Registration lists exactly these for the chosen class instead of the
+    # whole national curriculum.
+    portal_class_subjects: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     portal_attendance: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # date -> {student_id: status}
     portal_fees: Mapped[list | None] = mapped_column(JSON, nullable=True)
     # Report-card template: colors, logo, category weights (percentages),

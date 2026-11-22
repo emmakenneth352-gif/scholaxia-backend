@@ -1448,6 +1448,48 @@ async def class_roster(
     }
 
 
+def _class_key(name: str) -> str:
+    """Class keys ignore case and spacing: "JSS 1" == "jss1" == "JSS1 A"? no —
+    arms keep their letter, only spaces/case/separators go."""
+    return re.sub(r"[\s_-]+", "", (name or "").strip().upper())
+
+
+def _class_subject_map(campus) -> dict[str, list[str]]:
+    raw = getattr(campus, "portal_class_subjects", None) or {}
+    out: dict[str, list[str]] = {}
+    if isinstance(raw, dict):
+        for key, vals in raw.items():
+            k = _class_key(str(key))
+            subs = [str(s).strip() for s in (vals or []) if str(s or "").strip()]
+            if k and subs:
+                out[k] = sorted(set(subs), key=str.lower)
+    return out
+
+
+def _subjects_for_class(configured: dict[str, list[str]], cls: str, school_subjects: list[str]) -> list[str]:
+    """The subjects a class offers during registration.
+
+    1. exactly what the admin saved for that class (SS2 A and SS2 C can
+       differ), else
+    2. the same track's first class — SS2/SS3 carry SS1's subjects, so the
+       school only configures SS1 and then picks per student, else
+    3. the school-wide subject list, so a fresh school is never blocked.
+    """
+    key = _class_key(cls)
+    if key in configured:
+        return configured[key]
+    m = re.match(r"^([A-Z]+)(\d+)", key)
+    if m and int(m.group(2)) > 1:
+        base = m.group(1) + "1"
+        inherited: list[str] = []
+        for k, subs in configured.items():
+            if k.startswith(base):
+                inherited.extend(subs)
+        if inherited:
+            return sorted(set(inherited), key=str.lower)
+    return list(school_subjects or [])
+
+
 @router.get("/students/register")
 async def register_form_options(
     school_id: Optional[str] = Query(None),
@@ -1478,8 +1520,11 @@ async def register_form_options(
         str((s.get("name") if isinstance(s, dict) else s) or "").strip()
         for s in (getattr(campus, "portal_subjects", None) or [])
     ]
+    # Classes the school created are always listed. Their subjects come from
+    # the "Subjects per Class" setup below — NOT from every subject in the
+    # school, which used to put Physics and Chemistry under a GS1 student.
     for cls in filter(None, reg_classes):
-        classes.setdefault(cls, set()).update(x for x in reg_subjects if x)
+        classes.setdefault(cls, set())
     # Fallback 2 — classes that actually have students; subjects already in
     # the question bank. Guarantees usable dropdowns for a fresh school.
     for (cls,) in (
@@ -1499,6 +1544,16 @@ async def register_form_options(
     ).scalars().all():
         if b.class_name:
             classes.setdefault(b.class_name.upper(), set()).add(b.subject)
+    # Subjects the admin added per class win. A class that was never
+    # configured inherits the first class of its track (SS2/SS3 ← SS1,
+    # GS2/GS3 ← GS1, JSS2/JSS3 ← JSS1) and only falls back to the school-wide
+    # subject list when nothing has been set anywhere.
+    configured = _class_subject_map(campus)
+    for cls in list(classes):
+        subs = _subjects_for_class(configured, cls, reg_subjects)
+        if subs:
+            classes[cls].update(subs)
+
     cats: dict[str, list[str]] = {"junior": [], "senior": [], "other": []}
     for cls in sorted(classes):
         if cls.startswith("JS"):
