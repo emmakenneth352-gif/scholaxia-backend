@@ -1,5 +1,39 @@
 """Shared subject list for exam setup and filtering."""
 
+# The 25 subjects JAMB approves for UTME. Every candidate writes Use of English
+# plus three course-relevant subjects, so a school setting up its classes needs
+# the whole set available to tick — not just the handful it typed by hand.
+# JAMB calls the compulsory paper "Use of English"; the exam bank, the CBT
+# papers and every school already store it as "English Language", so that is
+# the name used here — one canonical row, no near-duplicate.
+JAMB_UTME_SUBJECTS = [
+    "English Language",
+    "Mathematics",
+    "Biology",
+    "Chemistry",
+    "Physics",
+    "Agricultural Science",
+    "Arabic",
+    "Fine Art",
+    "Christian Religious Studies (CRS)",
+    "Commerce",
+    "Computer Studies",
+    "Economics",
+    "French",
+    "Geography",
+    "Government",
+    "Hausa",
+    "History",
+    "Home Economics",
+    "Igbo",
+    "Islamic Religious Studies (IRS)",
+    "Literature in English",
+    "Music",
+    "Physical and Health Education",
+    "Principles of Accounts",
+    "Yoruba",
+]
+
 AVAILABLE_SUBJECTS = [
     "Mathematics",
     "English Language",
@@ -83,6 +117,8 @@ def subject_matches(exam_subject: str, selected_subjects: list[str]) -> bool:
         "i.r.s": "islamic religious studies",
         "i.r.s.": "islamic religious studies",
         "islamic religious studies": "islamic religious studies",
+        "use of english": "english language",
+        "use of english language": "english language",
         "literature": "literature in english",
         "lit": "literature in english",
         "literature-in-english": "literature in english",

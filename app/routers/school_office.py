@@ -1,3 +1,4 @@
+import re
 import secrets
 from datetime import datetime
 from typing import Optional
@@ -13,6 +14,7 @@ from app.core.database import get_db
 from app.core.deps import require_school_staff
 from app.core.security import hash_password, verify_password
 from app.core.school_pin import require_admin_pin, require_write_pin
+from app.core.subjects import JAMB_UTME_SUBJECTS
 from app.models.cbt import CBTExam, CBTQuestion, CBTSession, ExamProctorLog
 from app.models.school_campus import SchoolCampus
 from app.models.school_office import SchoolExamCandidate
@@ -227,10 +229,77 @@ def _classes_of(campus: SchoolCampus) -> list[dict]:
     return list(getattr(campus, "portal_classes", None) or [])
 
 
+def _subject_code(name: str, used: set[str]) -> str:
+    """Short unique code for a subject the school typed without one: UOE, ENT."""
+    words = [w for w in re.split(r"[^A-Za-z0-9]+", (name or "").upper()) if w]
+    base = ("".join(w[0] for w in words) or "SUB")[:4]
+    code, n = base, 1
+    while code in used:
+        n += 1
+        code = base[:3] + str(n)
+    return code
+
+
+def _starter_subject_rows() -> list[dict]:
+    """The 25 JAMB UTME subjects, ready to tick for a school with no list yet."""
+    used: set[str] = set()
+    rows: list[dict] = []
+    for name in JAMB_UTME_SUBJECTS:
+        code = _subject_code(name, used)
+        used.add(code)
+        rows.append({
+            "id": secrets.token_hex(6),
+            "name": name,
+            "code": code,
+            "subject_type": "core",
+            "class_levels": [],
+            "is_active": True,
+            "created_at": naive_utc_now().isoformat(),
+        })
+    return rows
+
+
+def _ensure_subjects(campus: SchoolCampus, names: list[str]) -> bool:
+    """Give a school the JAMB UTME subjects the first time it opens Subjects
+    (or Subjects per Class), and add any subject a class uses but the school
+    registry is missing. Returns True when the campus row needs saving."""
+    rows = _subjects_of(campus)
+    changed = False
+    if not rows:
+        rows = _starter_subject_rows()
+        changed = True
+    have = {str(r.get("name") or "").strip().lower() for r in rows}
+    used = {str(r.get("code") or "").strip().upper() for r in rows}
+    for name in names:
+        nm = str(name or "").strip()
+        if not nm or nm.lower() in have:
+            continue
+        code = _subject_code(nm, used)
+        used.add(code)
+        rows.append({
+            "id": secrets.token_hex(6),
+            "name": nm,
+            "code": code,
+            "subject_type": "core",
+            "class_levels": [],
+            "is_active": True,
+            "created_at": naive_utc_now().isoformat(),
+        })
+        have.add(nm.lower())
+        changed = True
+    if changed:
+        campus.portal_subjects = rows
+        flag_modified(campus, "portal_subjects")
+    return changed
+
+
 @portal_router.get("/{slug}/subjects")
 async def portal_subjects(slug: str, current_user: dict = Depends(require_school_staff), db: AsyncSession = Depends(get_db)):
     info = await portal_public_info(slug, db)
     campus = await _campus(db, current_user, info["school_id"])
+    # A fresh school starts with the JAMB UTME subjects instead of an empty tab.
+    if _ensure_subjects(campus, []):
+        await db.commit()
     rows = _subjects_of(campus)
     return {
         "subjects": rows,
@@ -360,7 +429,12 @@ async def portal_class_subjects(slug: str, current_user: dict = Depends(require_
     info = await portal_public_info(slug, db)
     campus = await _campus(db, current_user, info["school_id"])
     saved = _class_subject_map(campus)
+    changed = _ensure_subjects(campus, [])
     available = [str((s.get("name") if isinstance(s, dict) else s) or "").strip() for s in _subjects_of(campus)]
+    # The approved UTME subjects are always offered, even to a school that
+    # already has its own short list — otherwise Yoruba, Hausa or Home
+    # Economics could not be ticked at all.
+    available = list(JAMB_UTME_SUBJECTS) + available
     for subs in saved.values():
         available.extend(subs)
     seen = set()
@@ -370,6 +444,8 @@ async def portal_class_subjects(slug: str, current_user: dict = Depends(require_
             seen.add(s.lower())
             clean.append(s)
     classes = [_class_key(c.get("name") if isinstance(c, dict) else c) for c in _classes_of(campus)]
+    if changed:
+        await db.commit()
     return {
         "class_subjects": saved,
         "available": clean,
@@ -391,6 +467,9 @@ async def portal_save_class_subjects(slug: str, payload: ClassSubjectsIn, curren
         raise HTTPException(status_code=400, detail="Class name is required")
     saved = _class_subject_map(campus)
     subs = [s.strip() for s in payload.subjects if s and s.strip()]
+    # Whatever a class uses also joins the school's subject registry, so a
+    # subject added here shows up on the Subjects tab and in later dropdowns.
+    _ensure_subjects(campus, subs)
     if subs:
         saved[key] = sorted(set(subs), key=str.lower)
     else:

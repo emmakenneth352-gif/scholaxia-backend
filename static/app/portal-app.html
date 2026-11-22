@@ -665,7 +665,8 @@ tr:last-child td{border-bottom:none}
   var PAGES = [
     ["dashboard", "🏠", "Dashboard"],
     ["students", "👥", "Students"], ["teachers", "👨‍🏫", "Teachers"],
-    ["classes", "🎓", "Classes"], ["classsubjects", "📚", "Subjects per Class"],
+    ["classes", "🎓", "Classes"], ["subjects", "📖", "Subjects"],
+    ["classsubjects", "📚", "Subjects per Class"],
     ["attendance", "📋", "Attendance"], ["fees", "💳", "Fees & Payments"],
     ["exreg", "🧾", "Register Student"], ["exstudents", "✅", "Approve Students"],
     ["exsched", "🗓️", "Exam Schedule"], ["exbank", "🏦", "Upload Exams"],
@@ -677,7 +678,7 @@ tr:last-child td{border-bottom:none}
   ];
   var NAV_SECTIONS = {
     dashboard: "Overview",
-    students: "School", teachers: "School", classes: "School", classsubjects: "School",
+    students: "School", teachers: "School", classes: "School", subjects: "School", classsubjects: "School",
     attendance: "School", fees: "School",
     exreg: "Exams", exstudents: "Exams", exsched: "Exams", exbank: "Exams",
     exresults: "Exams", exretake: "Exams",
@@ -1256,6 +1257,9 @@ tr:last-child td{border-bottom:none}
       '<div class="panel"><div class="form-grid rg2"><div><label class="f-label">🎓 Class *</label><select class="f-in" id="csClass" onchange="csClassPicked()"><option value="">Loading…</option></select><div class="mhint">Classes come from your Classes tab.</div></div>' +
       '<div><label class="f-label">✅ Currently saved for this class</label><div id="csSaved" class="mhint">—</div></div></div>' +
       '<div id="csGrid" style="margin-top:12px"><div class="empty">Select a class to add its subjects.</div></div>' +
+      '<div class="form-grid rg2" style="margin-top:12px;align-items:end"><div><label class="f-label">➕ Add a subject that is not listed</label>' +
+      '<input class="f-in" id="csNewName" placeholder="e.g. Yoruba, Further Mathematics…" onkeydown="if(event.key===\'Enter\'){event.preventDefault();csAddSubject();}" /></div>' +
+      '<div><button class="btn ghost" onclick="csAddSubject()">+ Add subject</button></div></div>' +
       '<div class="radio-row" style="margin-top:14px"><button class="btn green" onclick="csSave()">💾 Save subjects for this class</button>' +
       '<button class="btn ghost" onclick="csSetAll(true)">Select all</button><button class="btn ghost" onclick="csSetAll(false)">Clear</button></div>' +
       '<div class="merr" id="csErr" style="display:none"></div></div>';
@@ -1307,11 +1311,39 @@ tr:last-child td{border-bottom:none}
             ? '💡 <strong>' + esc(cls) + '</strong> has no subjects of its own yet — showing <strong>' + esc(csBase(cls)) + '</strong>\'s list. Tick, then save to give ' + esc(cls) + ' its own subjects.'
             : 'No subjects saved for <strong>' + esc(cls) + '</strong> yet — tick what it offers and save.')
         : 'Tick or untick, then save. Registration will show exactly this list for <strong>' + esc(cls) + '</strong>.') + '</div>' +
-      (list.length ? '<div style="display:flex;flex-wrap:wrap;gap:6px">' + list.map(function (s) {
+      (list.length ? '<div id="csPills" style="display:flex;flex-wrap:wrap;gap:6px">' + list.map(function (s) {
         var on = ticked.map(lower).indexOf(lower(s)) >= 0;
         return '<label class="pill ' + (on ? "ok" : "gray") + '" style="margin:0;cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:6px 10px;font-weight:600">' +
           '<input type="checkbox" class="csChk" value="' + esc(s) + '"' + (on ? " checked" : "") + ' onchange="this.parentNode.className=\'pill \'+(this.checked?\'ok\':\'gray\')" /> ' + esc(s) + '</label>';
       }).join("") + '</div>' : '<div class="empty">No subjects in your school yet — add them on the Subjects tab first.</div>');
+  };
+  /* A subject missing from the list (Yoruba, Home Economics, anything the
+     school teaches) is typed here, ticked straight away, and saved with the
+     class — no trip to another tab. */
+  window.csAddSubject = function () {
+    var inp = $("csNewName");
+    var name = (inp ? inp.value : "").replace(/\s+/g, " ").trim();
+    if (!CS.cls) return csErr("Pick a class first, then add its subject.");
+    if (!name) return csErr("Type the subject name first, e.g. Yoruba.");
+    if (name.length < 2) return csErr("That name is too short.");
+    var pills = $("csPills");
+    if (!pills) return csErr("Reload the page, pick the class again, then add the subject.");
+    var dup = false;
+    Array.prototype.forEach.call(document.querySelectorAll("#csGrid .csChk"), function (c) {
+      if (String(c.value).trim().toLowerCase() === name.toLowerCase()) {
+        c.checked = true; c.parentNode.className = "pill ok"; dup = true;
+      }
+    });
+    if (!dup) {
+      var lab = document.createElement("label");
+      lab.className = "pill ok";
+      lab.style.cssText = "margin:0;cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:6px 10px;font-weight:600";
+      lab.innerHTML = '<input type="checkbox" class="csChk" value="' + esc(name) + '" checked onchange="this.parentNode.className=\'pill \'+(this.checked?\'ok\':\'gray\')" /> ' + esc(name);
+      pills.appendChild(lab);
+    }
+    if (inp) inp.value = "";
+    csErr("");
+    toast(dup ? "✅ " + name + " is already listed — ticked for you" : "➕ " + name + " added — press Save to keep it for " + CS.cls);
   };
   window.csSetAll = function (on) {
     Array.prototype.forEach.call(document.querySelectorAll("#csGrid .csChk"), function (c) {
