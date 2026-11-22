@@ -39,6 +39,29 @@ contextBridge.exposeInMainWorld("scholaxiaDesktop", {
       console.error("setExamProtection failed", e);
     }
   },
+  // Login persistence: the main process keeps the last session in userData so
+  // opening the app again never asks for the email and password a second time.
+  savedSession: (function () {
+    try {
+      return ipcRenderer.sendSync("scholaxia:get-saved-session") || null;
+    } catch (e) {
+      return null;
+    }
+  })(),
+  saveSession: function (data) {
+    try {
+      ipcRenderer.send("scholaxia:save-session", data || {});
+    } catch (e) {
+      console.error("saveSession failed", e);
+    }
+  },
+  clearSession: function () {
+    try {
+      ipcRenderer.send("scholaxia:clear-session");
+    } catch (e) {
+      console.error("clearSession failed", e);
+    }
+  },
   // Question diagrams: the main process keeps a copy on disk so a picture
   // still shows while the student is offline.
   cacheImage: function (url) {

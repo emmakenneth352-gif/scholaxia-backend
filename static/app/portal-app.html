@@ -251,6 +251,10 @@ tr:last-child td{border-bottom:none}
 .doc-pill{display:inline-flex;align-items:center;gap:6px;background:var(--sky);color:var(--blue);border-radius:999px;padding:4px 12px;font-size:12.5px;font-weight:600;text-decoration:none}
 .spin{display:inline-block;width:15px;height:15px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
 @keyframes sp{to{transform:rotate(360deg)}}
+.pw-wrap{position:relative;display:block}
+.pw-wrap .f-in{padding-right:46px}
+.pw-eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:transparent;cursor:pointer;font-size:17px;line-height:1;padding:8px 9px;border-radius:8px;color:var(--mut,#64748b)}
+.pw-eye:hover{background:rgba(37,99,235,.08);color:var(--blue,#2563eb)}
 </style>
 </head>
 <body>
@@ -269,7 +273,7 @@ tr:last-child td{border-bottom:none}
       <label class="f-label" for="lgId">Email or phone number</label>
       <input class="f-in" id="lgId" autocomplete="username" placeholder="admin@yourschool.com" required />
       <label class="f-label" for="lgPw">Password</label>
-      <input class="f-in" id="lgPw" type="password" autocomplete="current-password" placeholder="Enter your password" required />
+      <div class="pw-wrap"><input class="f-in" id="lgPw" type="password" autocomplete="current-password" placeholder="Enter your password" required /><button type="button" class="pw-eye" id="lgPwEye" onclick="toggleLoginPw()" aria-label="Show password" title="Show password">👁</button></div>
       <div class="login-row"><label><input type="checkbox" checked style="accent-color:var(--blue)" /> Remember me</label><a href="#" onclick="return fpOpen()" style="color:var(--blue);text-decoration:none">Forgot password?</a></div>
       <button class="btn-login" id="lgBtn" type="submit">→&nbsp; Log In</button>
       <div class="login-err" id="lgErr"></div>
@@ -452,8 +456,13 @@ tr:last-child td{border-bottom:none}
         body: opts.form ? opts.form : (opts.body ? JSON.stringify(opts.body) : undefined),
       }).then(_handle);
     };
-    var guarded = PIN_METHODS.indexOf(method) >= 0 || (method === "POST" && /(delete|clear|restrict|remove|publish|\/review)/i.test(path));
-    return guarded ? withAdminPin(run) : run();
+    var guarded = PIN_METHODS.indexOf(method) >= 0
+      || (method === "POST" && /(delete|clear|restrict|remove|publish|\/review)/i.test(path))
+      // Adding a subject — on the Subjects tab or for a class — edits the
+      // school's subject register, so it is PIN-guarded like deleting one.
+      || (method === "POST" && /^\/subjects(\/|$)/i.test(path))
+      || (method === "POST" && /^\/class-subjects$/i.test(path));
+    return guarded ? withAdminPin(run, true) : run();
   }
   function officeApi(path, opts) {
     opts = opts || {};
@@ -653,6 +662,20 @@ tr:last-child td{border-bottom:none}
     location.reload();
   }
   window.logout = logout;
+  /* Show / hide the password being typed on the mobile login screen — a phone
+     keyboard makes a typo in a long password likely. */
+  window.toggleLoginPw = function () {
+    var inp = $("lgPw"), eye = $("lgPwEye");
+    if (!inp) return;
+    var show = inp.type === "password";
+    inp.type = show ? "text" : "password";
+    if (eye) {
+      eye.textContent = show ? "🙈" : "👁";
+      eye.setAttribute("aria-label", show ? "Hide password" : "Show password");
+      eye.title = show ? "Hide password" : "Show password";
+    }
+    inp.focus();
+  };
   function tryEnter() {
     var u = localStorage.getItem("sx_portal_user_" + slug);
     if (u) { try { S.user = JSON.parse(u); enter(); return; } catch (e) {} }
@@ -780,8 +803,10 @@ tr:last-child td{border-bottom:none}
     });
   }
 
-  function withAdminPin(run) {
-    if (S.pin) return run();
+  function withAdminPin(run, alwaysAsk) {
+    // Deletes and subject changes always ask, even when this session already
+    // entered the PIN once — the school admin stays in control of who edits.
+    if (S.pin && !alwaysAsk) return run();
     return requestAdminPin().then(function (ok) {
       if (!ok) throw new Error("Admin PIN required");
       return run();
@@ -3271,12 +3296,11 @@ tr:last-child td{border-bottom:none}
       var cats = (meta.categories || []).filter(function (c) { return (c.classes || []).length; });
       var catOpts = cats.map(function (c) { return '<option value="' + c.id + '">' + esc(c.name) + '</option>'; }).join("");
       $("exBody").innerHTML = '<div class="stat-mini">' +
-        '<span class="chip">🎯 Class</span><span class="chip">📚 Subjects</span><span class="chip">🕐 Date & Time</span><span class="chip">⏱️ Duration</span><span class="chip">🏫 Venue/Class</span></div>' +
+        '<span class="chip">🎯 Class</span><span class="chip">📚 Subjects</span><span class="chip">🕐 Date & Time</span><span class="chip">⏱️ Duration</span></div>' +
         '<div class="panel"><h3>🗓️ Exam Schedule Management</h3>' +
         '<p class="mhint" style="margin-bottom:14px">Pick the class category and class, choose the subjects, set the number of questions, duration and start date — then save. Once the time comes, students of that class log in and see their exam.</p>' +
-        '<div class="form-grid rg3"><div><label class="f-label">🎓 Class Category *</label><select class="f-in" id="scCat" onchange="schCatChanged()"><option value="">-- Select Category --</option>' + catOpts + '</select></div>' +
-        '<div><label class="f-label">🎓 Class *</label><select class="f-in" id="scClass" onchange="schClassPicked()" disabled><option value="">-- Select class category first --</option></select></div>' +
-        '<div><label class="f-label">🏫 Venue / Class</label><input class="f-in" id="scVenue" placeholder="Venue (the class by default)" disabled /></div></div>' +
+        '<div class="form-grid rg2"><div><label class="f-label">🎓 Class Category *</label><select class="f-in" id="scCat" onchange="schCatChanged()"><option value="">-- Select Category --</option>' + catOpts + '</select></div>' +
+        '<div><label class="f-label">🎓 Class *</label><select class="f-in" id="scClass" onchange="schClassPicked()" disabled><option value="">-- Select class category first --</option></select></div></div>' +
         '<div class="mrow"><label class="f-label">📚 Subjects for this slot *</label><select class="f-in" id="scSubjects" multiple size="4" disabled><option value="">-- Select class first to load subjects --</option></select><p class="mhint">Hold Ctrl (Windows) or Cmd (Mac) to select multiple subjects.</p></div>' +
         '<div class="form-grid rg3"><div><label class="f-label">🔢 Number of Questions *</label><input class="f-in" id="scQCount" type="number" min="1" value="40" /></div>' +
         '<div><label class="f-label">⏱️ Exam Duration (Minutes) *</label><input class="f-in" id="scDur" type="number" min="5" max="300" value="60" /></div>' +
@@ -3306,7 +3330,6 @@ tr:last-child td{border-bottom:none}
     var sel = $("scSubjects");
     sel.innerHTML = subs.map(function (s) { return '<option value="' + esc(s) + '">' + esc(s) + '</option>'; }).join("") || '<option value="">No subjects prepared for this class — upload questions first</option>';
     sel.disabled = !subs.length;
-    $("scVenue").value = cls;
     schLoadCurrent(cls);
   };
   function schLoadCurrent(cls) {

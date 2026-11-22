@@ -1909,3 +1909,132 @@ html[data-app-theme="dark"] #kind-page-back-btn {
 
 /* ── Exam calculator button ──────────────────────────────────────────── */
 .exam-calc-btn { white-space: nowrap; }
+
+/* ── Sign-in / guest screen polish (index.html) ───────────────────────────
+   The first screen decides whether a student trusts the app: a soft gradient
+   card, a guest button that looks like a real choice, and roomier role tiles. */
+.intro-auth-panel .auth-card {
+  position: relative;
+  border-radius: 26px !important;
+  border: 1px solid var(--sx-border) !important;
+  box-shadow: 0 24px 60px rgba(91, 33, 182, 0.14), 0 2px 8px rgba(30, 27, 46, 0.05) !important;
+  overflow: hidden;
+  padding-top: 30px !important;
+  background: linear-gradient(180deg, #ffffff 0%, #fbf9ff 100%) !important;
+}
+.intro-auth-panel .auth-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 6px;
+  background: var(--sx-hero-gradient);
+}
+.intro-auth-panel .card-seal-img {
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  padding: 8px;
+  background: var(--sx-bg-soft);
+  box-shadow: inset 0 0 0 1px var(--sx-border);
+}
+#portal-title {
+  letter-spacing: 0.06em;
+  font-size: 1.32rem !important;
+}
+#portal-sub { color: var(--sx-grey) !important; }
+
+/* Guest: the biggest, friendliest button on the card */
+#btn-guest {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  width: 100%;
+  padding: 16px 52px 16px 18px !important;
+  border: 0 !important;
+  border-radius: 18px !important;
+  background: var(--sx-hero-gradient) !important;
+  color: #fff !important;
+  box-shadow: 0 12px 26px var(--sx-shadow) !important;
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+  text-align: left;
+}
+#btn-guest:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 34px var(--sx-shadow-btn) !important;
+  background: var(--sx-hero-gradient) !important;
+}
+#btn-guest::after {
+  content: "\2192";
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.25rem;
+  line-height: 1;
+  opacity: 0.95;
+}
+#btn-guest .btn-guest-title {
+  font-size: 1.02rem !important;
+  font-weight: 800 !important;
+  color: #fff !important;
+}
+#btn-guest .btn-guest-sub {
+  font-size: 0.76rem !important;
+  color: rgba(255, 255, 255, 0.88) !important;
+  line-height: 1.35 !important;
+}
+
+.auth-or {
+  margin: 18px 0 !important;
+  color: var(--sx-grey) !important;
+  font-size: 0.76rem !important;
+  letter-spacing: 0.03em;
+}
+.auth-or::before,
+.auth-or::after { background: var(--sx-border) !important; }
+.role-select-label {
+  font-weight: 700 !important;
+  color: var(--sx-primary-darker) !important;
+}
+.role-select-btn {
+  border-radius: 16px !important;
+  border-color: var(--sx-border) !important;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+.role-select-btn:hover { transform: translateY(-1px); }
+.role-select-btn.active {
+  border-color: var(--sx-primary) !important;
+  background: linear-gradient(180deg, #ffffff 0%, var(--sx-bg-soft) 100%) !important;
+  box-shadow: 0 8px 20px rgba(124, 58, 237, 0.16) !important;
+}
+.role-select-btn .role-icon {
+  font-size: 1.25rem !important;
+  filter: drop-shadow(0 2px 3px rgba(91, 33, 182, 0.18));
+}
+.auth-tabs {
+  border-radius: 14px !important;
+  padding: 4px !important;
+}
+.auth-tab { border-radius: 11px !important; font-weight: 700 !important; }
+.auth-tab.active { box-shadow: 0 4px 12px rgba(91, 33, 182, 0.12); }
+.field input, .field-input-wrap { border-radius: 12px !important; }
+.btn-primary {
+  border-radius: 14px !important;
+  padding: 14px !important;
+  letter-spacing: 0.04em;
+  font-weight: 800 !important;
+}
+
+/* Guest past-questions note */
+.pq-guest-note {
+  margin: 0 0 16px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: var(--sx-bg-soft);
+  border: 1px solid var(--sx-border);
+  color: var(--sx-primary-darker);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}

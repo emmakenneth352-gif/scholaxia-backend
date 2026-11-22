@@ -300,6 +300,10 @@ function openClassroomKeyboard() {
   }
 }
 
+function rememberedSessionFile() {
+  return path.join(app.getPath("userData"), "scholaxia-session.json");
+}
+
 (function registerDesktopBridge() {
   try {
     const { ipcMain } = require("electron");
@@ -328,6 +332,30 @@ function openClassroomKeyboard() {
       runInstallerFile(filePath, ev.sender);
     });
     ipcMain.handle("scholaxia:cache-image", (_ev, url) => cacheQuestionImage(url));
+    // Remembered login (see preload.js + api.js): the last session is kept in
+    // userData so reopening the app lands on the dashboard, not the login card.
+    ipcMain.on("scholaxia:get-saved-session", (ev) => {
+      try {
+        ev.returnValue = JSON.parse(fs.readFileSync(rememberedSessionFile(), "utf8")) || null;
+      } catch (err) {
+        ev.returnValue = null;
+      }
+    });
+    ipcMain.on("scholaxia:save-session", (_ev, data) => {
+      try {
+        if (!data || !data.token) return;
+        fs.writeFileSync(rememberedSessionFile(), JSON.stringify({
+          token: String(data.token),
+          role: String(data.role || "student"),
+          name: String(data.name || ""),
+          email: String(data.email || ""),
+          saved_at: new Date().toISOString(),
+        }));
+      } catch (err) { /* a failed write only means one extra sign-in */ }
+    });
+    ipcMain.on("scholaxia:clear-session", () => {
+      try { fs.unlinkSync(rememberedSessionFile()); } catch (err) { /* already gone */ }
+    });
   } catch (e) {
     console.error("Could not register desktop bridge", e);
   }

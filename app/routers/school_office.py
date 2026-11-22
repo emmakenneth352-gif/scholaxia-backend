@@ -313,9 +313,12 @@ async def portal_subjects(slug: str, current_user: dict = Depends(require_school
 
 
 @portal_router.post("/{slug}/subjects", status_code=201)
-async def portal_add_subject(slug: str, payload: SubjectIn, current_user: dict = Depends(require_school_staff), db: AsyncSession = Depends(get_db)):
+async def portal_add_subject(slug: str, payload: SubjectIn, request: Request, current_user: dict = Depends(require_school_staff), db: AsyncSession = Depends(get_db)):
     info = await portal_public_info(slug, db)
     campus = await _campus(db, current_user, info["school_id"])
+    # Adding a subject changes the school's subject register, so it asks for
+    # the admin PIN exactly like deleting one does.
+    await require_admin_pin(request, campus, current_user)
     rows = _subjects_of(campus)
     code = payload.code.strip().upper()
     for r in rows:
@@ -454,7 +457,7 @@ async def portal_class_subjects(slug: str, current_user: dict = Depends(require_
 
 
 @portal_router.post("/{slug}/class-subjects")
-async def portal_save_class_subjects(slug: str, payload: ClassSubjectsIn, current_user: dict = Depends(require_school_staff), db: AsyncSession = Depends(get_db)):
+async def portal_save_class_subjects(slug: str, payload: ClassSubjectsIn, request: Request, current_user: dict = Depends(require_school_staff), db: AsyncSession = Depends(get_db)):
     """Save the subject list for ONE class ("Add subject each class").
 
     Saving replaces that class's list; the next class inherits its own copy
@@ -462,6 +465,9 @@ async def portal_save_class_subjects(slug: str, payload: ClassSubjectsIn, curren
     """
     info = await portal_public_info(slug, db)
     campus = await _campus(db, current_user, info["school_id"])
+    # The class subject list decides what students can register for, so it is
+    # guarded by the same admin PIN as the Subjects tab.
+    await require_admin_pin(request, campus, current_user)
     key = _class_key(payload.class_name)
     if not key:
         raise HTTPException(status_code=400, detail="Class name is required")

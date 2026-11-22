@@ -155,6 +155,52 @@ async def student_library(
     ]
 
 
+# ── Public past questions (browsing needs no account) ─────────────────────────
+
+@router.get("/public")
+async def public_library(
+    subject: Optional[str] = None,
+    exam_type: Optional[str] = None,
+    q: Optional[str] = None,
+    category: Optional[str] = Query("Past Questions"),
+    db: AsyncSession = Depends(get_db),
+):
+    """The past-question shelf anyone can browse.
+
+    Only opening a paper (read / download) or buying one needs an account, so
+    guests on the desktop app and the website can still see what is available.
+    No read URL is handed out here.
+    """
+    query = select(Book).where(
+        Book.library_target == LibraryTarget.student,
+        Book.is_active == True,
+    )
+    if subject:
+        query = query.where(Book.subject == subject)
+    if exam_type:
+        query = query.where(Book.exam_type.ilike(exam_type))
+    if category:
+        query = query.where(Book.category.ilike(category))
+    if q and q.strip():
+        term = f"%{q.strip()}%"
+        query = query.where(
+            or_(
+                Book.title.ilike(term),
+                Book.author.ilike(term),
+                Book.subject.ilike(term),
+                Book.description.ilike(term),
+                Book.category.ilike(term),
+            )
+        )
+
+    result = await db.execute(query.order_by(Book.created_at.desc()))
+    books = result.scalars().all()
+    return [
+        _book_response(book, has_access=bool(getattr(book, "is_free", True)))
+        for book in books
+    ]
+
+
 # ── Kids Library (kind learners only) ─────────────────────────────────────────
 
 @router.get("/kind")

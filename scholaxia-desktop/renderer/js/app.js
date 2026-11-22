@@ -686,6 +686,12 @@ function applyGuestNavLocks() {
     var locked = guest && !isPagePublic(pg);
     btn.classList.toggle("nav-locked", locked);
   });
+  // Guests write school exams through "External Exam" (registration number +
+  // access code), so Scholaxia Exam — which needs a student account — is
+  // closed for them instead of sitting there locked.
+  document.querySelectorAll('[data-page="school-portal"], [data-dash-page="school-portal"], [data-goto="school-portal"]').forEach(function (el) {
+    el.style.display = guest ? "none" : "";
+  });
   var fab = document.getElementById("community-fab");
   if (fab && guest) fab.style.display = "none";
   var bell = document.getElementById("topbar-bell");

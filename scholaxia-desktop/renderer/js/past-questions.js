@@ -4,6 +4,8 @@
 var _pqCache = [];
 var _pqCat = "all";
 var _pqSearch = "";
+// Browsing is open to everyone; opening or buying a paper needs an account.
+var _pqGuest = false;
 
 function pqEsc(s) {
   var d = document.createElement("div");
@@ -33,14 +35,13 @@ async function loadPastQuestionsPage() {
   if (!root) return;
   root.innerHTML = '<div class="loading">Loading past question papers…</div>';
 
-  if (!getToken || !getToken()) {
-    root.innerHTML =
-      '<div class="as-empty"><h3>Sign in required</h3><p>Log in to browse and sit past questions.</p></div>';
-    return;
-  }
+  _pqGuest = !(getToken && getToken());
 
   try {
-    var data = await api("/api/v1/library/student?category=Past%20Questions", { timeout: 45000, retries: 1, preferXhr: true });
+    var data = await api(
+      "/api/v1/library/" + (_pqGuest ? "public" : "student") + "?category=Past%20Questions",
+      { timeout: 45000, retries: 1, preferXhr: true }
+    );
     _pqCache = [];
     var push = function (arr) {
       (arr || []).forEach(function (x) {
@@ -72,6 +73,9 @@ function renderPastQuestionsPage() {
   }
 
   var html =
+    (_pqGuest
+      ? '<p class="pq-guest-note">Browsing as a guest — you can look through every paper. Sign in only when you want to open or buy one.</p>'
+      : "") +
     '<div class="pq-toolbar">' +
     '<input type="search" id="pq-page-search" class="library-search" placeholder="Search subject, title, exam type…" value="' + pqEsc(_pqSearch) + '" />' +
     "</div>" +
@@ -93,7 +97,13 @@ function renderPastQuestionsPage() {
       var title = typeof stripYearLabel === "function" ? stripYearLabel(it.title || it.name || "Past paper") : (it.title || "Past paper");
       var desc = typeof stripYearLabel === "function" ? stripYearLabel(it.description || it.subject || "") : (it.description || it.subject || "");
       var foot;
-      if (hasAccess) {
+      if (_pqGuest) {
+        foot =
+          (hasAccess ? "" : '<strong class="pq-price">₦' + price.toLocaleString("en-NG") + "</strong>") +
+          '<button type="button" class="btn-action btn-sm" data-pq-signin="' + pqEsc(it.id) + '">' +
+          (hasAccess ? "Sign in to read" : "Sign in to buy") +
+          "</button>";
+      } else if (hasAccess) {
         foot = '<button type="button" class="btn-action btn-sm" data-pq-open="' + pqEsc(it.id) + '">Read now</button>';
       } else {
         foot =
@@ -138,6 +148,12 @@ function renderPastQuestionsPage() {
     btn.addEventListener("click", function () {
       var it = _pqCache.find(function (x) { return String(x.id) === btn.getAttribute("data-pq-open"); });
       if (it && typeof openLibraryBookStudent === "function") openLibraryBookStudent(it.id, it);
+    });
+  });
+  root.querySelectorAll("[data-pq-signin]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      if (typeof goToLogin === "function") goToLogin("past-questions");
+      else window.location.href = "index.html";
     });
   });
   root.querySelectorAll("[data-pq-pay]").forEach(function (btn) {

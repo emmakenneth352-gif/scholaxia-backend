@@ -15,6 +15,31 @@
   var API_BASE = scholaxiaApiBase();
   global.API_BASE = API_BASE;
 
+  // Desktop only: the login is also kept in a small file the Electron main
+  // process owns, so reopening the app goes straight to the dashboard even if
+  // the window's local storage was cleared by an update or a repair.
+  (function restoreDesktopSession() {
+    try {
+      var bridge = global.scholaxiaDesktop;
+      if (!bridge || typeof bridge.savedSession === "undefined") return;
+      var saved = bridge.savedSession;
+      if (!saved || !saved.token) return;
+      if (localStorage.getItem("sia_token") || localStorage.getItem("sia_teacher_token")) return;
+      var role = saved.role || "student";
+      if (role === "school_admin") {
+        localStorage.setItem("sia_school_token", saved.token);
+        localStorage.setItem("sia_teacher_token", saved.token);
+      } else if (role === "teacher" || role === "admin") {
+        localStorage.setItem("sia_teacher_token", saved.token);
+      } else {
+        localStorage.setItem("sia_token", saved.token);
+      }
+      localStorage.setItem("sia_role", role);
+      if (saved.name) localStorage.setItem("sia_name", saved.name);
+      if (saved.email) localStorage.setItem("sia_email", saved.email);
+    } catch (e) { /* ignore */ }
+  })();
+
   // Old public contract: returns the AbortSignal itself (callers do `signal: fetchTimeout(ms)`).
   function fetchTimeout(ms) {
     try {
@@ -266,9 +291,20 @@
       if (data.user.education_level) localStorage.setItem("sia_class", data.user.education_level);
       if (data.user.school_student_id) localStorage.setItem("sia_school_student_id", data.user.school_student_id);
     }
+    // Keep the login for the next launch (desktop only: no-op on the web).
+    try {
+      if (global.scholaxiaDesktop && typeof global.scholaxiaDesktop.saveSession === "function") {
+        global.scholaxiaDesktop.saveSession({ token: token, role: role, name: name, email: email || "" });
+      }
+    } catch (e) { /* ignore */ }
   }
 
   function clearSession() {
+    try {
+      if (global.scholaxiaDesktop && typeof global.scholaxiaDesktop.clearSession === "function") {
+        global.scholaxiaDesktop.clearSession();
+      }
+    } catch (e) { /* ignore */ }
     [
       "sia_token",
       "sia_teacher_token",
@@ -647,7 +683,11 @@ function isStudentLoggedIn() {
   }
 }
 
-var PUBLIC_APP_PAGES = ["dashboard", "cbt", "games", "school-portal", "marketplace", "study-materials", "past-questions", "about", "contact"];
+// Guests get the practice + exam-writing side of the app. "school-portal"
+// (Scholaxia Exam, admin uploads) needs a student account, while
+// "external-exam" is the slip login schools use to write exams — so it is
+// open to guests on purpose.
+var PUBLIC_APP_PAGES = ["dashboard", "cbt", "games", "external-exam", "marketplace", "study-materials", "past-questions", "about", "contact"];
 
 function isPagePublic(page) {
   return PUBLIC_APP_PAGES.indexOf(page) >= 0;

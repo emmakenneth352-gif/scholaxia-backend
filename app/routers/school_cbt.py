@@ -1889,7 +1889,10 @@ async def _retake_rows(db: AsyncSession, sid: UUID, reg: str):
     return await _retake_rows_from_roster(db, sid, reg)
 
 
-@router.get("/retake-lookup/{reg_number}")
+# Registration numbers contain slashes (SA/26/112101) and the browser sends
+# them percent-encoded, so the value must be matched as a path — a plain
+# {reg_number} segment made every lookup answer "API route not found".
+@router.get("/retake-lookup/{reg_number:path}")
 async def retake_lookup(
     reg_number: str,
     school_id: Optional[str] = Query(None),
@@ -3398,7 +3401,7 @@ class RetakeIn(BaseModel):
 # registration number, with its score and whether a retake was already granted.
 
 
-@router.get("/retake-history/{reg_number}")
+@router.get("/retake-history/{reg_number:path}")
 async def retake_history(
     reg_number: str,
     school_id: Optional[str] = Query(None),
