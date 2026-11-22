@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     # Desktop app (Electron) update support — the desktop checks /app/version
     # and shows a download banner when its version is older. Set this to the
     # public download link for the newest Scholaxia-Student-Setup installer.
-    APP_LATEST_DESKTOP_VERSION: str = "1.0.17"
+    APP_LATEST_DESKTOP_VERSION: str = "1.0.18"
     # The installer is committed to the SITE repo (website/downloads/) and
     # served by the live site + raw.githubusercontent as fallback. The old
     # scholaxia.com/downloads host is dead, so point the in-app updater at a
@@ -69,7 +69,7 @@ class Settings(BaseSettings):
     # Served from our own host (/downloads route, Range-enabled) because the
     # GitHub release CDN redirect kept failing mid-download on slow links.
     APP_DESKTOP_URL: str = (
-        "https://scholaxia1.onrender.com/downloads/Scholaxia-Student-Setup-1.0.17.exe"
+        "https://scholaxia1.onrender.com/downloads/Scholaxia-Student-Setup-1.0.18.exe"
     )
     APP_DESKTOP_UPDATE_MESSAGE: str = (
         "A new version of the Scholaxia desktop app is available. Please download "
