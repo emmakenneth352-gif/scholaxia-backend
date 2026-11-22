@@ -49,8 +49,10 @@ class Settings(BaseSettings):
     APP_LATEST_VERSION: str = "1.0.0"
     APP_LATEST_BUILD: int = 1  # must be > client build to prompt an update
     APP_MIN_SUPPORTED_BUILD: int = 1  # builds below this are force-updated
+    # Direct APK (Range-enabled) instead of a Play listing that is still in
+    # review — the in-app "Update" button has to actually download something.
     APP_UPDATE_ANDROID_URL: str = (
-        "https://play.google.com/store/apps/details?id=com.scholaxia.scholaxia"
+        "https://scholaxia1.onrender.com/downloads/scholaxia.apk"
     )
     APP_UPDATE_IOS_URL: str = ""
     APP_UPDATE_MESSAGE: str = (

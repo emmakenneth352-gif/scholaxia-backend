@@ -422,8 +422,12 @@ _DESKTOP_INSTALLER_DIRS = [
     WEBSITE_STATIC_DIR / "downloads",
     Path(__file__).resolve().parent.parent / "website" / "downloads",
 ]
-_FILENAME_RE = _re.compile(r"^[\w.\-]+\.exe$")
+_FILENAME_RE = _re.compile(r"^[\w.\-]+\.(exe|apk)$")
 _CHUNK = 512 * 1024
+_CONTENT_TYPES = {
+    ".exe": "application/vnd.microsoft.portable-executable",
+    ".apk": "application/vnd.android.package-archive",
+}
 
 
 def _find_installer(filename: str) -> Path | None:
@@ -444,7 +448,7 @@ def _file_download_response(path: Path, request: Request) -> Response:
     size = path.stat().st_size
     headers = {
         "Accept-Ranges": "bytes",
-        "Content-Type": "application/vnd.microsoft.portable-executable",
+        "Content-Type": _CONTENT_TYPES.get(path.suffix.lower(), "application/octet-stream"),
         "Content-Disposition": f'attachment; filename="{path.name}"',
         # Let Cloudflare/Render keep a copy so repeat downloads are quick.
         "Cache-Control": "public, max-age=86400",
@@ -495,7 +499,7 @@ async def desktop_installer_download(filename: str, request: Request):
         raise HTTPException(status_code=404, detail="Not found")
     target = _find_installer(filename)
     if target is None:
-        raise HTTPException(status_code=404, detail="Installer not found on this server")
+        raise HTTPException(status_code=404, detail="File not found on this server")
     return _file_download_response(target, request)
 
 
