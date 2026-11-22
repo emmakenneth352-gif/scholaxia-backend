@@ -5,7 +5,7 @@ BASE_DOMAIN = "scholaxia.com"
 
 from fastapi import FastAPI, WebSocket, Query, Request, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -414,25 +414,89 @@ _DESKTOP_INSTALLER_DIR = Path(
     _os.environ.get("DESKTOP_INSTALLER_DIR", "")
     or (Path(__file__).resolve().parent.parent / "scholaxia-desktop" / "dist")
 )
+# Installers also ship inside the web app folder so the site can serve them
+# from its own domain (GitHub's release CDN redirect is unreliable on slow
+# mobile links, which is what made browser downloads fail).
+_DESKTOP_INSTALLER_DIRS = [
+    _DESKTOP_INSTALLER_DIR,
+    WEBSITE_STATIC_DIR / "downloads",
+    Path(__file__).resolve().parent.parent / "website" / "downloads",
+]
 _FILENAME_RE = _re.compile(r"^[\w.\-]+\.exe$")
+_CHUNK = 512 * 1024
+
+
+def _find_installer(filename: str) -> Path | None:
+    for folder in _DESKTOP_INSTALLER_DIRS:
+        try:
+            target = (folder / filename).resolve()
+            target.relative_to(folder.resolve())
+        except (ValueError, OSError):
+            continue
+        if target.is_file():
+            return target
+    return None
+
+
+def _file_download_response(path: Path, request: Request) -> Response:
+    """Serve a large file with HTTP Range support so a dropped browser
+    download can resume instead of restarting (and failing) from zero."""
+    size = path.stat().st_size
+    headers = {
+        "Accept-Ranges": "bytes",
+        "Content-Type": "application/vnd.microsoft.portable-executable",
+        "Content-Disposition": f'attachment; filename="{path.name}"',
+        # Let Cloudflare/Render keep a copy so repeat downloads are quick.
+        "Cache-Control": "public, max-age=86400",
+    }
+    raw_range = (request.headers.get("range") or "").strip()
+    match = _re.match(r"^bytes=(\d*)-(\d*)$", raw_range)
+    start, end, status = 0, size - 1, 200
+    if match and (match.group(1) or match.group(2)):
+        try:
+            if match.group(1):
+                start = int(match.group(1))
+                end = int(match.group(2)) if match.group(2) else size - 1
+            else:
+                length = int(match.group(2))
+                start = max(size - length, 0)
+        except ValueError:
+            start, end = -1, -1
+        end = min(end, size - 1)
+        if start < 0 or start >= size or end < start:
+            return Response(
+                status_code=416,
+                headers={"Content-Range": f"bytes */{size}"},
+            )
+        status = 206
+        headers["Content-Range"] = f"bytes {start}-{end}/{size}"
+    headers["Content-Length"] = str(max(end - start + 1, 0))
+    if request.method == "HEAD":
+        return Response(status_code=status, headers=headers)
+
+    def stream():
+        remaining = end - start + 1
+        with path.open("rb") as fh:
+            fh.seek(start)
+            while remaining > 0:
+                chunk = fh.read(min(_CHUNK, remaining))
+                if not chunk:
+                    break
+                remaining -= len(chunk)
+                yield chunk
+
+    return StreamingResponse(stream(), status_code=status, headers=headers)
 
 
 @app.get("/downloads/{filename}", include_in_schema=False)
-async def desktop_installer_download(filename: str):
+@app.head("/downloads/{filename}", include_in_schema=False)
+async def desktop_installer_download(filename: str, request: Request):
     if not _FILENAME_RE.match(filename or ""):
         raise HTTPException(status_code=404, detail="Not found")
-    target = (_DESKTOP_INSTALLER_DIR / filename).resolve()
-    try:
-        target.relative_to(_DESKTOP_INSTALLER_DIR.resolve())
-    except ValueError:
-        raise HTTPException(status_code=404, detail="Not found")
-    if not target.is_file():
+    target = _find_installer(filename)
+    if target is None:
         raise HTTPException(status_code=404, detail="Installer not found on this server")
-    return FileResponse(
-        target,
-        media_type="application/vnd.microsoft.portable-executable",
-        filename=filename,
-    )
+    return _file_download_response(target, request)
 
 
 # ── Path-based school links (work TODAY on https://scholaxia1.onrender.com/school/<slug>/

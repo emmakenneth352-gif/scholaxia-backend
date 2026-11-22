@@ -19,6 +19,7 @@
   "build": {
     "appId": "com.scholaxia.desktop",
     "productName": "Scholaxia",
+    "compression": "maximum",
     "directories": {
       "output": "dist",
       "buildResources": "build"
@@ -64,6 +65,7 @@
       "desktop-server.js",
       "preload.js",
       "renderer/**/*",
+      "!renderer/downloads/**",
       "!renderer/admin.html",
       "!renderer/js/admin.js",
       "!renderer/js/admin-api.js",

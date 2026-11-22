@@ -64,8 +64,10 @@ class Settings(BaseSettings):
     # served by the live site + raw.githubusercontent as fallback. The old
     # scholaxia.com/downloads host is dead, so point the in-app updater at a
     # URL that actually serves the file. Override per-env if needed.
+    # Served from our own host (/downloads route, Range-enabled) because the
+    # GitHub release CDN redirect kept failing mid-download on slow links.
     APP_DESKTOP_URL: str = (
-        "https://github.com/emmakenneth352-gif/scholaxia-websit/releases/download/desktop17/Scholaxia-Student-Setup-1.0.17.exe"
+        "https://scholaxia1.onrender.com/downloads/Scholaxia-Student-Setup-1.0.17.exe"
     )
     APP_DESKTOP_UPDATE_MESSAGE: str = (
         "A new version of the Scholaxia desktop app is available. Please download "

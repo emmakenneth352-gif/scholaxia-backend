@@ -62,6 +62,8 @@ discord-community/.env.local
 # Desktop installer binaries are distributed via cPanel zip, not git
 static/app/downloads/*.exe
 website/downloads/*.exe
+# ...except the current installer the website serves itself (77 MB, like the APK)
+!static/app/downloads/Scholaxia-Student-Setup-1.0.17.exe
 scholaxia-desktop/dist/
 scholaxia-desktop/renderer/downloads/
 scholaxia-desktop/build/
