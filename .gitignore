@@ -55,6 +55,10 @@ discord-community/.env.local
 *.ipa
 *.aab
 
+# ...except the sideload APK that the website serves to visitors
+!static/app/downloads/*.apk
+!website/downloads/*.apk
+
 # Desktop installer binaries are distributed via cPanel zip, not git
 static/app/downloads/*.exe
 website/downloads/*.exe
