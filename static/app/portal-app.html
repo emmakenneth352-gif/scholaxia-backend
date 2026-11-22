@@ -2050,6 +2050,7 @@ tr:last-child td{border-bottom:none}
         (pv.duplicate_in_bank ? '<span class="chip y">⧉ ' + pv.duplicate_in_bank + ' already in bank</span>' : '') + '</div>';
       if (pv.warnings && pv.warnings.length) head += '<p class="mhint">⚠ ' + pv.warnings.map(esc).join("; ") + '</p>';
       if (pv.format_guidance) head += '<p class="mhint">' + esc(pv.format_guidance) + '</p>';
+      if (qs.length) head += '<div style="display:flex;justify-content:flex-end;margin:0 0 8px"><button class="btn sm ghost" id="uqPrint">🖨 Print these ' + qs.length + ' questions</button></div>';
       if (!qs.length) return head + '<div class="empty">No questions could be read from this file. Fix the format and try again.</div>';
       var rows = qs.map(function (q, i) {
         var flags = (q.issues || []).concat(q.in_bank_duplicate ? ["already in bank"] : [], q.in_file_duplicate ? ["duplicate in file"] : []);
@@ -2065,6 +2066,83 @@ tr:last-child td{border-bottom:none}
       }).join("");
       return head + '<div style="max-height:380px;overflow:auto"><table class="uq-table"><thead><tr><th>#</th><th>Question</th><th>Ans</th><th>Topic</th><th>Marks</th><th>Skip</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
         '<p class="mhint">Duplicates already in the bank are skipped automatically. Tick Skip to leave a row out.</p>';
+    }
+    /* Teachers print the paper before it is uploaded (past questions, mock
+       exams, a copy for the exams officer). The answer key stays on a separate
+       page so the paper handed to students never shows the answers. */
+    function printQuestions() {
+      var pv = UQ.pv; if (!pv) return;
+      var eds = {};
+      Array.prototype.forEach.call(document.querySelectorAll('#mb [data-ed]'), function (el) {
+        var r = el.getAttribute("data-r");
+        eds[r] = eds[r] || {};
+        eds[r][el.getAttribute("data-ed")] = el.type === "checkbox" ? el.checked : el.value;
+      });
+      var rows = [];
+      (pv.questions || []).forEach(function (q, i) {
+        var ed = eds[String(i)] || {};
+        if (ed.skip) return;
+        rows.push({
+          text: q.question_text || "",
+          a: q.option_a || "", b: q.option_b || "", c: q.option_c || "", d: q.option_d || "",
+          ans: String(ed.correct_option != null && ed.correct_option !== "" ? ed.correct_option : (q.correct_option || "")).trim(),
+          topic: (ed.topic != null ? ed.topic : q.topic) || "",
+          marks: ed.marks != null && ed.marks !== "" ? ed.marks : (q.marks != null ? q.marks : 1)
+        });
+      });
+      if (!rows.length) return uqErr("Nothing to print — every row is ticked Skip.");
+      var schoolName = (S.school && (S.school.name || S.school.school_name)) || "School";
+      var subjectName = pv.subject ? pv.subject.name : (UQ.subj ? UQ.subj.name : "");
+      var className = pv.class_name || UQ.cls || "";
+      var paperTitle = subjectName + " — " + className;
+      var totalMarks = rows.reduce(function (t, r) { return t + (parseFloat(r.marks) || 0); }, 0);
+      var css = 'body{font-family:Georgia,"Times New Roman",serif;color:#000;margin:26px}' +
+        '.ph{margin-bottom:8px}.ph h1{font-size:19px;margin:0;text-align:center;letter-spacing:.4px}' +
+        '.ph .sub{text-align:center;font-size:13.5px;margin:3px 0 0}' +
+        '.meta{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:12.5px;border-top:2px solid #000;border-bottom:2px solid #000;padding:6px 0;margin:12px 0 10px}' +
+        '.instr{font-size:12.5px;font-style:italic;margin:0 0 14px}' +
+        '.q{margin:0 0 12px;page-break-inside:avoid}' +
+        '.qh{display:flex;gap:7px}.qn{font-weight:700;min-width:20px}.qt{flex:1}' +
+        '.mk{font-size:11px;color:#444;margin:1px 0 0 27px}' +
+        '.opts{display:grid;grid-template-columns:1fr 1fr;gap:2px 20px;margin:4px 0 0 27px;font-size:13px}' +
+        '.key{page-break-before:always}.key h2{font-size:15px;margin:0 0 8px}' +
+        '.key table{width:100%;border-collapse:collapse;font-size:12.5px}' +
+        '.key th,.key td{border:1px solid #999;padding:4px 7px;text-align:left}' +
+        '.key th{background:#eee}.key .note{font-size:11.5px;color:#555;margin-top:8px}' +
+        '@media print{body{margin:14mm}}';
+      function sheet(withKey) {
+        var meta = '<div class="meta"><span><b>' + esc(className) + '</b></span>' +
+          '<span>' + rows.length + ' question' + (rows.length === 1 ? "" : "s") + ' · ' + totalMarks + ' mark' + (totalMarks === 1 ? "" : "s") + '</span>' +
+          '<span>Time: __________</span><span>Date: __________</span></div>';
+        var body = rows.map(function (q, i) {
+          var opts = [q.a, q.b, q.c, q.d].map(function (v, j) {
+            return v ? '<div><b>' + "ABCD".charAt(j) + '.</b> ' + esc(v) + '</div>' : "";
+          }).join("");
+          var mk = parseFloat(q.marks);
+          return '<div class="q"><div class="qh"><span class="qn">' + (i + 1) + '.</span><span class="qt">' + esc(q.text) + '</span></div>' +
+            (mk ? '<div class="mk">(' + mk + ' mark' + (mk === 1 ? "" : "s") + ')</div>' : "") +
+            '<div class="opts">' + opts + '</div></div>';
+        }).join("");
+        var key = withKey ? '<div class="key"><h2>' + esc(paperTitle) + ' — Answer key</h2><table><thead><tr><th style="width:40px">#</th><th style="width:80px">Answer</th><th>Topic</th></tr></thead><tbody>' +
+          rows.map(function (q, i) {
+            return '<tr><td>' + (i + 1) + '</td><td><b>' + (q.ans ? esc(q.ans) : "—") + '</b></td><td>' + esc(q.topic || "—") + '</td></tr>';
+          }).join("") + '</tbody></table>' +
+          (rows.some(function (q) { return !q.ans; }) ? '<p class="note">“—” means no answer key was set for that row yet.</p>' : "") + '</div>' : "";
+        return '<div class="ph"><h1>' + esc(schoolName) + '</h1><p class="sub">' + esc(paperTitle) + '</p></div>' + meta +
+          '<p class="instr">Answer ALL questions. Choose the correct option (A, B, C or D) for each question.</p>' +
+          '<div class="qs">' + body + '</div>' + key;
+      }
+      function doc(withKey) {
+        return '<!doctype html><html><head><meta charset="utf-8"><title>' + esc(paperTitle) + '</title><style>' + css + '</style></head><body>' + sheet(withKey) + '</body></html>';
+      }
+      openModal("🖨 Print Questions",
+        '<style>' + scopePrintCss(css, ".pp-sheet") + '</style><div class="pp-sheet" style="max-height:54vh;overflow:auto;padding:12px;border-radius:10px;border:1px solid var(--line)">' + sheet(false) + '</div>' +
+        '<p class="mhint" style="margin-top:8px">This is the paper exactly as it will print. Answers stay off it unless you choose <strong>Print + answer key</strong>.</p>',
+        '<button class="btn ghost" id="pqBack2" style="margin-right:auto">← Back to review</button>' +
+        '<button class="btn ghost" id="pqKey">🖨 Print + answer key</button><button class="btn" id="pqGo">🖨 Print questions</button>', true);
+      $("pqBack2").addEventListener("click", function () { closeModal(); render(); });
+      $("pqGo").addEventListener("click", function () { printViaIframe(doc(false)); });
+      $("pqKey").addEventListener("click", function () { printViaIframe(doc(true)); });
     }
     function runPreview() {
       uqErr("");
@@ -2137,6 +2215,8 @@ tr:last-child td{border-bottom:none}
         });
         fi.addEventListener("change", function () { if (fi.files[0]) { UQ.file = fi.files[0]; UQ.pv = null; render(); } });
       }
+      var pq = $("uqPrint");
+      if (pq) pq.addEventListener("click", printQuestions);
       var pv2 = $("uqPrev2");
       if (pv2) pv2.addEventListener("click", function () {
         if (!UQ.file) return uqErr("Choose a question file first.");
