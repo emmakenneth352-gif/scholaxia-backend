@@ -359,7 +359,7 @@
     $("app").classList.remove("hidden");
     $("whoBox").innerHTML = '<span class="ava">' + esc((S.me && S.me.full_name || "S").charAt(0).toUpperCase()) + '</span><span class="wname">' + esc(S.me && S.me.full_name || "") + '</span>' +
       ' <button class="btn-nav" style="padding:8px 14px;margin-left:8px" onclick="examLogout()">Log out</button>';
-    $("hello").textContent = "Welcome, " + ((S.me && S.me.full_name || "").split(" ")[0] || "student");
+    renderStudent();
     loadExams();
   }
   function tryResume() {
@@ -373,10 +373,43 @@
     var h = Math.floor(mins / 60), m = mins % 60;
     return (h ? h + " Hour" + (h > 1 ? "s" : "") + (m ? " " : "") : "") + (m || !h ? m + " Minutes" : "");
   }
+  /* ── Student identity + assigned subjects ──
+     Shown the moment the student logs in, before any paper opens: their name
+     at the top, the subject(s) the school registered them for, then the
+     Take Exam button inside each subject's card. */
+  function renderStudent() {
+    var me = S.me || {};
+    var name = String(me.full_name || "Student").trim() || "Student";
+    var ava = $("meAva"), nm = $("meName"), meta = $("meMeta");
+    if (ava) ava.textContent = (name.charAt(0) || "S").toUpperCase();
+    if (nm) nm.textContent = name;
+    if (meta) meta.textContent = [
+      me.reg_number ? "Reg No: " + me.reg_number : "",
+      me.class_name || "",
+    ].filter(Boolean).join(" · ");
+  }
+  function renderSubjectChips(subjects) {
+    var box = $("subjChips");
+    if (!box) return;
+    var seen = {}, out = [];
+    (subjects || []).forEach(function (s) {
+      var t = String(s == null ? "" : s).trim();
+      if (!t) return;
+      var k = t.toLowerCase();
+      if (seen[k]) return;
+      seen[k] = 1; out.push(t);
+    });
+    box.innerHTML = out.length
+      ? out.map(function (t) { return '<span class="chip">' + esc(t) + '</span>'; }).join("")
+      : '<span class="chip empty">No subject assigned yet — contact your school exam officer.</span>';
+  }
+
   function loadExams() {
     if (!S.token) { renderOfflineExams(); return; }
     api("/school-cbt/student/my-exams").then(function (d) {
       S.exams = d.exams || [];
+      renderStudent();
+      renderSubjectChips(S.exams.map(function (x) { return x.subject; }));
       // A granted retake invalidates anything cached on this device: drop the
       // old attempt and the old downloaded paper so the next start/download
       // gets a fresh randomized set of questions. Clear it exactly once so a
@@ -414,7 +447,7 @@
       body = '<div class="okrow" style="color:var(--warn)">↻ Retake approved — sit this examination again</div>' +
         (x.needs_download
           ? '<button class="btn-go dlbtn" onclick="downloadExam(\'' + x.id + '\')">⬇ Download Examination</button>'
-          : '<button class="btn-go" onclick="openExam(\'' + x.id + '\')">START RETAKE</button>');
+          : '<button class="btn-go" onclick="openExam(\'' + x.id + '\')">Take Exam</button>');
     } else if (x.attempt_status === "submitted") {
       body = '<div class="okrow">✓ Completed</div>';
       if (x.result) body += '<div class="scorecard">Score: ' + esc(x.result.final_score) + " / " + esc(x.result.total_mark) + " (" + esc(x.result.grade) + ")</div>";
@@ -422,7 +455,7 @@
     } else if (x.needs_download) {
       body = '<button class="btn-go dlbtn" onclick="downloadExam(\'' + x.id + '\')">⬇ Download Examination</button>';
     } else {
-      body = '<button class="btn-go" onclick="openExam(\'' + x.id + '\')">' + (pkg && mode !== "ONLINE" ? "OPEN EXAM" : "START EXAM") + "</button>";
+      body = '<button class="btn-go" onclick="openExam(\'' + x.id + '\')">Take Exam</button>';
     }
     if (!x.window_open && !retake && x.attempt_status !== "submitted") {
       body = '<div class="okrow" style="color:var(--warn)">⏰ Not available yet — check your exam date</div>';
@@ -436,18 +469,22 @@
   /* Offline home: everything downloaded on this device for THIS student + pending syncs. */
   function renderOfflineExams() {
     var rows = [];
+    var subjects = [];
+    renderStudent();
     listOwned("exam_pkg").forEach(function (item) {
       var examId = item.examId;
       var pkg = lsGet(item.key); if (!pkg || !pkg.exam) return;
+      subjects.push(pkg.exam.subject || pkg.exam.title);
       var pend = lsGet(K.pend(examId));
       var att = lsGet(K.att(examId));
       var st = pend ? '<div class="scorecard" style="background:var(--warnbg);color:var(--warn)">⏳ Completed — waiting for secure sync</div>'
-        : '<button class="btn-go" onclick="openExamOffline(\'' + examId + '\')">' + (att ? "CONTINUE EXAM" : "START EXAM") + " (offline)</button>";
+        : '<button class="btn-go" onclick="openExamOffline(\'' + examId + '\')">' + (att ? "Continue Exam" : "Take Exam") + " (offline)</button>";
       rows.push('<div class="ecard"><h3>' + esc(pkg.exam.subject || pkg.exam.title) + '</h3>' +
         '<div class="esub">' + esc(pkg.exam.class_name || "") + '</div>' +
         '<div class="emeta"><span><b>' + (pkg.questions || []).length + '</b> Questions</span><span><b>' + fmtDur(pkg.exam.duration_minutes) + '</b></span><span>Total Mark: <b>' + pkg.exam.total_mark + '</b></span></div>' +
         '<span class="mode-pill offline">📴 Offline — on this device</span>' + st + '</div>');
     });
+    renderSubjectChips(subjects);
     $("examGrid").innerHTML = rows.length ? rows.join("") :
       '<div class="ecard">You are offline and this device has no downloaded examinations.<br/><br/>Connect to the internet once, log in, and press <b>⬇ Download Examination</b> — after that the exam works fully offline.</div>';
   }
