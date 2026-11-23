@@ -2713,6 +2713,23 @@ tr:last-child td{border-bottom:none}
         (rows.length ? '<div style="overflow-x:auto"><table><thead><tr><th></th><th>Reg Number</th><th>Student &amp; Subjects</th><th>Class</th><th>Access Code</th><th>Status</th><th>Actions</th></tr></thead><tbody>' + rows.join("") + '</tbody></table></div>' : '<div class="empty">None here.</div>') + '</div>';
     }
     var parts = [];
+    // Filters hide every student while the school still has them: say so, and
+    // offer the way back, instead of three empty panels that look like data loss.
+    var totalAll = (c.total != null ? c.total : c.all) || 0;
+    if (!(window.__regAll || []).length && totalAll > 0) {
+      var bits = [];
+      if (f.cls) bits.push("class " + esc(f.cls));
+      if (f.subj) bits.push("subject " + esc(f.subj));
+      if (f.q) bits.push("search " + esc(f.q));
+      if (f.status && f.status !== "all") bits.push(f.status);
+      parts.push('<div class="panel" style="margin-top:14px"><h3>No students match these filters</h3>' +
+        '<p class="mhint" style="font-size:14px">' + totalAll + ' student' + (totalAll === 1 ? " is" : "s are") + ' registered' +
+        (bits.length ? ' — but none with ' + bits.join(" · ") : "") + '.</p>' +
+        '<button class="btn sm" onclick="regClear()">Clear filters</button></div>');
+      var b2 = $("rgBody");
+      if (b2) b2.innerHTML = parts.join("");
+      return;
+    }
     // Approved students come first; approvals waiting on the school follow.
     if (f.status === "all" || f.status === "approved") parts.push(sec("🟢 Approved Students", "approved"));
     if (f.status === "all" || f.status === "pending") parts.push(sec("🟡 Pending Approvals", "pending"));
@@ -2789,7 +2806,29 @@ tr:last-child td{border-bottom:none}
     var scope;
     if (ids.length) { body.student_ids = ids; scope = "<strong>" + ids.length + "</strong> selected student" + (ids.length === 1 ? "" : "s"); }
     else if (window.__regF.cls) { body.class_name = window.__regF.cls; scope = "every student in <strong>" + esc(window.__regF.cls) + "</strong>"; }
-    else { scope = "<strong>ALL registered students in the school</strong>"; }
+    else {
+      /* Nothing ticked and no class filter: this is the whole-school wipe.
+         It asks for a typed confirmation so it can never happen by accident. */
+      var c = window.__regCounts || {};
+      var total = (c.total != null ? c.total : c.all);
+      if (total == null) total = (window.__regAll || []).length;
+      if (!total) return toastErr("No students to delete.");
+      openModal("🗑 Delete every student",
+        '<p style="font-size:14.5px;line-height:1.6">No students are ticked, so this would delete <strong>all ' + total + ' registered student' + (total === 1 ? "" : "s") + '</strong> in the school with ALL their exam data. This cannot be undone.</p>' +
+        '<label class="f-label" style="margin-top:10px">Type <b>DELETE ALL</b> to continue</label>' +
+        '<input class="f-in" id="rgWipe" autocomplete="off" placeholder="DELETE ALL" />' +
+        '<div class="merr" style="display:none;margin-top:10px"></div>',
+        '<button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn red" id="rgWipeGo">Delete all ' + total + '</button>');
+      $("rgWipeGo").addEventListener("click", function () {
+        var b = $("rgWipeGo");
+        if ((($("rgWipe") || {}).value || "").trim().toUpperCase() !== "DELETE ALL") return mErr("Type DELETE ALL to confirm.");
+        busy(b, true);
+        cbtApi("/registrations/delete-all", { method: "POST", body: { all: true } }).then(function (d) {
+          closeModal(); toast("🗑 Deleted " + (d.deleted != null ? d.deleted : 0) + " student" + (d.deleted === 1 ? "" : "s")); regRefresh();
+        }).catch(function (e) { busy(b, false, "Delete all " + total); mErr(errText(e)); });
+      });
+      return;
+    }
     confirmModal("Delete students", "Permanently delete " + scope + " with ALL their exam data? This cannot be undone.", function (b) {
       busy(b, true);
       cbtApi("/registrations/delete-all", { method: "POST", body: body }).then(function (d) {

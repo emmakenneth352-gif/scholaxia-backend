@@ -2913,6 +2913,9 @@ async def registrations_list(
             "approved": sum(1 for s in out if s["status"] == "approved"),
             "pending": sum(1 for s in out if s["status"] == "pending"),
             "restricted": sum(1 for s in out if s["status"] == "restricted"),
+            # Unfiltered headcount: lets the portal tell "no students at all"
+            # apart from "filters hide every student".
+            "total": len(stu),
         },
     }
 
@@ -3183,8 +3186,11 @@ async def registration_delete_one(
 
 
 class DeleteAllIn(BaseModel):
-    student_ids: Optional[list[str]] = Field(default=None, max_length=2000)  # omitted = ALL (filtered)
+    student_ids: Optional[list[str]] = Field(default=None, max_length=2000)
     class_name: Optional[str] = Field(default=None, max_length=40)
+    # Deleting the WHOLE school is a separate, explicit act: an empty body must
+    # never be read as "every student".
+    all: bool = False
 
 
 @router.post("/registrations/delete-all")
@@ -3196,16 +3202,22 @@ async def registrations_delete_all(
 ):
     """Delete several students, a whole class — or all registered students."""
     sid = _staff_school_id(current_user, school_id)
+    by_class = bool(payload.class_name and payload.class_name.strip().upper() != "ALL")
     if payload.student_ids:
         ids = [UUID(x) for x in payload.student_ids]
-    else:
+    elif by_class or payload.all:
         q = select(User.id).where(User.school_id == sid, User.role == UserRole.student)
-        if payload.class_name and payload.class_name.strip().upper() != "ALL":
+        if by_class:
             q = q.join(StudentProfile, StudentProfile.user_id == User.id).where(
                 func.upper(func.replace(StudentProfile.education_level, " ", ""))
                 == normalize_class_name(payload.class_name)
             )
         ids = (await db.execute(q)).scalars().all()
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Nothing selected. Tick the students to delete, pick a class, or ask to delete every student.",
+        )
     n = 0
     for uid in ids:
         await purge_user(db, uid)
