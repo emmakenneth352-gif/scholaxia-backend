@@ -1,3 +1,4 @@
+import json
 import re
 import secrets
 from datetime import datetime
@@ -827,6 +828,17 @@ async def register_candidate(
     # Issue the reg number + access code NOW (slip is final), reusing the
     # pending row at schedule time so these printed credentials keep working.
     cred = await _mint_pending_credential(db, campus.id, user.id)
+    subjects = [s.strip() for s in payload.subjects if str(s).strip()]
+    # Keep the picked subjects on the credential as well: the registration
+    # slip and "Approve Students" read them from there, and this route used to
+    # save nothing, so a 14-subject registration printed only the subjects
+    # that already had a scheduled exam.
+    try:
+        cred.requested_subjects = json.dumps(
+            ["ALL"] if any(s.upper() == "ALL" for s in subjects) else sorted(set(subjects))
+        )
+    except Exception:
+        pass
 
     # Already-scheduled exams for this class (subject-filtered) get the
     # student assigned immediately.
@@ -834,7 +846,6 @@ async def register_candidate(
         SchoolExam.school_id == campus.id,
         func.upper(SchoolExam.class_name) == cls,
     )
-    subjects = [s.strip() for s in payload.subjects if str(s).strip()]
     if subjects and "ALL" not in {s.upper() for s in subjects}:
         q = q.where(func.lower(SchoolExam.subject).in_([s.lower() for s in subjects]))
     exams = (await db.execute(q)).scalars().all()

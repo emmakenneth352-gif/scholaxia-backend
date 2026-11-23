@@ -1208,14 +1208,32 @@ async def _ensure_access_codes(db: AsyncSession, exam: SchoolExam) -> int:
             pending.expires_at = exam.access_code_expires_at
             made += 1
             continue
-        reg = await _reg_number_for(db, exam.school_id, suid)
+        # ONE identity per student: every extra exam row copies the reg number
+        # AND access code printed on the slip. Minting a fresh access code per
+        # subject meant the slip only opened one paper — every other subject
+        # read "this examination is not available yet" even though it was
+        # registered.
+        ident = (
+            await db.execute(
+                select(SchoolExamAccessCode)
+                .where(SchoolExamAccessCode.student_id == suid)
+                .order_by(SchoolExamAccessCode.created_at)
+                .limit(1)
+            )
+        ).scalars().first()
+        reg = ident.reg_number if ident is not None else await _reg_number_for(db, exam.school_id, suid)
+        code_value = (
+            ident.access_code
+            if ident is not None
+            else await _new_access_code_unique(db, exclude_student_id=suid)
+        )
         db.add(
             SchoolExamAccessCode(
                 school_id=exam.school_id,
                 exam_id=exam.id,
                 student_id=suid,
                 reg_number=reg,
-                access_code=await _new_access_code_unique(db, exclude_student_id=suid),
+                access_code=code_value,
                 expires_at=exam.access_code_expires_at,
             )
         )
@@ -1320,8 +1338,22 @@ async def _mint_pending_credential(db: AsyncSession, school_id: UUID, student_id
     ).scalars().first()
     if pending is not None:
         return pending
-    reg = await _reg_number_for(db, school_id, student_id)
-    code = await _new_access_code_unique(db, exclude_student_id=student_id)
+    # A student who already has credentials never gets a second identity —
+    # the slip printed today must keep working for every later exam.
+    ident = (
+        await db.execute(
+            select(SchoolExamAccessCode)
+            .where(SchoolExamAccessCode.student_id == student_id)
+            .order_by(SchoolExamAccessCode.created_at)
+            .limit(1)
+        )
+    ).scalars().first()
+    if ident is not None:
+        reg = ident.reg_number
+        code = ident.access_code
+    else:
+        reg = await _reg_number_for(db, school_id, student_id)
+        code = await _new_access_code_unique(db, exclude_student_id=student_id)
     row = SchoolExamAccessCode(
         school_id=school_id,
         exam_id=None,
@@ -1421,10 +1453,17 @@ async def class_roster(
             )
         ).all():
             subs[str(exam_id)] = int(cnt)
+    # Everything the student registered for — scheduled subjects plus the
+    # subjects picked at registration (a class with 14 subjects and 3 exams
+    # scheduled must still list 14).
+    _picked_roster = await _picked_subjects_map(db, sid)
     subjects_by_student: dict[str, list[str]] = {}
     for su in students:
+        _picked_set = {
+            s for s in _picked_roster.get(str(su.id), []) if str(s).upper() != "ALL"
+        }
         subjects_by_student[str(su.id)] = sorted(
-            {e.subject for e in class_exams if str(e.id) in assigns[str(su.id)]}
+            {e.subject for e in class_exams if str(e.id) in assigns[str(su.id)]} | _picked_set
         )
     return {
         "class_name": cls,
@@ -1716,30 +1755,46 @@ async def exam_students_aggregate(
     Full Name, Class, Subject, Access Code, Status — filterable."""
     sid = _staff_school_id(current_user, school_id)
     q = (
-        select(SchoolExamAccessCode, SchoolExam, User)
-        .join(SchoolExam, SchoolExam.id == SchoolExamAccessCode.exam_id)
+        select(SchoolExamAccessCode, SchoolExam, User, StudentProfile)
+        # OUTER join: a student whose subject is not scheduled yet holds an
+        # exam-less registration credential. The old inner join silently
+        # dropped them, so a list of 14 registrations printed only the 10 with
+        # a scheduled exam.
+        .outerjoin(SchoolExam, SchoolExam.id == SchoolExamAccessCode.exam_id)
+        .outerjoin(StudentProfile, StudentProfile.user_id == SchoolExamAccessCode.student_id)
         .join(User, User.id == SchoolExamAccessCode.student_id)
-        .where(SchoolExam.school_id == sid)
+        .where(SchoolExamAccessCode.school_id == sid)
         .order_by(SchoolExamAccessCode.reg_number)
     )
     if class_name and str(class_name).strip().upper() != "ALL":
         q = q.where(
-            func.upper(func.replace(SchoolExam.class_name, " ", ""))
+            func.upper(func.replace(func.coalesce(SchoolExam.class_name, StudentProfile.education_level, ""), " ", ""))
             == normalize_class_name(str(class_name))
         )
     if subject and str(subject).strip().upper() != "ALL":
-        q = q.where(func.lower(SchoolExam.subject) == str(subject).strip().lower())
+        q = q.where(func.lower(func.coalesce(SchoolExam.subject, "")) == str(subject).strip().lower())
     rows = (await db.execute(q)).all()
+    picked_all = await _picked_subjects_map(db, sid)
     now = naive_utc_now()
     out = []
-    for code, exam, user in rows:
+    for code, exam, user, prof in rows:
+        try:
+            _picked = json.loads(code.requested_subjects) if code.requested_subjects else []
+        except Exception:
+            _picked = []
+        exam_subject = exam.subject if exam is not None else (", ".join(_picked) if _picked else None)
+        class_label = ((exam.class_name if exam is not None else None) or (prof.education_level if prof else "") or "").upper()
         out.append(
             {
                 "student_id": str(user.id),
-                "exam_id": str(exam.id),
+                "exam_id": str(exam.id) if exam is not None else None,
                 "full_name": user.full_name,
-                "class_name": (exam.class_name or "").upper(),
-                "subject": exam.subject,
+                "class_name": class_label,
+                "subject": exam_subject,
+                # Every subject picked at registration, so printing a slip from
+                # this table shows all of them and not just the scheduled one.
+                "subjects": [s for s in _picked if str(s).upper() != "ALL"],
+                "requested_subjects": _picked,
                 "reg_number": code.reg_number,
                 "access_code": code.access_code,
                 "exam_taken": bool(code.is_used),
@@ -1949,7 +2004,10 @@ class ScheduleSaveIn(BaseModel):
     question_count: int = Field(ge=1, le=200)
     duration_minutes: int = Field(ge=1, le=300)
     starts_at: datetime
-    total_mark: int = Field(default=100, ge=1)
+    # Optional: saving a schedule must never reset a mark the examiner already
+    # set (it used to force every scheduled exam back to 100, which is why
+    # scores always came back "out of 100").
+    total_mark: Optional[int] = Field(default=None, ge=1)
 
 
 @router.post("/schedule/save")
@@ -2068,7 +2126,8 @@ async def save_schedule(
         if exam:
             exam.duration_minutes = int(payload.duration_minutes)
             exam.questions_to_display = min(int(payload.question_count), avail)
-            exam.total_mark = int(payload.total_mark)
+            if payload.total_mark:
+                exam.total_mark = int(payload.total_mark)
             exam.exam_date = start
             exam.scheduled_start = start
             exam.scheduled_end = start + timedelta(minutes=int(payload.duration_minutes))
@@ -2087,7 +2146,7 @@ async def save_schedule(
                 class_name=cls,
                 exam_type="SCHOOL",
                 exam_mode="ONLINE",
-                total_mark=int(payload.total_mark),
+                total_mark=int(payload.total_mark or 100),
                 duration_minutes=int(payload.duration_minutes),
                 questions_to_display=min(int(payload.question_count), avail),
                 assigned_class_names=[cls],
@@ -2238,6 +2297,9 @@ async def schedule_overview(
                 "venue": cls,
                 "questions": qcounts.get(str(e.id), 0),
                 "questions_to_display": e.questions_to_display or qcounts.get(str(e.id), 0),
+                # The mark the paper is scored out of (20/30/50/100) — shown on
+                # the schedule and used by the auto-marking engine.
+                "total_mark": e.total_mark,
                 "status": e.status,
                 "is_published": bool(e.is_published),
                 "window_open": bool(
@@ -2799,12 +2861,15 @@ async def registrations_list(
     cls_filter = (class_name or "").strip().upper()
     subj_filter = (subject or "").strip().lower()
     out = []
+    # Subjects the school PICKED at registration live on the credential minted
+    # then. Once the exam is scheduled that row is re-pointed at the exam, and
+    # scheduling also mints extra exam rows, so "newest row wins" showed only
+    # the 1–3 scheduled subjects on Approve Students. Read them from any
+    # credential of the student that still carries the picked list.
+    picked_by_student = await _picked_subjects_map(db, sid)
     for u, p in stu:
         cred = code_by_student.get(str(u.id))
-        try:
-            _requested = json.loads(cred.requested_subjects) if cred and cred.requested_subjects else []
-        except Exception:
-            _requested = []
+        _requested = picked_by_student.get(str(u.id)) or []
         _picked = {s for s in _requested if s and s.upper() != "ALL"}
         subjects = sorted(subj_by_student.get(str(u.id), set()) | _picked)
         cls = (p.education_level or "").upper() if p else ""
@@ -2887,21 +2952,64 @@ async def registration_edit(
     return {"updated": True, "full_name": u.full_name}
 
 
-def _requested_subject_filter(cred) -> list[str] | None:
+async def _picked_subjects_map(db: AsyncSession, school_id: UUID) -> dict[str, list[str]]:
+    """Subjects each student picked at REGISTRATION, from every store that
+    keeps them.
+
+    The picked list used to live only on the credential row minted at
+    registration. Scheduling re-points that row at an exam and mints further
+    exam rows (which carry no list), and students registered through the
+    school-office "Register Candidate" form never had a list at all — so the
+    slip and the approval screen showed only the 1–3 subjects that happened to
+    be scheduled. Merge every credential row of the student with their
+    candidate record so 14 picked subjects stay 14.
+    """
+    from app.models.school_office import SchoolExamCandidate
+
+    out: dict[str, list[str]] = {}
+
+    def _merge(student_key: str, values) -> None:
+        if isinstance(values, str):
+            try:
+                values = json.loads(values)
+            except Exception:
+                values = [values]
+        cur = out.setdefault(student_key, [])
+        for v in values or []:
+            s = str(v).strip()
+            if s and s.upper() not in {x.upper() for x in cur}:
+                cur.append(s)
+
+    for _sid, raw in (
+        await db.execute(
+            select(SchoolExamAccessCode.student_id, SchoolExamAccessCode.requested_subjects)
+            .where(SchoolExamAccessCode.school_id == school_id)
+        )
+    ).all():
+        if raw:
+            _merge(str(_sid), raw)
+    for uid, subs in (
+        await db.execute(
+            select(SchoolExamCandidate.user_id, SchoolExamCandidate.subjects)
+            .where(SchoolExamCandidate.school_id == school_id)
+        )
+    ).all():
+        if uid is not None and subs:
+            _merge(str(uid), subs)
+    return out
+
+
+def _requested_filter(req: list[str] | None) -> list[str] | None:
     """Subjects picked at REGISTRATION that approve may attach.
-    Returns None = attach to every exam of the class ("ALL" selected, or
-    legacy rows that predate requested_subjects). Otherwise the lowercase
-    subject names the school picked — approve must NOT add anything else."""
-    try:
-        req = json.loads(cred.requested_subjects) if cred and cred.requested_subjects else []
-    except Exception:
-        req = []
+    Returns None = attach to every exam of the class ("ALL" selected, or no
+    list recorded). Otherwise the lowercase subject names the school picked —
+    approve must NOT add anything else."""
+    req = [str(s).strip() for s in (req or []) if str(s).strip()]
     if not req:
         return None
-    if any(str(s).strip().upper() == "ALL" for s in req):
+    if any(s.upper() == "ALL" for s in req):
         return None
-    want = [str(s).strip().lower() for s in req if str(s).strip()]
-    return want or None
+    return [s.lower() for s in req] or None
 
 
 async def _own_student(db: AsyncSession, sid: UUID, student_id: str) -> User:
@@ -2929,7 +3037,7 @@ async def registration_approve(
     cred = await _mint_pending_credential(db, sid, u.id)
     p = (await db.execute(select(StudentProfile).where(StudentProfile.user_id == u.id))).scalar_one_or_none()
     cls = (p.education_level or "").upper() if p else ""
-    want = _requested_subject_filter(cred)
+    want = _requested_filter((await _picked_subjects_map(db, sid)).get(str(u.id)))
     _eq = select(SchoolExam).where(
         SchoolExam.school_id == sid,
         func.upper(func.replace(SchoolExam.class_name, " ", ""))
@@ -2981,6 +3089,7 @@ async def registrations_approve_all(
             await db.execute(select(SchoolExamAssignment.student_id).where(SchoolExamAssignment.school_id == sid))
         ).scalars().all()
     }
+    _picked_all = await _picked_subjects_map(db, sid)
     approved, attached_total = 0, 0
     for uid, edu in rows:
         cls = (edu or "").upper()
@@ -2990,7 +3099,7 @@ async def registrations_approve_all(
         if str(uid) in assigned:
             continue
         cred = await _mint_pending_credential(db, sid, uid)
-        want = _requested_subject_filter(cred)
+        want = _requested_filter(_picked_all.get(str(uid)))
         _aq = select(SchoolExam).where(
             SchoolExam.school_id == sid,
             func.upper(func.replace(SchoolExam.class_name, " ", "")) == cls_norm,
@@ -3591,7 +3700,15 @@ async def student_exam_login(
             )
         )
     ).scalars().all()
-    row = next((r for r in rows if (r.access_code or "").strip().upper() == code), None)
+    matches = [r for r in rows if (r.access_code or "").strip().upper() == code]
+    # The slip's one access code is shared by every subject's row, so prefer a
+    # live exam row — an expired slot must not lock the student out of the
+    # subjects that are still open.
+    row = (
+        next((r for r in matches if r.exam_id is not None and not (r.expires_at and r.expires_at < now)), None)
+        or next((r for r in matches if not (r.expires_at and r.expires_at < now)), None)
+        or (matches[0] if matches else None)
+    )
     if not row:
         # §13/§14 brute-force protection: a matching REG NUMBER with a wrong
         # code increments a server-side counter; 5 failures locks the code.
@@ -3607,15 +3724,24 @@ async def student_exam_login(
     if row.expires_at and row.expires_at < now:
         raise HTTPException(status_code=403, detail="This access code has expired")
 
-    exam = (await db.execute(select(SchoolExam).where(SchoolExam.id == row.exam_id))).scalar_one_or_none()
-    if not exam or not exam.is_published:
-        raise HTTPException(status_code=403, detail="This examination is not available yet")
+    exam = (
+        await db.execute(select(SchoolExam).where(SchoolExam.id == row.exam_id))
+    ).scalar_one_or_none() if row.exam_id else None
 
     student = (await db.execute(select(User).where(User.id == row.student_id))).scalar_one_or_none()
     if not student or not student.is_active:
         raise HTTPException(status_code=403, detail="This student account is not active")
     if row.is_restricted:
         raise HTTPException(status_code=403, detail="Access restricted — contact your school")
+    # Registration-first flow: the slip's credential stays exam-less until the
+    # subject is scheduled, and an exam whose start time has not come is not
+    # published yet. Neither means the student is unregistered, so log them in
+    # — the portal then lists their subjects and marks the papers that are not
+    # open yet instead of refusing the login outright (which read as "this
+    # examination is not available yet" for every freshly registered student).
+    if exam is not None and not exam.is_published:
+        exam = None
+    school_id = exam.school_id if exam is not None else (student.school_id or row.school_id)
 
     # Success — reset the failure counter.
     row.failed_attempts = 0
@@ -3641,8 +3767,8 @@ async def student_exam_login(
         "access_token": token,
         "token_type": "bearer",
         "student": {"full_name": student.full_name, "reg_number": row.reg_number},
-        "school_id": str(exam.school_id),
-        "exam_id": str(exam.id),
+        "school_id": str(school_id) if school_id else None,
+        "exam_id": str(exam.id) if exam is not None else None,
     }
 
 
@@ -3661,15 +3787,20 @@ async def _exam_student(db: AsyncSession, credentials) -> tuple[User, SchoolExam
     user = (await db.execute(select(User).where(User.id == UUID(payload["sub"])))).scalar_one_or_none()
     if not user or not user.is_active or user.role != UserRole.student:
         raise HTTPException(status_code=401, detail="Not authorized")
-    code = (
+    rows = (
         await db.execute(
-            select(SchoolExamAccessCode).where(
+            select(SchoolExamAccessCode)
+            .where(
                 SchoolExamAccessCode.student_id == user.id,
                 SchoolExamAccessCode.is_used == False,  # noqa: E712
-                SchoolExamAccessCode.exam_id.is_not(None),  # Pass 7: skip pending (exam-less) credentials
             )
+            .order_by(SchoolExamAccessCode.created_at.desc())
         )
-    ).scalars().first()
+    ).scalars().all()
+    # Prefer the exam-scoped credential; fall back to the registration
+    # credential (exam-less, issued on the printed slip) so a student whose
+    # subject is not scheduled yet can still open the portal and see it.
+    code = next((c for c in rows if c.exam_id is not None), None) or (rows[0] if rows else None)
     return user, code
 
 
@@ -4035,9 +4166,20 @@ async def start_attempt(
         )
         db.add(attempt)
         await db.flush()
-        if code and not code.is_used:
-            code.is_used = True
-            code.used_at = started
+        # Mark THIS exam's credential (the slip's single access code is shared
+        # by every subject's row, so "the" credential is not necessarily this
+        # exam's row).
+        exam_code = (
+            await db.execute(
+                select(SchoolExamAccessCode).where(
+                    SchoolExamAccessCode.student_id == user.id,
+                    SchoolExamAccessCode.exam_id == exam.id,
+                )
+            )
+        ).scalar_one_or_none() or code
+        if exam_code and not exam_code.is_used and exam_code.exam_id is not None:
+            exam_code.is_used = True
+            exam_code.used_at = started
         await _sync_log(db, exam, user.id, "attempt_started", attempt_id=attempt.id)
 
     qs = (

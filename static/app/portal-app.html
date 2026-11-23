@@ -1587,7 +1587,19 @@ tr:last-child td{border-bottom:none}
         : '';
       var picked = (d.requested_subjects && d.requested_subjects.length) ? d.requested_subjects : (d.subjects || []);
       var pickedTxt = (picked.indexOf("ALL") > -1) ? "All subjects" : picked.map(function (s) { return esc(s); }).join(", ");
-      $("rgDone").innerHTML = '<div class="mnote" style="margin-top:14px">✅ <strong>' + esc(d.full_name) + '</strong> registered' + (d.exams_assigned ? ' for ' + d.exams_assigned + ' exam(s) — ' + pickedTxt : '') + '.' + codeLine +
+      // Always state how many subjects were registered — "registered for 3
+      // exam(s) — <27 subjects>" read as if only 3 were saved. The picked list
+      // is the registration; exam(s) are only the ones already scheduled,
+      // and the rest attach automatically when their slot is scheduled.
+      var subjCount = (picked.indexOf("ALL") > -1)
+        ? "all subjects"
+        : picked.length + " subject" + (picked.length === 1 ? "" : "s");
+      var schedNote = d.exams_assigned
+        ? " · " + d.exams_assigned + " exam(s) already scheduled"
+        : " · exam not scheduled for this class yet — they are added automatically when you save the Exam Schedule";
+      $("rgDone").innerHTML = '<div class="mnote" style="margin-top:14px">✅ <strong>' + esc(d.full_name) + '</strong> registered for ' + subjCount +
+        (d.exams_assigned ? ' (already scheduled)' : '') + schedNote +
+        (pickedTxt ? '.<br/><span class="muted" style="font-size:13px">' + pickedTxt + '</span>' : '.') + codeLine +
         (d.reg_number ? '<div style="margin-top:12px"><button class="btn green" onclick="printRegSlip(window.__lastReg)">🖨️ Print Registration Slip</button></div>' : '') + '</div>';
       window.__lastReg = d;
       $("rgFirst").value = ""; $("rgMiddle").value = ""; $("rgSur").value = "";
@@ -3304,7 +3316,9 @@ tr:last-child td{border-bottom:none}
         '<div class="mrow"><label class="f-label">📚 Subjects for this slot *</label><select class="f-in" id="scSubjects" multiple size="4" disabled><option value="">-- Select class first to load subjects --</option></select><p class="mhint">Hold Ctrl (Windows) or Cmd (Mac) to select multiple subjects.</p></div>' +
         '<div class="form-grid rg3"><div><label class="f-label">🔢 Number of Questions *</label><input class="f-in" id="scQCount" type="number" min="1" value="40" /></div>' +
         '<div><label class="f-label">⏱️ Exam Duration (Minutes) *</label><input class="f-in" id="scDur" type="number" min="5" max="300" value="60" /></div>' +
-        '<div><label class="f-label">🕐 Start Date & Time *</label><input class="f-in" id="scDate" type="datetime-local" /></div></div>' +
+        '<div><label class="f-label">🎯 Total Mark *</label><input class="f-in" id="scMark" type="number" min="1" max="1000" value="100" /></div></div>' +
+        '<p class="mhint" style="margin:-6px 0 10px">Score = (Correct Answers ÷ Questions) × Total Mark. Set 20, 30, 50 or 100 — a student who gets 8 of 10 questions right scores 24 when the total mark is 30.</p>' +
+        '<div class="form-grid rg2"><div><label class="f-label">🕐 Start Date & Time *</label><input class="f-in" id="scDate" type="datetime-local" /></div></div>' +
         '<div class="radio-row"><button class="btn green" onclick="schSave()">💾 Save Schedule</button><button class="btn ghost" onclick="schClear()">🔄 Clear Schedule</button></div>' +
         '<div class="merr" id="scErr"></div></div>' +
         '<div class="panel"><h3>🔔 Current Class Schedule</h3><p class="mhint">Select a class to view its schedule.</p><div id="scCurrent"><div class="empty">Select a class above</div></div></div>' +
@@ -3335,10 +3349,13 @@ tr:last-child td{border-bottom:none}
   function schLoadCurrent(cls) {
     cbtApi("/schedule").then(function (d) {
       var rows = (d.schedule || []).filter(function (r) { return r.class_name === cls; });
+      // Show the mark actually in force for this class instead of resetting
+      // the form to 100 every time the page opens.
+      if (rows.length && $("scMark") && rows[0].total_mark) $("scMark").value = rows[0].total_mark;
       var box = $("scCurrent");
       if (box) box.innerHTML = rows.length ? rows.map(function (r) {
         var st = r.window_open ? '<span class="pill ok">Open now</span>' : r.is_published ? '<span class="pill blue">Scheduled</span>' : '<span class="pill warn">Draft</span>';
-        return '<div class="sumrow" style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px"><span><strong>' + esc(r.subjects) + '</strong> — ' + (r.exam_date ? dOnly(r.exam_date) : "—") + ' ' + (r.scheduled_start ? new Date(r.scheduled_start).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "") + ' · ' + fmtDurM(r.duration_minutes) + ' · ' + r.questions_to_display + ' questions</span>' + st + '</div>';
+        return '<div class="sumrow" style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px"><span><strong>' + esc(r.subjects) + '</strong> — ' + (r.exam_date ? dOnly(r.exam_date) : "—") + ' ' + (r.scheduled_start ? new Date(r.scheduled_start).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "") + ' · ' + fmtDurM(r.duration_minutes) + ' · ' + r.questions_to_display + ' questions' + (r.total_mark ? ' · total mark ' + r.total_mark : '') + '</span>' + st + '</div>';
       }).join("") : '<div class="empty">No schedule</div>';
       cbtApi("/roster/" + encodeURIComponent(cls)).then(function (rd) {
         var st = rd.students || [];
@@ -3354,6 +3371,7 @@ tr:last-child td{border-bottom:none}
     var subs = Array.prototype.slice.call($("scSubjects").selectedOptions || []).map(function (o) { return o.value; }).filter(Boolean);
     var qn = parseInt($("scQCount").value, 10) || 0;
     var dur = parseInt($("scDur").value, 10) || 0;
+    var mark = parseInt(($("scMark") && $("scMark").value), 10) || 100;
     var when = $("scDate").value;
     var err = $("scErr");
     err.style.display = "none";
@@ -3365,7 +3383,7 @@ tr:last-child td{border-bottom:none}
     busy(null, true);
     cbtApi("/schedule/save", { method: "POST", body: {
       class_name: cls, subjects: subs, question_count: qn, duration_minutes: dur,
-      starts_at: isoOrNull(when), total_mark: 100,
+      starts_at: isoOrNull(when), total_mark: mark,
     } }).then(function (d) {
       var parts = [];
       if (d.created) parts.push(d.created + " created");
@@ -3508,8 +3526,9 @@ tr:last-child td{border-bottom:none}
           '<td><button class="btn sm ghost" onclick="grantRetake(\'' + esc(r.student_id) + '\',\'' + esc(r.student_name).replace(/'/g, "") + '\')">↻ Grant Retake</button></td></tr>';
       });
       var box = $("rvTbl");
-      if (box) box.innerHTML = rows.length ? tbl(["S/N", "Student Name", "Reg Number", "Total Questions", "Correct Answers", "Total Score", "Percentage", "Grade", "Date", "Actions"], rows)
-        : '<div class="empty">No submissions for this exam yet.</div>';
+      if (box) box.innerHTML = (rows.length ? tbl(["S/N", "Student Name", "Reg Number", "Total Questions", "Correct Answers", "Total Score", "Percentage", "Grade", "Date", "Actions"], rows)
+        : '<div class="empty">No submissions for this exam yet.</div>') +
+        '<p class="mhint" style="margin-top:12px">🎯 Percentage = (Correct Answers ÷ Total Questions) × 100 · Total Score = that percentage of the exam\'s Total Mark' + ((d.exam && d.exam.total_mark) ? ' (' + d.exam.total_mark + ')' : '') + '. Set the Total Mark yourself on the Exam Schedule tab.</p>';
       var pub = $("rvPublish");
       if (pub && d.exam) pub.innerHTML = d.exam.results_published ? "🙈 Unpublish results" : "📢 Publish results to students";
     }).catch(function (e) { var box = $("rvTbl"); if (box) box.innerHTML = '<div class="empty">' + esc(errText(e)) + '</div>'; });
