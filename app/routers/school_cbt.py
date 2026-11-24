@@ -886,6 +886,14 @@ async def edit_bank_question(
         row.difficulty = data["difficulty"]
     if "image_url" in data:
         row.image_url = (data["image_url"] or "").strip() or None
+        # Exams hold a COPY of the bank question. A diagram attached after the
+        # exam was built (or re-uploaded) otherwise never reached the paper, so
+        # keep the copy's image in step with the bank.
+        await db.execute(
+            update(SchoolExamQuestion)
+            .where(SchoolExamQuestion.bank_question_id == row.id)
+            .values(image_url=row.image_url)
+        )
     if "status" in data and data["status"] in ("draft", "active", "archived"):
         row.status = data["status"]
     await db.flush()
@@ -3643,6 +3651,36 @@ async def results_template_put(
     campus.result_template = tpl
     await db.flush()
     return {"saved": True, "template": tpl}
+
+
+@router.post("/community/upload")
+async def cbt_upload_image(
+    file: UploadFile = File(...),
+    school_id: Optional[str] = Query(None),
+    current_user: dict = Depends(require_school_staff),
+):
+    """Upload a question diagram for the school portal.
+
+    The portal's "Add diagram" button posts here under the /school-cbt prefix.
+    That path did not exist (the only upload route was /api/v1/community/upload),
+    so every diagram upload failed and questions were stored with no image —
+    which is why exams showed no diagrams. Staff-only, images only.
+    """
+    _staff_school_id(current_user, school_id)
+    name = (file.filename or "diagram").strip()
+    content = await file.read()
+    if len(content) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image is too large (max 20MB).")
+    if not name.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".gif")):
+        raise HTTPException(status_code=400, detail="Upload a PNG, JPG, WebP or GIF image.")
+    from app.services.media_service import upload_file as _up
+
+    try:
+        result = _up(content, "cbt", filename=name)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+    url = result.get("secure_url") or result.get("url") or ""
+    return {"file_url": url, "secure_url": url, "image_url": url, "file_type": "image"}
 
 
 @router.post("/results-template/upload-logo")
