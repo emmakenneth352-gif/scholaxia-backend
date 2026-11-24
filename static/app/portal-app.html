@@ -3396,7 +3396,7 @@ tr:last-child td{border-bottom:none}
       $("exBody").innerHTML = '<div class="stat-mini">' +
         '<span class="chip">🎯 Class</span><span class="chip">📚 Subjects</span><span class="chip">🕐 Date & Time</span><span class="chip">⏱️ Duration</span></div>' +
         '<div class="panel"><h3>🗓️ Exam Schedule Management</h3>' +
-        '<p class="mhint" style="margin-bottom:14px">Pick the class category and class, choose the subjects, set the number of questions, duration and start date — then save. Once the time comes, students of that class log in and see their exam.</p>' +
+        '<p class="mhint" style="margin-bottom:14px">Pick the class category and class, choose the subjects, set the number of questions, duration, and the start and end date & time — then save. Students of that class see the exam from the start time, and it closes by itself at the end time.</p>' +
         '<div class="form-grid rg2"><div><label class="f-label">🎓 Class Category *</label><select class="f-in" id="scCat" onchange="schCatChanged()"><option value="">-- Select Category --</option>' + catOpts + '</select></div>' +
         '<div><label class="f-label">🎓 Class *</label><select class="f-in" id="scClass" onchange="schClassPicked()" disabled><option value="">-- Select class category first --</option></select></div></div>' +
         '<div class="mrow"><label class="f-label">📚 Subjects for this slot *</label><select class="f-in" id="scSubjects" multiple size="4" disabled><option value="">-- Select class first to load subjects --</option></select><p class="mhint">Hold Ctrl (Windows) or Cmd (Mac) to select multiple subjects.</p></div>' +
@@ -3404,7 +3404,8 @@ tr:last-child td{border-bottom:none}
         '<div><label class="f-label">⏱️ Exam Duration (Minutes) *</label><input class="f-in" id="scDur" type="number" min="5" max="300" value="60" /></div>' +
         '<div><label class="f-label">🎯 Total Mark *</label><input class="f-in" id="scMark" type="number" min="1" max="1000" value="100" /></div></div>' +
         '<p class="mhint" style="margin:-6px 0 10px">Score = (Correct Answers ÷ Questions) × Total Mark. Set 20, 30, 50 or 100 — a student who gets 8 of 10 questions right scores 24 when the total mark is 30.</p>' +
-        '<div class="form-grid rg2"><div><label class="f-label">🕐 Start Date & Time *</label><input class="f-in" id="scDate" type="datetime-local" /></div></div>' +
+        '<div class="form-grid rg2"><div><label class="f-label">🕐 Start Date & Time *</label><input class="f-in" id="scDate" type="datetime-local" onchange="schStartChanged()" /></div>' +
+        '<div><label class="f-label">🕘 End Date & Time *</label><input class="f-in" id="scEnd" type="datetime-local" /><p class="mhint" style="margin-top:4px">The exam stops at this time — a paper still open is submitted automatically.</p></div></div>' +
         '<div class="radio-row"><button class="btn green" onclick="schSave()">💾 Save Schedule</button><button class="btn ghost" onclick="schClear()">🔄 Clear Schedule</button></div>' +
         '<div class="merr" id="scErr"></div></div>' +
         '<div class="panel"><h3>🔔 Current Class Schedule</h3><p class="mhint">Select a class to view its schedule.</p><div id="scCurrent"><div class="empty">Select a class above</div></div></div>' +
@@ -3439,9 +3440,12 @@ tr:last-child td{border-bottom:none}
       // the form to 100 every time the page opens.
       if (rows.length && $("scMark") && rows[0].total_mark) $("scMark").value = rows[0].total_mark;
       var box = $("scCurrent");
+      var tOnly = function (s) { try { return s ? new Date(s).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : ""; } catch (e) { return ""; } };
       if (box) box.innerHTML = rows.length ? rows.map(function (r) {
-        var st = r.window_open ? '<span class="pill ok">Open now</span>' : r.is_published ? '<span class="pill blue">Scheduled</span>' : '<span class="pill warn">Draft</span>';
-        return '<div class="sumrow" style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px"><span><strong>' + esc(r.subjects) + '</strong> — ' + (r.exam_date ? dOnly(r.exam_date) : "—") + ' ' + (r.scheduled_start ? new Date(r.scheduled_start).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "") + ' · ' + fmtDurM(r.duration_minutes) + ' · ' + r.questions_to_display + ' questions' + (r.total_mark ? ' · total mark ' + r.total_mark : '') + '</span>' + st + '</div>';
+        var over = r.scheduled_end && new Date(r.scheduled_end).getTime() < Date.now();
+        var st = r.window_open ? '<span class="pill ok">Open now</span>' : over ? '<span class="pill warn">Closed</span>' : r.is_published ? '<span class="pill blue">Scheduled</span>' : '<span class="pill warn">Draft</span>';
+        var endsTxt = r.scheduled_end ? ' → ' + tOnly(r.scheduled_end) : "";
+        return '<div class="sumrow" style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px"><span><strong>' + esc(r.subjects) + '</strong> — ' + (r.exam_date ? dOnly(r.exam_date) : "—") + ' ' + (r.scheduled_start ? new Date(r.scheduled_start).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "") + endsTxt + ' · ' + fmtDurM(r.duration_minutes) + ' · ' + r.questions_to_display + ' questions' + (r.total_mark ? ' · total mark ' + r.total_mark : '') + '</span>' + st + '</div>';
       }).join("") : '<div class="empty">No schedule</div>';
       cbtApi("/roster/" + encodeURIComponent(cls)).then(function (rd) {
         var st = rd.students || [];
@@ -3452,6 +3456,19 @@ tr:last-child td{border-bottom:none}
       }).catch(function () {});
     }).catch(toastErr);
   }
+  /* Picking a start fills the closing time with start + duration; the school
+     only changes it when the paper should close sooner or later. */
+  window.schStartChanged = function () {
+    var start = $("scDate").value;
+    var endEl = $("scEnd");
+    if (!start || !endEl) return;
+    var d = new Date(start);
+    if (isNaN(d.getTime())) return;
+    if (endEl.value && new Date(endEl.value) > d) return;
+    d.setMinutes(d.getMinutes() + (parseInt($("scDur").value, 10) || 60));
+    var p = function (n) { return (n < 10 ? "0" : "") + n; };
+    endEl.value = d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + "T" + p(d.getHours()) + ":" + p(d.getMinutes());
+  };
   window.schSave = function () {
     var cls = $("scClass").value;
     var subs = Array.prototype.slice.call($("scSubjects").selectedOptions || []).map(function (o) { return o.value; }).filter(Boolean);
@@ -3459,6 +3476,7 @@ tr:last-child td{border-bottom:none}
     var dur = parseInt($("scDur").value, 10) || 0;
     var mark = parseInt(($("scMark") && $("scMark").value), 10) || 100;
     var when = $("scDate").value;
+    var endWhen = $("scEnd") ? $("scEnd").value : "";
     var err = $("scErr");
     err.style.display = "none";
     if (!cls) { err.textContent = "Select the class category and class."; err.style.display = "block"; return; }
@@ -3466,10 +3484,12 @@ tr:last-child td{border-bottom:none}
     if (!qn) { err.textContent = "Enter the number of questions."; err.style.display = "block"; return; }
     if (!dur) { err.textContent = "Enter the exam duration in minutes."; err.style.display = "block"; return; }
     if (!when) { err.textContent = "Pick the start date and time."; err.style.display = "block"; return; }
+    if (!endWhen) { err.textContent = "Pick the end date and time — the exam closes then."; err.style.display = "block"; return; }
+    if (new Date(endWhen) <= new Date(when)) { err.textContent = "The end date and time must be after the start."; err.style.display = "block"; return; }
     busy(null, true);
     cbtApi("/schedule/save", { method: "POST", body: {
       class_name: cls, subjects: subs, question_count: qn, duration_minutes: dur,
-      starts_at: isoOrNull(when), total_mark: mark,
+      starts_at: isoOrNull(when), ends_at: isoOrNull(endWhen), total_mark: mark,
     } }).then(function (d) {
       var parts = [];
       if (d.created) parts.push(d.created + " created");

@@ -2119,6 +2119,9 @@ class ScheduleSaveIn(BaseModel):
     question_count: int = Field(ge=1, le=200)
     duration_minutes: int = Field(ge=1, le=300)
     starts_at: datetime
+    # The closing time the school picks on the form. When it is left out the
+    # end stays start + duration, so older clients keep working.
+    ends_at: Optional[datetime] = None
     # Optional: saving a schedule must never reset a mark the examiner already
     # set (it used to force every scheduled exam back to 100, which is why
     # scores always came back "out of 100").
@@ -2171,6 +2174,12 @@ async def save_schedule(
     # datetime-local picker — normalize to naive UTC before any comparison
     # with naive_utc_now() (Pass 7: hosting an exam via Save Schedule 500'd).
     start = to_naive_utc(payload.starts_at)
+    # The exam now has an explicit closing time. Anything started before it is
+    # cut off at it (see start_attempt), so a late starter cannot write past
+    # the end the school set.
+    end = to_naive_utc(payload.ends_at) if payload.ends_at else start + timedelta(minutes=int(payload.duration_minutes))
+    if end <= start:
+        raise HTTPException(status_code=400, detail="The end date & time must be after the start date & time")
     now = naive_utc_now()
 
     exams = (
@@ -2245,7 +2254,7 @@ async def save_schedule(
                 exam.total_mark = int(payload.total_mark)
             exam.exam_date = start
             exam.scheduled_start = start
-            exam.scheduled_end = start + timedelta(minutes=int(payload.duration_minutes))
+            exam.scheduled_end = end
             exam.is_published = start <= now or exam.is_published
             exam.status = "published" if (start <= now or exam.is_published) else "draft"
             # An exam published before its questions existed (or whose bank
@@ -2267,7 +2276,7 @@ async def save_schedule(
                 assigned_class_names=[cls],
                 exam_date=start,
                 scheduled_start=start,
-                scheduled_end=start + timedelta(minutes=int(payload.duration_minutes)),
+                scheduled_end=end,
                 is_published=start <= now,
                 status="published" if start <= now else "draft",
             )
@@ -4402,12 +4411,18 @@ async def start_attempt(
         if is_retake:
             exam.retake_student_ids = [x for x in retake_ids if x != str(user.id)]
         started = naive_utc_now()
+        # The timer stops at the earlier of the paper's duration and the
+        # schedule's end time — starting five minutes before the exam closes
+        # no longer buys a full hour.
+        deadline = started + timedelta(minutes=int(exam.duration_minutes or 60))
+        if exam.scheduled_end and started < exam.scheduled_end < deadline:
+            deadline = exam.scheduled_end
         attempt = SchoolExamAttempt(
             school_id=exam.school_id,
             exam_id=exam.id,
             student_id=user.id,
             started_at=started,
-            deadline_at=started + timedelta(minutes=int(exam.duration_minutes or 60)),
+            deadline_at=deadline,
         )
         db.add(attempt)
         await db.flush()
@@ -4828,12 +4843,15 @@ async def offline_sync(
             # Device clocks send tz-aware ISO strings; normalize to naive UTC
             # so deadline comparisons never mix naive and aware datetimes.
             started = to_naive_utc(payload.started_at) if payload.started_at else naive_utc_now()
+            deadline = started + timedelta(minutes=int(exam.duration_minutes or 60))
+            if exam.scheduled_end and started < exam.scheduled_end < deadline:
+                deadline = exam.scheduled_end
             attempt = SchoolExamAttempt(
                 school_id=exam.school_id,
                 exam_id=exam.id,
                 student_id=user.id,
                 started_at=started,
-                deadline_at=started + timedelta(minutes=int(exam.duration_minutes or 60)),
+                deadline_at=deadline,
             )
             # Offline copy ≡ marking key: reuse the downloaded mapping.
             order_off = list(dl_rec.question_order or _paper_order(exam, list(qs_off)))
