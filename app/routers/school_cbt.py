@@ -3780,15 +3780,20 @@ async def student_exam_login(
     code = payload.access_code.strip().upper()
     now = naive_utc_now()
 
-    # Same reg number can legitimately hold one code per exam — match BOTH.
+    # Slips carry separators ("DL/26/515595") and students type them with
+    # spaces, dashes or none at all. Compare letters + digits only — the same
+    # normalization the retake lookup uses — otherwise a student holding a
+    # perfectly valid slip was told "registration number or access code is
+    # incorrect" just for typing it differently.
     rows = (
         await db.execute(
             select(SchoolExamAccessCode).where(
-                func.upper(func.trim(SchoolExamAccessCode.reg_number)) == reg,
+                _reg_key(SchoolExamAccessCode.reg_number) == _reg_key_text(reg),
             )
         )
     ).scalars().all()
-    matches = [r for r in rows if (r.access_code or "").strip().upper() == code]
+    code_key = _reg_key_text(code)
+    matches = [r for r in rows if _reg_key_text(r.access_code) == code_key]
     # The slip's one access code is shared by every subject's row, so prefer a
     # live exam row — an expired slot must not lock the student out of the
     # subjects that are still open.
