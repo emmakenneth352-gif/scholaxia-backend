@@ -269,11 +269,11 @@ tr:last-child td{border-bottom:none}
     </div>
     <h2>Welcome back!</h2>
     <p class="sub">Log in to your school account and manage students, exams, results and more.</p>
-    <form id="loginForm">
+    <form id="loginForm" autocomplete="off">
       <label class="f-label" for="lgId">Email or phone number</label>
-      <input class="f-in" id="lgId" autocomplete="username" placeholder="admin@yourschool.com" required />
+      <input class="f-in" id="lgId" autocomplete="off" placeholder="Enter your email or phone" required />
       <label class="f-label" for="lgPw">Password</label>
-      <div class="pw-wrap"><input class="f-in" id="lgPw" type="password" autocomplete="current-password" placeholder="Enter your password" required /><button type="button" class="pw-eye" id="lgPwEye" onclick="toggleLoginPw()" aria-label="Show password" title="Show password">👁</button></div>
+      <div class="pw-wrap"><input class="f-in" id="lgPw" type="password" autocomplete="new-password" placeholder="Enter your password" required /><button type="button" class="pw-eye" id="lgPwEye" onclick="toggleLoginPw()" aria-label="Show password" title="Show password">👁</button></div>
       <div class="login-row"><label><input type="checkbox" checked style="accent-color:var(--blue)" /> Remember me</label><a href="#" onclick="return fpOpen()" style="color:var(--blue);text-decoration:none">Forgot password?</a></div>
       <button class="btn-login" id="lgBtn" type="submit">→&nbsp; Log In</button>
       <div class="login-err" id="lgErr"></div>
@@ -602,6 +602,32 @@ tr:last-child td{border-bottom:none}
       btn.disabled = false; btn.innerHTML = "→&nbsp; Log In";
     });
   });
+  /* ── Never open with an email/password already in the boxes ──
+     The browser's password manager sees a username + password pair on this
+     site and fills an OLD saved password into them before our script runs, so
+     a phone or computer that was never signed in still opens with someone's
+     details showing — and that stale password fails on the first tap. The
+     inputs are marked autocomplete="off"/"new-password" above; this also
+     blanks them a few times after load, until the user starts typing. ── */
+  (function () {
+    var id = $("lgId"), pw = $("lgPw"), touched = false;
+    function markTouched() { touched = true; }
+    [id, pw].forEach(function (el) {
+      if (!el) return;
+      el.addEventListener("input", markTouched);
+      el.addEventListener("keydown", markTouched);
+      el.addEventListener("click", markTouched);
+    });
+    function clearLoginFields() {
+      if (touched) return;
+      if (id && id.value) id.value = "";
+      if (pw && pw.value) pw.value = "";
+    }
+    clearLoginFields();
+    setTimeout(clearLoginFields, 120);
+    setTimeout(clearLoginFields, 500);
+  })();
+
   /* ── Forgot password (the link used to be dead): OTP reset via
      /auth/otp/send (purpose=reset_password) + /auth/password/reset.
      Works for the school admin account the portal logs in with. ── */
