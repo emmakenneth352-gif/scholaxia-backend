@@ -1250,15 +1250,63 @@ async def _ensure_access_codes(db: AsyncSession, exam: SchoolExam) -> int:
     return made
 
 
-async def _reg_number_for(db: AsyncSession, school_id: UUID, student_id) -> str:
-    """One stable, globally-unique registration number per student (Pass 7).
+async def _campus_prefix(db: AsyncSession, school_id: UUID) -> str:
+    """Short school prefix for registration numbers (6 characters max)."""
+    campus = (
+        await db.execute(select(SchoolCampus).where(SchoolCampus.id == school_id))
+    ).scalar_one_or_none()
+    prefix = ""
+    if campus is not None:
+        code = (getattr(campus, "code", None) or "").strip().upper()
+        if not code:
+            # Derive a short prefix from the school name (letters only).
+            words = [w for w in "".join(ch for ch in (campus.name or "") if ch.isalpha() or ch.isspace()).split() if w]
+            if words:
+                code = "".join(w[0] for w in words[:4]).upper()
+        if code:
+            prefix = code[:6]
+    return prefix or "SXA"
 
-    Pattern: {CAMPUS-CODE}/{yy}/{NNNNNN} — e.g. DLC/26/482913 — school-prefixed
-    and year-scoped (visibly different from the old SCHX/26/… and from the
-    reference site). Falls back to SXA/{yy}/{NNNNNN} when the campus has no
-    short code. Uniqueness is checked across ALL schools, and the same student
-    always keeps the same number across every exam they are assigned to.
-    Schools that set their own admission number (school_student_id) keep it.
+
+async def _next_simple_reg(db: AsyncSession, prefix: str) -> str:
+    """{PREFIX}/{NNNN} — e.g. SBY/0001.
+
+    Students copy this off a printed slip by hand, so the number is short and
+    sequential instead of a six-digit random tail. Uniqueness is still checked
+    across ALL schools because the student login looks a reg number up globally.
+    """
+    used = {
+        (r or "").strip().upper()
+        for r in (
+            await db.execute(
+                select(SchoolExamAccessCode.reg_number).where(
+                    SchoolExamAccessCode.reg_number.like(f"{prefix}/%")
+                )
+            )
+        ).scalars().all()
+    }
+    n = 1
+    for r in used:
+        tail = r.rsplit("/", 1)[-1]
+        # Only the new 4-digit sequence counts — the old "SBY/26/515595"
+        # tail is six digits and must not push the counter to 515596.
+        if tail.isdigit() and len(tail) <= 4:
+            n = max(n, int(tail) + 1)
+    cand = f"{prefix}/{n:04d}"
+    while cand in used:
+        n += 1
+        cand = f"{prefix}/{n:04d}"
+    return cand
+
+
+async def _reg_number_for(db: AsyncSession, school_id: UUID, student_id) -> str:
+    """One stable registration number per student (Pass 7).
+
+    Pattern: {CAMPUS-CODE}/{NNNN} — e.g. DLC/0007 — school-prefixed, short and
+    easy to type. Falls back to SXA/0001 when the campus has no short code.
+    The same student always keeps the same number across every exam they are
+    assigned to. Schools that set their own admission number
+    (school_student_id) keep it.
     """
     profile = (
         await db.execute(select(StudentProfile).where(StudentProfile.user_id == student_id))
@@ -1279,40 +1327,18 @@ async def _reg_number_for(db: AsyncSession, school_id: UUID, student_id) -> str:
     if existing:
         return existing
 
-    campus = (
-        await db.execute(select(SchoolCampus).where(SchoolCampus.id == school_id))
-    ).scalar_one_or_none()
-    prefix = ""
-    if campus is not None:
-        code = (getattr(campus, "code", None) or "").strip().upper()
-        if not code:
-            # Derive a short prefix from the school name (letters only).
-            words = [w for w in "".join(ch for ch in (campus.name or "") if ch.isalpha() or ch.isspace()).split() if w]
-            if words:
-                code = "".join(w[0] for w in words[:4]).upper()
-        if code:
-            prefix = code[:6]
-    if not prefix:
-        prefix = "SXA"
-
-    year = datetime.utcnow().strftime("%y")
-    while True:
-        cand = f"{prefix}/{year}/{secrets.randbelow(900000) + 100000}"
-        # Global uniqueness — across every school (Pass 7).
-        clash = (
-            await db.execute(
-                select(SchoolExamAccessCode.id).where(SchoolExamAccessCode.reg_number == cand)
-            )
-        ).scalar_one_or_none()
-        if not clash:
-            return cand
+    return await _next_simple_reg(db, await _campus_prefix(db, school_id))
 
 
 def _new_access_code() -> str:
-    alphabet = string.ascii_uppercase + string.digits
-    p1 = "".join(secrets.choice(alphabet) for _ in range(4))
-    p2 = "".join(secrets.choice(alphabet) for _ in range(4))
-    return f"SCH-{p1}-{p2}"
+    """6-digit access code (e.g. 482913).
+
+    The old SCH-82K7-X91P format mixed letters and digits with hyphens and
+    students mistyped it. Six digits are read off a slip and typed on a phone
+    keypad without mistakes; the 5-failure server-side lock still stops
+    guessing.
+    """
+    return "".join(str(secrets.randbelow(10)) for _ in range(6))
 
 
 async def _new_access_code_unique(db: AsyncSession, exclude_student_id=None) -> str:
@@ -1715,6 +1741,41 @@ async def register_exam_student(
         x for x in [payload.first_name.strip(), (payload.middle_name or "").strip(), payload.surname.strip()] if x
     )
     cls = payload.class_name.strip().upper()
+
+    # Duplicate registration guard: the same student pressed twice (or typed
+    # again next day) used to become a SECOND student with a second slip — two
+    # identities for one child, and neither slip reliably worked. Match on
+    # name + class inside this school, ignoring case and spacing.
+    norm_key = "".join(full.lower().split())
+    dup = (
+        await db.execute(
+            select(User, SchoolExamAccessCode)
+            .join(StudentProfile, StudentProfile.user_id == User.id)
+            .outerjoin(SchoolExamAccessCode, SchoolExamAccessCode.student_id == User.id)
+            .where(
+                User.school_id == sid,
+                User.role == UserRole.student,
+                func.replace(func.lower(User.full_name), " ", "") == norm_key,
+                func.upper(func.replace(func.coalesce(StudentProfile.education_level, ""), " ", ""))
+                == normalize_class_name(cls),
+            )
+            .order_by(SchoolExamAccessCode.created_at.desc())
+            .limit(1)
+        )
+    ).first()
+    if dup is not None:
+        du, dc = dup
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{du.full_name} is already registered in {cls} — Registration Number "
+                f"{dc.reg_number}, Access Code {dc.access_code}. Print that slip again "
+                f"instead of registering a duplicate."
+                if dc is not None
+                else f"{du.full_name} is already registered in {cls}."
+            ),
+        )
+
     # Exam-scoped students never log into the main app; email is a unique
     # placeholder (they sign in with REG NUMBER + ACCESS CODE, §14).
     while True:
@@ -2685,9 +2746,20 @@ async def _codes_for(db: AsyncSession, exam: SchoolExam, payload: CodesIn, sid: 
         if row and not payload.regenerate:
             continue
         if row:
-            row.access_code = _new_access_code()
-            row.failed_attempts = 0
-            row.locked_until = None
+            # One slip = one code: rotate EVERY row of this student, not just
+            # this exam's, so the printed code stays the single working one.
+            new_code = await _new_access_code_unique(db, exclude_student_id=UUID(suid))
+            sib = (
+                await db.execute(
+                    select(SchoolExamAccessCode).where(
+                        SchoolExamAccessCode.student_id == UUID(suid)
+                    )
+                )
+            ).scalars().all()
+            for r2 in sib:
+                r2.access_code = new_code
+                r2.failed_attempts = 0
+                r2.locked_until = None
         else:
             db.add(
                 SchoolExamAccessCode(
@@ -2695,7 +2767,7 @@ async def _codes_for(db: AsyncSession, exam: SchoolExam, payload: CodesIn, sid: 
                     exam_id=exam.id,
                     student_id=UUID(suid),
                     reg_number=await _reg_number_for(db, exam.school_id, UUID(suid)),
-                    access_code=_new_access_code(),
+                    access_code=await _new_access_code_unique(db, exclude_student_id=UUID(suid)),
                     expires_at=exam.access_code_expires_at,
                 )
             )
@@ -2972,6 +3044,77 @@ async def registrations_list(
             "total": len(stu),
         },
     }
+
+
+class SimplifyCodesIn(BaseModel):
+    """Which students get short credentials (empty = the whole school)."""
+    class_name: Optional[str] = None
+
+
+@router.post("/registrations/simple-codes")
+async def registrations_simple_codes(
+    payload: SimplifyCodesIn | None = None,
+    class_name: Optional[str] = None,
+    school_id: Optional[str] = Query(None),
+    current_user: dict = Depends(require_school_staff),
+    db: AsyncSession = Depends(get_db),
+):
+    """Re-issue SHORT credentials for students registered with long slips.
+
+    New registrations get SBY/0001 + a 6-digit code automatically; this turns
+    the students who already hold the old six-digit/year reg number and
+    SCH-XXXX-XXXX code into the same simple pair. One reg number and ONE code
+    are written to every row of a student (the slip is shared by all their
+    subjects), and any lock-out is cleared. A school admission number
+    (school_student_id) is kept as the reg number. Printed old slips stop
+    working — the portal warns before calling this.
+    """
+    sid = _staff_school_id(current_user, school_id)
+    cls = ((payload.class_name if payload else None) or class_name or "").strip()
+
+    q = (
+        select(User, StudentProfile)
+        .join(StudentProfile, StudentProfile.user_id == User.id)
+        .where(User.school_id == sid, User.role == UserRole.student)
+    )
+    if cls and cls.upper() != "ALL":
+        q = q.where(
+            func.upper(func.replace(func.coalesce(StudentProfile.education_level, ""), " ", ""))
+            == normalize_class_name(cls)
+        )
+    students = (await db.execute(q.order_by(User.full_name))).all()
+
+    codes = (
+        await db.execute(
+            select(SchoolExamAccessCode).where(SchoolExamAccessCode.school_id == sid)
+        )
+    ).scalars().all()
+    by_student: dict[str, list[SchoolExamAccessCode]] = {}
+    for c in codes:
+        by_student.setdefault(str(c.student_id), []).append(c)
+
+    prefix = await _campus_prefix(db, sid)
+    changed = 0
+    for u, prof in students:
+        own = by_student.get(str(u.id)) or []
+        if not own:
+            # Registered on the roster but never minted a slip — mint one now
+            # so they get simple credentials like everyone else.
+            own = [await _mint_pending_credential(db, sid, u.id)]
+            by_student[str(u.id)] = own
+            await db.flush()
+        admission = getattr(prof, "school_student_id", None) if prof else None
+        new_reg = admission or await _next_simple_reg(db, prefix)
+        new_code = await _new_access_code_unique(db, exclude_student_id=u.id)
+        for c in own:
+            c.reg_number = new_reg
+            c.access_code = new_code
+            c.failed_attempts = 0
+            c.locked_until = None
+        changed += 1
+        # Flush per student so the next student never reuses their number/code.
+        await db.flush()
+    return {"ok": True, "students": changed, "class_name": cls or None}
 
 
 class RegistrationEditIn(BaseModel):
@@ -4004,6 +4147,12 @@ async def student_my_exams(
                     "duration_minutes": e.duration_minutes,
                     "total_mark": e.total_mark,
                     "exam_mode": e.exam_mode,
+                    # Read by the exam portal BEFORE the paper opens, so every
+                    # student sees the rules on screen before the clock runs.
+                    "instructions": e.instructions,
+                    "allow_review": bool(e.allow_review),
+                    "allow_previous": bool(e.allow_previous),
+                    "allow_flagging": bool(e.allow_flagging),
                     # A granted retake is a fresh sitting: report it as open/not
                     # taken even if an old submitted attempt was left behind, so
                     # every client offers a way back into the paper.
@@ -4014,7 +4163,10 @@ async def student_my_exams(
                     "exam_date": e.exam_date.isoformat() if e.exam_date else None,
                     "downloaded": str(e.id) in downloads or e.exam_mode == "ONLINE",
                     "needs_download": e.exam_mode in ("OFFLINE", "HYBRID") and str(e.id) not in downloads,
-                    "attempt_status": "not_started" if retake_granted else ("submitted" if att else "not_started"),
+                    "attempt_status": (
+                        "submitted" if (att and not retake_granted)
+                        else ("in_progress" if e.id in in_progress else "not_started")
+                    ),
                     "retake_granted": retake_granted,
                     "results_published": bool(e.results_published),
                     "result": (

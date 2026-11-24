@@ -803,6 +803,31 @@ async def register_candidate(
     cls = payload.class_name.strip().upper()
     full_name = payload.full_name.strip()
 
+    # Duplicate guard: the same child registered twice became two students on
+    # two slips. Match name + class inside this school, ignoring case/spacing.
+    dup = (
+        await db.execute(
+            select(SchoolExamCandidate)
+            .where(
+                SchoolExamCandidate.school_id == campus.id,
+                func.replace(func.lower(func.coalesce(SchoolExamCandidate.class_name, "")), " ", "")
+                == "".join(cls.lower().split()),
+                func.replace(func.lower(SchoolExamCandidate.full_name), " ", "")
+                == "".join(full_name.lower().split()),
+            )
+            .limit(1)
+        )
+    ).scalars().first()
+    if dup is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{dup.full_name} is already registered in {cls} — Registration Number "
+                f"{dup.rec_number}, Access Code {dup.access_code}. Print that slip again "
+                f"instead of registering a duplicate."
+            ),
+        )
+
     # Exam-scoped student account (never logs into the main app — credentials
     # are REG NUMBER + ACCESS CODE, §14).
     while True:

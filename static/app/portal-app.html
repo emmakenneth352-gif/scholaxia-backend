@@ -2727,6 +2727,7 @@ tr:last-child td{border-bottom:none}
     var bk = $("rgBulk");
     if (bk) bk.innerHTML =
       '<button class="btn sm" onclick="regApproveAll(this)">✅ Approve All' + (f.cls ? " · " + esc(f.cls) : "") + '</button>' +
+      '<button class="btn sm ghost" onclick="regSimpleCodes(this)">🔢 Simple codes</button>' +
       '<button class="btn sm ghost" onclick="regBulkRestrict(true)">🚫 Restrict' + (n ? " (" + n + ")" : "") + '</button>' +
       '<button class="btn sm ghost" onclick="regBulkRestrict(false)">🔓 Unrestrict' + (n ? " (" + n + ")" : "") + '</button>' +
       '<button class="btn sm red" onclick="regBulkDelete()">🗑 Delete' + (n ? " (" + n + ")" : "") + '</button>' +
@@ -2780,6 +2781,26 @@ tr:last-child td{border-bottom:none}
         closeModal(); toast("✅ Approved " + (d.approved != null ? d.approved : pend) + " students"); regRefresh();
       }).catch(function (e) { busy(b, false, "Confirm"); mErr(errText(e)); });
     }, "Approve all");
+  };
+  /* Short credentials for students who already hold a long slip:
+     Reg Number like SBY/0001 and a 6-digit Access Code like 482913. */
+  window.regSimpleCodes = function (btn) {
+    var scope = window.__regF.cls ? "class " + esc(window.__regF.cls) : "the whole school";
+    var total = (window.__regAll || []).length;
+    confirmModal("Simple codes",
+      'Give every student in <strong>' + scope + '</strong>' + (window.__regF.cls ? " (" + total + ")" : "") +
+      ' a short <b>Registration Number</b> (e.g. <b>SBY/0001</b>) and a <b>6-digit Access Code</b> (e.g. <b>482913</b>)?<br/><br/>' +
+      'Slips already printed with the old codes stop working — print them again after this. Approvals, subjects and results are kept.',
+      function (b) {
+        busy(b, true);
+        cbtApi("/registrations/simple-codes" + (window.__regF.cls ? "?class_name=" + encodeURIComponent(window.__regF.cls) : ""), { method: "POST" })
+          .then(function (d) {
+            closeModal();
+            toast("🔢 " + (d.students != null ? d.students : 0) + " student(s) now have simple codes — reprint the slips");
+            regRefresh();
+          })
+          .catch(function (e) { busy(b, false, "Confirm"); mErr(errText(e)); });
+      }, "Change codes", true);
   };
   window.regRestrictOne = function (id, restricted, btn) {
     busy(btn, true);

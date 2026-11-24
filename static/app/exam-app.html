@@ -152,6 +152,12 @@ input{font-family:inherit;font-size:15px}
 .sumrow{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);font-size:14.5px}
 .sumrow b{color:var(--navy)}
 .mnote{margin-top:14px;font-size:13px;color:var(--mut);line-height:1.55}
+/* pre-exam instructions */
+.inslist{margin:14px 0 0;padding-left:20px;font-size:14px;line-height:1.6;color:var(--ink)}
+.inslist li{margin-bottom:9px}
+.insbox{margin-top:15px;background:var(--sky);border-radius:12px;padding:12px 14px;font-size:13.5px;line-height:1.6;color:var(--navy)}
+.inscheck{display:flex;gap:10px;align-items:flex-start;margin-top:16px;font-size:14px;font-weight:600;color:var(--navy);cursor:pointer;line-height:1.4}
+.inscheck input{width:18px;height:18px;margin-top:1px;accent-color:var(--blue);flex:none}
 .macts{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
 .btn-m{padding:11px 20px;border-radius:10px;font-weight:600;border:1.5px solid var(--line);background:#fff}
 .btn-m.primary{background:var(--ok);border-color:var(--ok);color:#fff}
@@ -775,37 +781,92 @@ input{font-family:inherit;font-size:15px}
   /* ══ CBT RUNNER — online and offline share one code path ══ */
   var R = null; // active runner state
 
+  /* ══ PRE-EXAM INSTRUCTIONS ══
+     Every student reads the rules + their school's own instructions on a
+     screen BEFORE the paper opens and must tick the acknowledgement, so the
+     clock never starts on someone who has not been told how the exam works. */
+  function showExamInstructions(ex, onStart) {
+    if (document.getElementById("insModal")) return;
+    var dur = fmtDur(ex.duration_minutes || 60);
+    var qn = ex.questions_to_answer || ex.questions || 0;
+    var resuming = ex.attempt_status === "in_progress";
+    var rules = [
+      "<b>" + esc(ex.subject || ex.title || "Examination") + "</b> — " +
+        (qn ? qn + " question" + (qn === 1 ? "" : "s") : "questions") +
+        " · " + esc(dur) + " · Total mark " + esc(String(ex.total_mark != null ? ex.total_mark : 100)) + ".",
+      resuming
+        ? "You already started this paper — your saved answers are restored and the timer carries on from where it stopped."
+        : "The timer starts when you press <b>Start Examination</b> and runs on the server, so closing or refreshing the page does not give you more time.",
+      "Each answer is saved as soon as you choose it, and you can change it any time before you submit.",
+      "When the time is up the paper submits itself automatically. Questions left unanswered score zero.",
+      "Do not share your Registration Number or Access Code, and do not let another student use this device during the paper.",
+      "Sit the paper on one device only. If the internet drops, your answers stay on the device and sync as soon as it returns."
+    ];
+    var extra = (ex.instructions || "").trim();
+    var b = document.createElement("div");
+    b.className = "mback"; b.id = "insModal";
+    b.innerHTML = '<div class="mmodal" style="max-width:580px;max-height:90vh;overflow:auto">' +
+      '<h3>📋 Instructions</h3>' +
+      '<div class="mnote" style="margin-top:0">Read these before the examination starts.</div>' +
+      '<ol class="inslist">' + rules.map(function (r) { return "<li>" + r + "</li>"; }).join("") + '</ol>' +
+      (extra ? '<div class="insbox"><b>From your school</b><br/>' + esc(extra).replace(/\n/g, "<br/>") + '</div>' : "") +
+      '<label class="inscheck"><input type="checkbox" id="insAck" /> I have read and understood these instructions.</label>' +
+      '<div class="macts"><button class="btn-m" id="insCancel">Cancel</button>' +
+      '<button class="btn-m primary" id="insStart" disabled>Start Examination</button></div></div>';
+    document.body.appendChild(b);
+    b.querySelector("#insAck").addEventListener("change", function () {
+      b.querySelector("#insStart").disabled = !this.checked;
+    });
+    b.querySelector("#insCancel").addEventListener("click", function () { b.remove(); });
+    b.querySelector("#insStart").addEventListener("click", function () { b.remove(); onStart(); });
+  }
+
   window.openExam = function (examId) {
     var pkg = lsGet(K.pkg(examId));
     if ((!isOnline() || !S.token) && pkg) return openExamOffline(examId);
     if (!isOnline()) { toast("You are offline — only downloaded exams can open."); return; }
-    // Always let the server decide which attempt is live. Resuming from a
-    // local cached attempt used to hide a granted retake (the old paper kept
-    // reappearing). /start returns the in-progress attempt + saved answers.
-    api("/school-cbt/student/exams/" + examId + "/start", { method: "POST" }).then(function (d) {
-      R = {
-        attemptId: d.attempt_id,
-        exam: d.exam,
-        seconds: d.seconds_remaining,
-        questions: d.questions,
-        idx: 0,
-        answers: {},
-        flags: {},
-        pkgExamId: examId,
-        offline: false,
-      };
-      d.questions.forEach(function (q) {
-        if (q.saved_answer) R.answers[q.id] = q.saved_answer;
-        if (q.is_flagged) R.flags[q.id] = true;
-      });
-      persistAttempt();
-      startRunner();
-    }).catch(function (e) { toast("⚠️ " + e.message); });
+    var ex = (S.exams || []).filter(function (x) { return x.id === examId; })[0] || (pkg && pkg.exam) || {};
+    if (!ex.id) ex.id = examId;
+    showExamInstructions(ex, function () {
+      // Always let the server decide which attempt is live. Resuming from a
+      // local cached attempt used to hide a granted retake (the old paper kept
+      // reappearing). /start returns the in-progress attempt + saved answers.
+      api("/school-cbt/student/exams/" + examId + "/start", { method: "POST" }).then(function (d) {
+        R = {
+          attemptId: d.attempt_id,
+          exam: d.exam,
+          seconds: d.seconds_remaining,
+          questions: d.questions,
+          idx: 0,
+          answers: {},
+          flags: {},
+          pkgExamId: examId,
+          offline: false,
+        };
+        d.questions.forEach(function (q) {
+          if (q.saved_answer) R.answers[q.id] = q.saved_answer;
+          if (q.is_flagged) R.flags[q.id] = true;
+        });
+        persistAttempt();
+        startRunner();
+      }).catch(function (e) { toast("⚠️ " + e.message); });
+    });
+  };
+
+  /* Same instructions gate for a downloaded (offline) paper. */
+  window.openExamOffline = function (examId) {
+    var pkg = lsGet(K.pkg(examId));
+    if (!pkg) { toast("Package missing on this device."); return; }
+    var att = lsGet(K.att(examId));
+    var ex = pkg.exam || {};
+    ex.attempt_status = att ? "in_progress" : "not_started";
+    ex.questions = (pkg.questions || []).length || ex.questions;
+    showExamInstructions(ex, function () { beginOfflineExam(examId); });
   };
 
   /* Offline start: run entirely from the downloaded package. The server
      attempt is created by /sync (start_offline) when internet returns. */
-  window.openExamOffline = function (examId) {
+  function beginOfflineExam(examId) {
     var pkg = lsGet(K.pkg(examId));
     if (!pkg) { toast("Package missing on this device."); return; }
     var att = lsGet(K.att(examId));
