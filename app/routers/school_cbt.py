@@ -1177,6 +1177,10 @@ async def _ensure_access_codes(db: AsyncSession, exam: SchoolExam) -> int:
     Pass 7: a student registered BEFORE scheduling already holds an exam-less
     credential row (the printed slip). That row is attached to this exam — the
     slip keeps working — instead of minting new credentials.
+
+    Batched on purpose: this runs for every scheduled exam, and the old
+    per-student/per-exam queries made "Approve All" crawl through thousands of
+    round trips on a hosted database.
     """
     students = (
         await db.execute(select(SchoolExamAssignment.student_id).where(SchoolExamAssignment.exam_id == exam.id))
@@ -1186,23 +1190,28 @@ async def _ensure_access_codes(db: AsyncSession, exam: SchoolExam) -> int:
             await db.execute(select(SchoolExamAccessCode.student_id).where(SchoolExamAccessCode.exam_id == exam.id))
         ).scalars().all()
     }
+    missing = [suid for suid in students if str(suid) not in have]
+    if not missing:
+        return 0
+    # Every credential already issued to these students, newest first: the
+    # exam-less row is the printed slip, and the OLDEST row is the student's
+    # identity (reg number + access code shared by all their subjects).
+    issued = (
+        await db.execute(
+            select(SchoolExamAccessCode)
+            .where(SchoolExamAccessCode.student_id.in_(missing))
+            .order_by(SchoolExamAccessCode.created_at.desc())
+        )
+    ).scalars().all()
+    by_student: dict[str, list[SchoolExamAccessCode]] = {}
+    for c in issued:
+        by_student.setdefault(str(c.student_id), []).append(c)
     made = 0
-    for suid in students:
-        if str(suid) in have:
-            continue
+    for suid in missing:
+        own = by_student.get(str(suid), [])
         # Reuse the credential issued at registration (exam-less row) so the
         # printed slip's reg number + access code keep working.
-        pending = (
-            await db.execute(
-                select(SchoolExamAccessCode)
-                .where(
-                    SchoolExamAccessCode.student_id == suid,
-                    SchoolExamAccessCode.exam_id.is_(None),
-                )
-                .order_by(SchoolExamAccessCode.created_at.desc())
-                .limit(1)
-            )
-        ).scalars().first()
+        pending = next((c for c in own if c.exam_id is None), None)
         if pending is not None:
             pending.exam_id = exam.id
             pending.expires_at = exam.access_code_expires_at
@@ -1213,20 +1222,18 @@ async def _ensure_access_codes(db: AsyncSession, exam: SchoolExam) -> int:
         # subject meant the slip only opened one paper — every other subject
         # read "this examination is not available yet" even though it was
         # registered.
-        ident = (
-            await db.execute(
-                select(SchoolExamAccessCode)
-                .where(SchoolExamAccessCode.student_id == suid)
-                .order_by(SchoolExamAccessCode.created_at)
-                .limit(1)
-            )
-        ).scalars().first()
+        ident = own[-1] if own else None
         reg = ident.reg_number if ident is not None else await _reg_number_for(db, exam.school_id, suid)
         code_value = (
             ident.access_code
             if ident is not None
             else await _new_access_code_unique(db, exclude_student_id=suid)
         )
+        # A new subject row inherits the student's state. Without this the
+        # freshly scheduled paper read "Pending" and an approved student fell
+        # back into Pending Approvals every time the schedule changed.
+        approved0 = any(bool(c.is_approved) for c in own)
+        restricted0 = any(bool(c.is_restricted) for c in own)
         db.add(
             SchoolExamAccessCode(
                 school_id=exam.school_id,
@@ -1235,6 +1242,8 @@ async def _ensure_access_codes(db: AsyncSession, exam: SchoolExam) -> int:
                 reg_number=reg,
                 access_code=code_value,
                 expires_at=exam.access_code_expires_at,
+                is_approved=approved0,
+                is_restricted=restricted0,
             )
         )
         made += 1
@@ -1354,16 +1363,61 @@ async def _mint_pending_credential(db: AsyncSession, school_id: UUID, student_id
     else:
         reg = await _reg_number_for(db, school_id, student_id)
         code = await _new_access_code_unique(db, exclude_student_id=student_id)
+    approved0, restricted0 = await _credential_flags(db, student_id)
     row = SchoolExamAccessCode(
         school_id=school_id,
         exam_id=None,
         student_id=student_id,
         reg_number=reg,
         access_code=code,
+        is_approved=approved0,
+        is_restricted=restricted0,
     )
     db.add(row)
     await db.flush()
     return row
+
+
+async def _credential_flags(db: AsyncSession, student_id) -> tuple[bool, bool]:
+    """(approved, restricted) for one student, read from ANY credential row.
+
+    Approval and restriction belong to the STUDENT: a student holds one
+    access-code row per scheduled subject plus the exam-less row printed on the
+    slip. Writing the flag to a single row meant the next scheduled subject left
+    the newest row "Pending", so an approved student dropped back into Pending
+    Approvals and had to be approved again.
+    """
+    rows = (
+        await db.execute(
+            select(SchoolExamAccessCode.is_approved, SchoolExamAccessCode.is_restricted)
+            .where(SchoolExamAccessCode.student_id == student_id)
+        )
+    ).all()
+    return (
+        any(bool(a) for a, _ in rows),
+        any(bool(r) for _, r in rows),
+    )
+
+
+async def _set_student_flags(
+    db: AsyncSession,
+    student_id,
+    *,
+    approved: bool | None = None,
+    restricted: bool | None = None,
+) -> int:
+    """Write approval / restriction to EVERY credential row of one student."""
+    rows = (
+        await db.execute(
+            select(SchoolExamAccessCode).where(SchoolExamAccessCode.student_id == student_id)
+        )
+    ).scalars().all()
+    for row in rows:
+        if approved is not None:
+            row.is_approved = bool(approved)
+        if restricted is not None:
+            row.is_restricted = bool(restricted)
+    return len(rows)
 
 
 class ExamPatchIn(BaseModel):
@@ -2839,12 +2893,11 @@ async def registrations_list(
         await db.execute(select(SchoolExam).where(SchoolExam.school_id == sid))
     ).scalars().all()
     code_by_student: dict[str, SchoolExamAccessCode] = {}
-    reg_by_student: dict[str, SchoolExamAccessCode] = {}
+    codes_by_student: dict[str, list[SchoolExamAccessCode]] = {}
     for c in codes:
-        code_by_student.setdefault(str(c.student_id), c)  # newest first wins
-        if c.exam_id is None:
-            # The registration credential is the one the admin approves.
-            reg_by_student.setdefault(str(c.student_id), c)
+        key = str(c.student_id)
+        code_by_student.setdefault(key, c)  # newest first wins
+        codes_by_student.setdefault(key, []).append(c)
     subj_by_exam = {str(e.id): e.subject for e in exams}
     assigns = (
         await db.execute(
@@ -2879,12 +2932,13 @@ async def registrations_list(
             continue
         if needle and needle not in (u.full_name or "").lower() and needle not in ((cred.reg_number if cred else "") or "").lower():
             continue
-        restricted = bool(cred.is_restricted if cred else False)
-        # Approval is explicit: a registered student stays Pending until the
-        # school admin approves them (credentials from before this switch have
-        # is_approved NULL, which also reads as pending).
-        state_cred = reg_by_student.get(str(u.id)) or cred
-        approved = bool(state_cred.is_approved) if state_cred is not None else False
+        # Approval is a property of the STUDENT, not of the one credential row
+        # the list happens to display: they hold a row per scheduled subject.
+        # Reading a single row made an approved student look Pending again
+        # after the next subject was scheduled.
+        own_codes = codes_by_student.get(str(u.id), [])
+        restricted = any(bool(c.is_restricted) for c in own_codes)
+        approved = any(bool(c.is_approved) for c in own_codes)
         st = "restricted" if restricted else ("approved" if approved else "pending")
         if status and status != "all" and st != status:
             continue
@@ -3063,9 +3117,10 @@ async def registration_approve(
             attached += 1
     for e in exams:
         await _ensure_access_codes(db, e)
-    if cred.is_restricted:
-        cred.is_restricted = False
-    cred.is_approved = True
+    # Write the decision to EVERY credential row (and clear a restriction):
+    # approving only the registration row left the student's other subject rows
+    # Pending, so they reappeared in Pending Approvals.
+    await _set_student_flags(db, u.id, approved=True, restricted=False)
     await db.flush()
     return {"approved": True, "attached": attached, "reg_number": cred.reg_number, "access_code": cred.access_code}
 
@@ -3087,19 +3142,46 @@ async def registrations_approve_all(
         )
     ).all()
     cls_filter = (class_name or "").strip().upper()
-    assigned = {
-        str(r) for r in (
-            await db.execute(select(SchoolExamAssignment.student_id).where(SchoolExamAssignment.school_id == sid))
-        ).scalars().all()
-    }
+    # Preload what the school already decided. The old `if uid in assigned:
+    # continue` skipped every student whose subjects were already scheduled —
+    # which is most of them — so "Approve All" reported success but changed
+    # nothing and everyone stayed Pending.
+    state = (
+        await db.execute(
+            select(
+                SchoolExamAccessCode.student_id,
+                SchoolExamAccessCode.is_approved,
+                SchoolExamAccessCode.is_restricted,
+            ).where(SchoolExamAccessCode.school_id == sid)
+        )
+    ).all()
+    approved_ids = {str(s) for s, ap, _ in state if ap}
+    restricted_ids = {str(s) for s, _, rs in state if rs}
     _picked_all = await _picked_subjects_map(db, sid)
+    # One query for every existing assignment instead of one per student per
+    # subject — that round-trip storm is why the button appeared to hang.
+    assigned_pairs = {
+        (str(eid), str(stu))
+        for eid, stu in (
+            await db.execute(
+                select(SchoolExamAssignment.exam_id, SchoolExamAssignment.student_id)
+                .where(SchoolExamAssignment.school_id == sid)
+            )
+        ).all()
+    }
     approved, attached_total = 0, 0
     for uid, edu in rows:
         cls = (edu or "").upper()
         cls_norm = normalize_class_name(edu)
         if cls_filter and cls_filter != "ALL" and cls_norm != normalize_class_name(cls_filter):
             continue
-        if str(uid) in assigned:
+        if str(uid) in restricted_ids:
+            # Restricted students are reopened from the Restricted tab, so a
+            # blanket approve must never silently lift their block.
+            continue
+        if str(uid) in approved_ids:
+            # Already approved: nothing to decide, and scheduling keeps their
+            # exams attached.
             continue
         cred = await _mint_pending_credential(db, sid, uid)
         want = _requested_filter(_picked_all.get(str(uid)))
@@ -3112,20 +3194,14 @@ async def registrations_approve_all(
             _aq = _aq.where(func.lower(SchoolExam.subject).in_(want))
         exams = (await db.execute(_aq)).scalars().all()
         for e in exams:
-            exists = (
-                await db.execute(
-                    select(SchoolExamAssignment.id).where(
-                        SchoolExamAssignment.exam_id == e.id, SchoolExamAssignment.student_id == uid
-                    )
-                )
-            ).scalar_one_or_none()
-            if not exists:
+            if (str(e.id), str(uid)) not in assigned_pairs:
                 db.add(SchoolExamAssignment(school_id=sid, exam_id=e.id, student_id=uid, class_name=cls, subject=e.subject))
+                assigned_pairs.add((str(e.id), str(uid)))
                 attached_total += 1
-        if cred.is_restricted:
-            cred.is_restricted = False
-        cred.is_approved = True
         approved += 1
+        # EVERY row, not just the one returned above: the approval list reads
+        # the student's newest credential row.
+        await _set_student_flags(db, uid, approved=True)
     for e in (
         await db.execute(select(SchoolExam).where(SchoolExam.school_id == sid, SchoolExam.is_published == True))  # noqa: E712
     ).scalars().all():
