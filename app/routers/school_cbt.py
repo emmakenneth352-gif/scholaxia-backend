@@ -722,6 +722,55 @@ async def import_bank_questions(
     }
 
 
+async def _purge_bank_questions(db: AsyncSession, question_ids: list) -> int:
+    """Delete bank questions without tripping the exam-snapshot foreign keys.
+
+    `school_exam_questions.bank_question_id` points at the bank with no
+    ON DELETE rule, so deleting a bank question that an exam had copied raised
+    a ForeignKeyViolation — the "Request failed (500)" the portal showed on
+    Clear. A copy inside a paper nobody has started goes with the question
+    (that is what Clear means, and it lets the same schedule pick up the
+    re-uploaded questions); a copy inside a paper that already has attempts is
+    kept — a student's paper and scores must not change underneath them — and
+    only unlinked from the bank.
+    """
+    if not question_ids:
+        return 0
+    copies = (
+        await db.execute(
+            select(SchoolExamQuestion.id, SchoolExamQuestion.exam_id).where(
+                SchoolExamQuestion.bank_question_id.in_(question_ids)
+            )
+        )
+    ).all()
+    exam_ids = {ex for _, ex in copies}
+    started: set[str] = set()
+    if exam_ids:
+        started = {
+            str(r)
+            for r in (
+                await db.execute(
+                    select(SchoolExamAttempt.exam_id)
+                    .where(SchoolExamAttempt.exam_id.in_(exam_ids))
+                    .distinct()
+                )
+            ).scalars().all()
+        }
+    keep = [qid for qid, ex in copies if str(ex) in started]
+    drop = [qid for qid, ex in copies if str(ex) not in started]
+    if keep:
+        await db.execute(
+            update(SchoolExamQuestion)
+            .where(SchoolExamQuestion.id.in_(keep))
+            .values(bank_question_id=None)
+        )
+    if drop:
+        await db.execute(delete(SchoolExamQuestion).where(SchoolExamQuestion.id.in_(drop)))
+    await db.execute(delete(SchoolExQuestion).where(SchoolExQuestion.id.in_(question_ids)))
+    await db.flush()
+    return len(question_ids)
+
+
 @router.delete("/banks/{bank_id}")
 async def delete_bank(
     bank_id: str,
@@ -733,7 +782,10 @@ async def delete_bank(
     bank = (await db.execute(select(SchoolExQuestionBank).where(SchoolExQuestionBank.id == _uuid_or_404(bank_id, "Question bank not found")))).scalar_one_or_none()
     if not bank or bank.school_id != sid:
         raise HTTPException(status_code=404, detail="Question bank not found")
-    await db.execute(delete(SchoolExQuestion).where(SchoolExQuestion.bank_id == bank.id))
+    qids = (
+        await db.execute(select(SchoolExQuestion.id).where(SchoolExQuestion.bank_id == bank.id))
+    ).scalars().all()
+    await _purge_bank_questions(db, list(qids))
     await db.delete(bank)
     await db.flush()
     return {"ok": True}
@@ -910,11 +962,11 @@ async def clear_bank_questions(
     bank = (await db.execute(select(SchoolExQuestionBank).where(SchoolExQuestionBank.id == _uuid_or_404(bank_id, "Question bank not found")))).scalar_one_or_none()
     if not bank or bank.school_id != _staff_school_id(current_user):
         raise HTTPException(status_code=404, detail="Question bank not found")
-    rows = (await db.execute(select(SchoolExQuestion).where(SchoolExQuestion.bank_id == bank.id))).scalars().all()
-    for r in rows:
-        await db.delete(r)
-    await db.flush()
-    return {"ok": True, "cleared": len(rows)}
+    qids = (
+        await db.execute(select(SchoolExQuestion.id).where(SchoolExQuestion.bank_id == bank.id))
+    ).scalars().all()
+    cleared = await _purge_bank_questions(db, list(qids))
+    return {"ok": True, "cleared": cleared}
 
 
 @router.delete("/banks/{bank_id}/questions/{question_id}")
@@ -930,8 +982,7 @@ async def delete_bank_question(
     row = (await db.execute(select(SchoolExQuestion).where(SchoolExQuestion.id == _uuid_or_404(question_id, "Question not found")))).scalar_one_or_none()
     if not row or row.bank_id != bank.id:
         raise HTTPException(status_code=404, detail="Question not found")
-    await db.delete(row)
-    await db.flush()
+    await _purge_bank_questions(db, [row.id])
     return {"ok": True}
 
 
@@ -1216,7 +1267,23 @@ async def _ensure_access_codes(db: AsyncSession, exam: SchoolExam) -> int:
         by_student.setdefault(str(c.student_id), []).append(c)
     made = 0
     for suid in missing:
-        own = by_student.get(str(suid), [])
+        own = by_student.get(str(suid), [])  # newest → oldest
+        # ONE identity per student: the OLDEST row is the slip printed at
+        # registration. Every other row copies it — including rows minted
+        # before this rule — so scheduling, approving or re-scheduling never
+        # changes the code a student was handed.
+        ident = own[-1] if own else None
+        reg = ident.reg_number if ident is not None else await _reg_number_for(db, exam.school_id, suid)
+        code_value = (
+            ident.access_code
+            if ident is not None
+            else await _new_access_code_unique(db, exclude_student_id=suid)
+        )
+        if ident is not None:
+            for c in own:
+                if c.reg_number != reg or c.access_code != code_value:
+                    c.reg_number = reg
+                    c.access_code = code_value
         # Reuse the credential issued at registration (exam-less row) so the
         # printed slip's reg number + access code keep working.
         pending = next((c for c in own if c.exam_id is None), None)
@@ -1225,18 +1292,6 @@ async def _ensure_access_codes(db: AsyncSession, exam: SchoolExam) -> int:
             pending.expires_at = exam.access_code_expires_at
             made += 1
             continue
-        # ONE identity per student: every extra exam row copies the reg number
-        # AND access code printed on the slip. Minting a fresh access code per
-        # subject meant the slip only opened one paper — every other subject
-        # read "this examination is not available yet" even though it was
-        # registered.
-        ident = own[-1] if own else None
-        reg = ident.reg_number if ident is not None else await _reg_number_for(db, exam.school_id, suid)
-        code_value = (
-            ident.access_code
-            if ident is not None
-            else await _new_access_code_unique(db, exclude_student_id=suid)
-        )
         # A new subject row inherits the student's state. Without this the
         # freshly scheduled paper read "Pending" and an approved student fell
         # back into Pending Approvals every time the schedule changed.
@@ -1410,6 +1465,63 @@ async def _mint_pending_credential(db: AsyncSession, school_id: UUID, student_id
     db.add(row)
     await db.flush()
     return row
+
+
+async def _canonical_credential(db: AsyncSession, student_id) -> tuple[Optional[str], Optional[str]]:
+    """The (reg number, access code) printed on a student's slip.
+
+    A student holds one credential row per scheduled subject plus the exam-less
+    row minted at registration. The FIRST row ever minted is the identity the
+    slip shows, so the Approve page and the slip agree only if everything reads
+    that row — reading the newest row is what made an access code look like it
+    changed after approval.
+    """
+    row = (
+        await db.execute(
+            select(SchoolExamAccessCode)
+            .where(SchoolExamAccessCode.student_id == student_id)
+            .order_by(SchoolExamAccessCode.created_at)
+            .limit(1)
+        )
+    ).scalars().first()
+    if row is None:
+        return None, None
+    return row.reg_number, row.access_code
+
+
+async def _apply_identity(
+    db: AsyncSession,
+    student_id,
+    reg: str,
+    code: str,
+    *,
+    reset_lock: bool = False,
+) -> int:
+    """Write ONE reg number + access code to every row of a student, and to
+    their school-office candidate record (the printed slip and the external
+    login read that copy)."""
+    rows = (
+        await db.execute(
+            select(SchoolExamAccessCode).where(SchoolExamAccessCode.student_id == student_id)
+        )
+    ).scalars().all()
+    for row in rows:
+        row.reg_number = reg
+        row.access_code = code
+        if reset_lock:
+            row.failed_attempts = 0
+            row.locked_until = None
+    try:
+        from app.models.school_office import SchoolExamCandidate
+
+        await db.execute(
+            update(SchoolExamCandidate)
+            .where(SchoolExamCandidate.user_id == student_id)
+            .values(rec_number=reg, candidate_id=reg, access_code=code)
+        )
+    except Exception:  # pragma: no cover — candidate sync is best-effort
+        pass
+    return len(rows)
 
 
 async def _credential_flags(db: AsyncSession, student_id) -> tuple[bool, bool]:
@@ -2338,8 +2450,16 @@ async def save_schedule(
             )
         ).scalars().all()[:1]):
             continue  # keep exams with submissions
-        for rel in (SchoolExamQuestion, SchoolExamAssignment, SchoolExamAccessCode, SchoolExamResult):
+        for rel in (SchoolExamQuestion, SchoolExamAssignment, SchoolExamResult):
             await db.execute(delete(rel).where(rel.exam_id == exam.id))
+        # The credential row is the student's identity (the printed slip) —
+        # detach it from the removed paper instead of deleting it, so saving the
+        # schedule again reuses the same reg number + access code.
+        await db.execute(
+            update(SchoolExamAccessCode)
+            .where(SchoolExamAccessCode.exam_id == exam.id)
+            .values(exam_id=None)
+        )
         await db.delete(exam)
         removed += 1
     await db.flush()
@@ -2353,17 +2473,51 @@ async def save_schedule(
     }
 
 
+async def _purge_exam_sittings(db: AsyncSession, exam: SchoolExam) -> int:
+    """Delete every sitting of an exam, children first.
+
+    A forced Clear throws a practice paper away. Answers hold an FK to
+    school_exam_questions, and results / sync logs hold FKs to attempts, so the
+    rows have to go in this order or the delete fails.
+    """
+    att_ids = (
+        await db.execute(select(SchoolExamAttempt.id).where(SchoolExamAttempt.exam_id == exam.id))
+    ).scalars().all()
+    if att_ids:
+        await db.execute(delete(SchoolExamAnswer).where(SchoolExamAnswer.attempt_id.in_(att_ids)))
+        await db.execute(
+            update(SchoolExamSyncLog)
+            .where(SchoolExamSyncLog.attempt_id.in_(att_ids))
+            .values(attempt_id=None)
+        )
+        await db.execute(delete(SchoolExamAttempt).where(SchoolExamAttempt.id.in_(att_ids)))
+    for rel in (SchoolExamResult, SchoolExamDownload):
+        await db.execute(delete(rel).where(rel.exam_id == exam.id))
+    await db.flush()
+    return len(att_ids)
+
+
 @router.delete("/schedule/{class_name}")
 async def clear_schedule(
     class_name: str,
+    force: bool = Query(False),
     school_id: Optional[str] = Query(None),
     current_user: dict = Depends(require_school_staff),
     db: AsyncSession = Depends(get_db),
 ):
-    """Clear the class's schedule (reference 'Clear'): removes scheduled
-    exams that have no submissions yet."""
+    """Clear the class's schedule (reference 'Clear').
+
+    Papers nobody has sat are removed. Papers that already have submissions are
+    kept — their scores are a record — unless force=true, which deletes the
+    sittings too: that is how a practice paper is thrown away before the real
+    one is scheduled, so students get a fresh paper instead of an "already
+    taken" tick.
+
+    The student's credential row is DETACHED from a removed paper, never
+    deleted: it carries the reg number + access code printed on their slip, and
+    deleting it minted a brand-new access code on the next save.
+    """
     sid = _staff_school_id(current_user, school_id)
-    cls = (class_name or "").strip().upper()
     exams = (
         await db.execute(
             select(SchoolExam).where(
@@ -2374,18 +2528,27 @@ async def clear_schedule(
         )
     ).scalars().all()
     removed = 0
+    kept = 0
     for exam in exams:
         attempts = (
             await db.execute(select(SchoolExamAttempt.id).where(SchoolExamAttempt.exam_id == exam.id))
         ).scalars().all()
-        if attempts:
+        if attempts and not force:
+            kept += 1
             continue
-        for rel in (SchoolExamQuestion, SchoolExamAssignment, SchoolExamAccessCode, SchoolExamResult):
+        if attempts:
+            await _purge_exam_sittings(db, exam)
+        for rel in (SchoolExamQuestion, SchoolExamAssignment, SchoolExamResult):
             await db.execute(delete(rel).where(rel.exam_id == exam.id))
+        await db.execute(
+            update(SchoolExamAccessCode)
+            .where(SchoolExamAccessCode.exam_id == exam.id)
+            .values(exam_id=None)
+        )
         await db.delete(exam)
         removed += 1
     await db.flush()
-    return {"ok": True, "removed": removed}
+    return {"ok": True, "removed": removed, "kept": kept}
 
 
 @router.get("/schedule")
@@ -2530,8 +2693,16 @@ async def delete_exam(
     ).scalar_one()
     if int(subs or 0) > 0:
         raise HTTPException(status_code=400, detail="This exam already has submissions — archive it instead")
-    for rel in (SchoolExamQuestion, SchoolExamAssignment, SchoolExamAccessCode, SchoolExamResult):
+    for rel in (SchoolExamQuestion, SchoolExamAssignment, SchoolExamResult):
         await db.execute(delete(rel).where(rel.exam_id == exam.id))
+    # Keep each student's slip: the credential row is their identity, so it is
+    # detached from the removed paper instead of deleted (deleting it minted a
+    # brand-new access code on the next schedule save).
+    await db.execute(
+        update(SchoolExamAccessCode)
+        .where(SchoolExamAccessCode.exam_id == exam.id)
+        .values(exam_id=None)
+    )
     await db.delete(exam)
     await db.flush()
     return {"ok": True}
@@ -2778,13 +2949,16 @@ async def _codes_for(db: AsyncSession, exam: SchoolExam, payload: CodesIn, sid: 
                 r2.failed_attempts = 0
                 r2.locked_until = None
         else:
+            # Never mint a second identity: a student who already holds a slip
+            # keeps its reg number + access code on this paper too.
+            ident_reg, ident_code = await _canonical_credential(db, UUID(suid))
             db.add(
                 SchoolExamAccessCode(
                     school_id=exam.school_id,
                     exam_id=exam.id,
                     student_id=UUID(suid),
-                    reg_number=await _reg_number_for(db, exam.school_id, UUID(suid)),
-                    access_code=await _new_access_code_unique(db, exclude_student_id=UUID(suid)),
+                    reg_number=ident_reg or await _reg_number_for(db, exam.school_id, UUID(suid)),
+                    access_code=ident_code or await _new_access_code_unique(db, exclude_student_id=UUID(suid)),
                     expires_at=exam.access_code_expires_at,
                 )
             )
@@ -2878,12 +3052,14 @@ async def reset_code(
     ).scalar_one_or_none()
     if not row:
         raise HTTPException(status_code=404, detail="No access code found for this student on this exam")
-    row.access_code = _new_access_code()
-    row.failed_attempts = 0
-    row.locked_until = None
+    # Rotate EVERY row of the student (and their candidate slip): changing only
+    # this exam's row left the other subjects on the old code, so the new code
+    # worked for one paper and failed on the next.
+    new_code = await _new_access_code_unique(db, exclude_student_id=UUID(student_id))
+    await _apply_identity(db, UUID(student_id), row.reg_number, new_code, reset_lock=True)
     row.expires_at = exam.access_code_expires_at
     await db.flush()
-    return {"ok": True, "reg_number": row.reg_number, "access_code": row.access_code}
+    return {"ok": True, "reg_number": row.reg_number, "access_code": new_code}
 
 
 @router.delete("/exams/{exam_id}/codes/{student_id}")
@@ -2983,10 +3159,14 @@ async def registrations_list(
     ).scalars().all()
     code_by_student: dict[str, SchoolExamAccessCode] = {}
     codes_by_student: dict[str, list[SchoolExamAccessCode]] = {}
-    for c in codes:
+    for c in codes:  # newest → oldest
         key = str(c.student_id)
-        code_by_student.setdefault(key, c)  # newest first wins
         codes_by_student.setdefault(key, []).append(c)
+    for key, own_rows in codes_by_student.items():
+        # The OLDEST row is the credential printed on the slip at registration.
+        # Showing the newest row made an approved student's access code look
+        # "changed" as soon as another subject was scheduled.
+        code_by_student[key] = own_rows[-1]
     subj_by_exam = {str(e.id): e.subject for e in exams}
     assigns = (
         await db.execute(
@@ -3123,11 +3303,7 @@ async def registrations_simple_codes(
         admission = getattr(prof, "school_student_id", None) if prof else None
         new_reg = admission or await _next_simple_reg(db, prefix)
         new_code = await _new_access_code_unique(db, exclude_student_id=u.id)
-        for c in own:
-            c.reg_number = new_reg
-            c.access_code = new_code
-            c.failed_attempts = 0
-            c.locked_until = None
+        await _apply_identity(db, u.id, new_reg, new_code, reset_lock=True)
         changed += 1
         # Flush per student so the next student never reuses their number/code.
         await db.flush()
@@ -3252,6 +3428,12 @@ async def registration_approve(
     sid = _staff_school_id(current_user, school_id)
     u = await _own_student(db, sid, student_id)
     cred = await _mint_pending_credential(db, sid, u.id)
+    # The approval screen is where a "changed" access code used to appear: it
+    # displayed whichever credential row was newest. Approving now heals every
+    # row (and the candidate slip) back to the identity printed at registration.
+    ident_reg, ident_code = await _canonical_credential(db, u.id)
+    if ident_reg and ident_code:
+        await _apply_identity(db, u.id, ident_reg, ident_code)
     p = (await db.execute(select(StudentProfile).where(StudentProfile.user_id == u.id))).scalar_one_or_none()
     cls = (p.education_level or "").upper() if p else ""
     want = _requested_filter((await _picked_subjects_map(db, sid)).get(str(u.id)))
@@ -3282,7 +3464,12 @@ async def registration_approve(
     # Pending, so they reappeared in Pending Approvals.
     await _set_student_flags(db, u.id, approved=True, restricted=False)
     await db.flush()
-    return {"approved": True, "attached": attached, "reg_number": cred.reg_number, "access_code": cred.access_code}
+    return {
+        "approved": True,
+        "attached": attached,
+        "reg_number": ident_reg or cred.reg_number,
+        "access_code": ident_code or cred.access_code,
+    }
 
 
 @router.post("/registrations/approve-all")

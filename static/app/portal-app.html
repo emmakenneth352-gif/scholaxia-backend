@@ -3406,7 +3406,7 @@ tr:last-child td{border-bottom:none}
         '<p class="mhint" style="margin:-6px 0 10px">Score = (Correct Answers ÷ Questions) × Total Mark. Set 20, 30, 50 or 100 — a student who gets 8 of 10 questions right scores 24 when the total mark is 30.</p>' +
         '<div class="form-grid rg2"><div><label class="f-label">🕐 Start Date & Time *</label><input class="f-in" id="scDate" type="datetime-local" onchange="schStartChanged()" /></div>' +
         '<div><label class="f-label">🕘 End Date & Time *</label><input class="f-in" id="scEnd" type="datetime-local" /><p class="mhint" style="margin-top:4px">The exam stops at this time — a paper still open is submitted automatically.</p></div></div>' +
-        '<div class="radio-row"><button class="btn green" onclick="schSave()">💾 Save Schedule</button><button class="btn ghost" onclick="schClear()">🔄 Clear Schedule</button></div>' +
+        '<div class="radio-row"><button class="btn green" onclick="schSave()">💾 Save Schedule</button><button class="btn ghost" onclick="schClear()">🔄 Clear Schedule</button><button class="btn ghost" onclick="schClear(true)">🗑 Clear + erase sat papers</button></div>' +
         '<div class="merr" id="scErr"></div></div>' +
         '<div class="panel"><h3>🔔 Current Class Schedule</h3><p class="mhint">Select a class to view its schedule.</p><div id="scCurrent"><div class="empty">Select a class above</div></div></div>' +
         '<div class="panel"><h3>👨‍🎓 Registered Students in Selected Class</h3><div id="scRoster"><div class="empty">Select a class above</div></div></div>';
@@ -3501,15 +3501,21 @@ tr:last-child td{border-bottom:none}
       schLoadCurrent(cls);
     }).catch(function (e) { toastErr(e); }).finally(function () {});
   };
-  window.schClear = function () {
+  window.schClear = function (force) {
     var cls = $("scClass").value;
     if (!cls) return toastErr("Select the class first.");
-    confirmModal("Clear schedule", 'Clear the whole schedule for <strong>' + esc(cls) + '</strong>? Exams without submissions are removed.', function (btn) {
-      busy(btn, true);
-      cbtApi("/schedule/" + encodeURIComponent(cls), { method: "DELETE" }).then(function (d) {
-        closeModal(); toast(d.removed + " scheduled exam(s) cleared"); schLoadCurrent(cls);
-      }).catch(function (e) { busy(btn, false, "Confirm"); mErr(errText(e)); });
-    }, "Clear", true);
+    confirmModal(force ? "Clear schedule AND scores" : "Clear schedule",
+      force
+        ? 'Delete the whole schedule for <strong>' + esc(cls) + '</strong> <strong>including the papers students already sat</strong>? Their attempts and scores for these exams are erased, so you can upload the real questions and schedule them again without an "already taken" tick.'
+        : 'Clear the whole schedule for <strong>' + esc(cls) + '</strong>? Exams without submissions are removed; papers already sat are kept.',
+      function (btn) {
+        busy(btn, true);
+        cbtApi("/schedule/" + encodeURIComponent(cls) + (force ? "?force=true" : ""), { method: "DELETE" }).then(function (d) {
+          closeModal();
+          toast((d.removed || 0) + " scheduled exam(s) cleared" + (d.kept ? " · " + d.kept + " kept (already sat)" : ""));
+          schLoadCurrent(cls);
+        }).catch(function (e) { busy(btn, false, "Confirm"); mErr(errText(e)); });
+      }, force ? "Delete everything" : "Clear", true);
   };
   /* — Grant Exam Retake page — reference: type reg number → Fetch Student →
      see their exams + scores → grant the retake — */
