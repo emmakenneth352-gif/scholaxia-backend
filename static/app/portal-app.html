@@ -3665,7 +3665,9 @@ tr:last-child td{border-bottom:none}
     list.sort(function (a, b) { return String(a.subject || "").localeCompare(String(b.subject || "")); });
     var sel = $("rvExam");
     if (!sel) return;
-    sel.innerHTML = list.length ? list.map(function (x) { return '<option value="' + x.id + '">' + esc(x.title) + " — " + esc(x.class_name) + " · " + esc(x.subject || "") + '</option>'; }).join("")
+    // The exam title already reads "Subject — Class"; appending class and
+    // subject again printed the same subject twice inside one option.
+    sel.innerHTML = list.length ? list.map(function (x) { return '<option value="' + x.id + '">' + esc(x.title || ((x.subject || "") + " — " + (x.class_name || ""))) + '</option>'; }).join("")
       : '<option value="">No exams for this subject + class</option>';
     if (list.length) examResultsView((first && window.__rvExam && list.some(function (x) { return x.id === window.__rvExam; })) ? window.__rvExam : list[0].id);
     else { window.__rvExam = null; window.__rvData = null; var b = $("rvTbl"); if (b) b.innerHTML = '<div class="empty">No exams for this subject + class.</div>'; }
