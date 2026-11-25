@@ -2227,7 +2227,30 @@ async def retake_lookup(
                 "requested_subjects": requested,
             }
         )
-    return {"matches": out}
+    # One line per paper: the pending credential row ("not scheduled yet") and
+    # old duplicate papers must not turn two subjects into three or four lines.
+    ordered = sorted(
+        out,
+        key=lambda r: (0 if r.get("exam_id") else 1, 0 if r.get("score") is not None else 1),
+    )
+    deduped: list[dict] = []
+    seen_exams: set[str] = set()
+    seen_subjects: set[str] = set()
+    for row in ordered:
+        eid = row.get("exam_id")
+        if not eid:
+            continue
+        if eid in seen_exams:
+            continue
+        subj_key = (row.get("subject") or "").strip().lower()
+        if subj_key in seen_subjects:
+            continue
+        seen_exams.add(eid)
+        seen_subjects.add(subj_key)
+        deduped.append(row)
+    if not deduped:
+        deduped = [r for r in ordered if not r.get("exam_id")][:1]
+    return {"matches": deduped}
 
 
 class ScheduleSaveIn(BaseModel):
@@ -2246,6 +2269,117 @@ class ScheduleSaveIn(BaseModel):
     # set (it used to force every scheduled exam back to 100, which is why
     # scores always came back "out of 100").
     total_mark: Optional[int] = Field(default=None, ge=1)
+
+
+async def _delete_exam_rows(db: AsyncSession, exam: SchoolExam) -> None:
+    """Delete a paper and every row that only exists because of it.
+
+    Answers hold an FK to the paper's question rows, so they go first; a
+    duplicate removed by _dedupe_class_exams normally has no sittings, but the
+    order keeps this safe either way.
+    """
+    qids = (
+        await db.execute(select(SchoolExamQuestion.id).where(SchoolExamQuestion.exam_id == exam.id))
+    ).scalars().all()
+    if qids:
+        await db.execute(delete(SchoolExamAnswer).where(SchoolExamAnswer.exam_question_id.in_(qids)))
+    att_ids = (
+        await db.execute(select(SchoolExamAttempt.id).where(SchoolExamAttempt.exam_id == exam.id))
+    ).scalars().all()
+    if att_ids:
+        await db.execute(delete(SchoolExamAnswer).where(SchoolExamAnswer.attempt_id.in_(att_ids)))
+        await db.execute(
+            update(SchoolExamSyncLog)
+            .where(SchoolExamSyncLog.attempt_id.in_(att_ids))
+            .values(attempt_id=None)
+        )
+        await db.execute(delete(SchoolExamAttempt).where(SchoolExamAttempt.id.in_(att_ids)))
+    # Sync logs carry a NOT NULL exam_id, so they must go with the paper too.
+    await db.execute(delete(SchoolExamSyncLog).where(SchoolExamSyncLog.exam_id == exam.id))
+    for rel in (SchoolExamQuestion, SchoolExamAssignment, SchoolExamResult, SchoolExamDownload):
+        await db.execute(delete(rel).where(rel.exam_id == exam.id))
+    await db.execute(
+        update(SchoolExamAccessCode)
+        .where(SchoolExamAccessCode.exam_id == exam.id)
+        .values(exam_id=None)
+    )
+    await db.delete(exam)
+    await db.flush()
+
+
+async def _dedupe_class_exams(db: AsyncSession, sid: UUID, cls_norm: str) -> int:
+    """Keep exactly ONE paper per class + subject.
+
+    Re-saving a subject (or double-tapping Save) used to leave the previous
+    paper behind: the schedule showed "Digital Marketing" twice and the Results
+    tab listed two collections for one subject. The keeper is the paper that
+    actually has a sitting, else the one holding questions, else the newest;
+    the spare copies are never sat, so they are deleted and their credential
+    rows detached (never deleted) to keep the printed access code valid.
+    """
+    exams = (
+        await db.execute(
+            select(SchoolExam)
+            .where(
+                SchoolExam.school_id == sid,
+                func.upper(func.replace(SchoolExam.class_name, " ", "")) == cls_norm,
+            )
+            .order_by(SchoolExam.created_at.asc())
+        )
+    ).scalars().all()
+    groups: dict[str, list[SchoolExam]] = {}
+    for e in exams:
+        groups.setdefault((e.subject or "").strip().lower(), []).append(e)
+    removed = 0
+    for rows in groups.values():
+        if len(rows) < 2:
+            continue
+        ids = [r.id for r in rows]
+        sittings = dict(
+            (str(eid), int(c))
+            for eid, c in (
+                await db.execute(
+                    select(SchoolExamAttempt.exam_id, func.count(SchoolExamAttempt.id))
+                    .where(SchoolExamAttempt.exam_id.in_(ids))
+                    .group_by(SchoolExamAttempt.exam_id)
+                )
+            ).all()
+        )
+        qcounts = dict(
+            (str(eid), int(c))
+            for eid, c in (
+                await db.execute(
+                    select(SchoolExamQuestion.exam_id, func.count(SchoolExamQuestion.id))
+                    .where(SchoolExamQuestion.exam_id.in_(ids))
+                    .group_by(SchoolExamQuestion.exam_id)
+                )
+            ).all()
+        )
+        keeper = max(
+            rows,
+            key=lambda e: (
+                sittings.get(str(e.id), 0),
+                qcounts.get(str(e.id), 0),
+                e.created_at or datetime(1970, 1, 1),
+            ),
+        )
+        for e in rows:
+            if e is keeper:
+                continue
+            if sittings.get(str(e.id), 0):
+                continue  # a second paper somebody sat: keep the record
+            # Never throw away questions that were uploaded into the spare
+            # copy: move them onto the paper being kept when it holds none.
+            if qcounts.get(str(e.id), 0) and not qcounts.get(str(keeper.id), 0):
+                await db.execute(
+                    update(SchoolExamQuestion)
+                    .where(SchoolExamQuestion.exam_id == e.id)
+                    .values(exam_id=keeper.id)
+                )
+                qcounts[str(keeper.id)] = qcounts.get(str(e.id), 0)
+            await _delete_exam_rows(db, e)
+            removed += 1
+    return removed
 
 
 @router.post("/schedule/save")
@@ -2271,6 +2405,11 @@ async def save_schedule(
     # mismatch made Save Schedule report 0 created/0 questions and forced a
     # second publish.
     cls_norm = normalize_class_name(payload.class_name)
+    # A subject that was scheduled before must keep ONE paper: update that
+    # paper's time instead of adding a second "Digital Marketing" row. This
+    # also heals duplicates left by earlier saves (and by a double-tapped
+    # Save) before the update below picks the row to edit.
+    await _dedupe_class_exams(db, sid, cls_norm)
     want = {s.strip() for s in payload.subjects if s.strip()}
     if not want:
         raise HTTPException(status_code=400, detail="Select at least one subject")
@@ -2491,6 +2630,7 @@ async def _purge_exam_sittings(db: AsyncSession, exam: SchoolExam) -> int:
             .values(attempt_id=None)
         )
         await db.execute(delete(SchoolExamAttempt).where(SchoolExamAttempt.id.in_(att_ids)))
+    await db.execute(delete(SchoolExamSyncLog).where(SchoolExamSyncLog.exam_id == exam.id))
     for rel in (SchoolExamResult, SchoolExamDownload):
         await db.execute(delete(rel).where(rel.exam_id == exam.id))
     await db.flush()
@@ -2682,6 +2822,7 @@ async def patch_exam(
 @router.delete("/exams/{exam_id}")
 async def delete_exam(
     exam_id: str,
+    force: bool = Query(False),
     school_id: Optional[str] = Query(None),
     current_user: dict = Depends(require_school_staff),
     db: AsyncSession = Depends(get_db),
@@ -2692,19 +2833,15 @@ async def delete_exam(
         await db.execute(select(func.count(SchoolExamAttempt.id)).where(SchoolExamAttempt.exam_id == exam.id))
     ).scalar_one()
     if int(subs or 0) > 0:
-        raise HTTPException(status_code=400, detail="This exam already has submissions — archive it instead")
-    for rel in (SchoolExamQuestion, SchoolExamAssignment, SchoolExamResult):
-        await db.execute(delete(rel).where(rel.exam_id == exam.id))
+        if not force:
+            raise HTTPException(status_code=400, detail="This exam already has submissions — archive it instead")
+        # Explicit per-paper erase: only THIS paper's sittings/scores go. The
+        # other subjects in the class keep their schedule and results.
+        await _purge_exam_sittings(db, exam)
     # Keep each student's slip: the credential row is their identity, so it is
     # detached from the removed paper instead of deleted (deleting it minted a
     # brand-new access code on the next schedule save).
-    await db.execute(
-        update(SchoolExamAccessCode)
-        .where(SchoolExamAccessCode.exam_id == exam.id)
-        .values(exam_id=None)
-    )
-    await db.delete(exam)
-    await db.flush()
+    await _delete_exam_rows(db, exam)
     return {"ok": True}
 
 
@@ -3125,6 +3262,77 @@ async def codes_student_directory(
 # approval, restriction, edit and delete (each + all) + filters.
 # ═════════════════════════════════════════════════════════════════════════
 
+async def _dedupe_students(
+    db: AsyncSession, sid: UUID, class_name: Optional[str] = None
+) -> list[str]:
+    """Collapse duplicate exam registrations of the same child.
+
+    Pressing Register twice (or registering again another day) used to leave
+    two or three student accounts with the same name in the same class, each
+    with its own slip — "one person showing 3 registrations". The account that
+    owns a sitting is kept (else the oldest one), and the copies are removed
+    only when they hold no exam data. Real roster students are skipped: only
+    exam-registration accounts (...@students.scholaxia.local) are removed.
+    """
+    rows = (
+        await db.execute(
+            select(User, StudentProfile)
+            .join(StudentProfile, StudentProfile.user_id == User.id)
+            .where(User.school_id == sid, User.role == UserRole.student)
+            .order_by(User.created_at.asc())
+        )
+    ).all()
+    want_cls = normalize_class_name(class_name) if class_name and str(class_name).upper() != "ALL" else None
+    groups: dict[tuple[str, str], list[tuple[User, StudentProfile]]] = {}
+    for u, p in rows:
+        cls_key = normalize_class_name(p.education_level or "")
+        if want_cls and cls_key != want_cls:
+            continue
+        name_key = "".join((u.full_name or "").lower().split())
+        groups.setdefault((cls_key, name_key), []).append((u, p))
+    removed: list[str] = []
+    for own in groups.values():
+        if len(own) < 2:
+            continue
+        ids = [u.id for u, _ in own]
+        sat = {
+            str(uid)
+            for uid in (
+                await db.execute(
+                    select(SchoolExamAttempt.student_id)
+                    .where(SchoolExamAttempt.student_id.in_(ids))
+                    .distinct()
+                )
+            ).scalars().all()
+        }
+        with_codes = {
+            str(uid)
+            for uid in (
+                await db.execute(
+                    select(SchoolExamAccessCode.student_id)
+                    .where(SchoolExamAccessCode.student_id.in_(ids))
+                    .distinct()
+                )
+            ).scalars().all()
+        }
+        # Keep the account that owns the slip (or the sittings), not a roster
+        # account created for the same child with no exam credentials.
+        keeper = next((u for u, _ in own if str(u.id) in sat), None) or next(
+            (u for u, _ in own if str(u.id) in with_codes), own[0][0]
+        )
+        for u, _p in own:
+            if u.id == keeper.id or str(u.id) in sat:
+                continue
+            if not (u.email or "").endswith("@students.scholaxia.local"):
+                continue  # a real roster account: never deleted here
+            try:
+                await purge_user(db, u.id)
+            except HTTPException:
+                continue
+            removed.append(u.full_name or str(u.id))
+    return removed
+
+
 @router.get("/registrations")
 async def registrations_list(
     class_name: Optional[str] = None,
@@ -3139,6 +3347,10 @@ async def registrations_list(
     status — powers the Confirm Registration hub. `status` filters:
     pending (not assigned to any exam), approved, restricted."""
     sid = _staff_school_id(current_user, school_id)
+    # One child, one slip: double registrations (same name + class) are removed
+    # as this approval hub loads, so the school never has to hunt and delete
+    # them by hand. Accounts holding sittings are kept.
+    await _dedupe_students(db, sid, class_name)
     stu = (
         await db.execute(
             select(User, StudentProfile)
@@ -3241,6 +3453,27 @@ async def registrations_list(
             "total": len(stu),
         },
     }
+
+
+class DedupeIn(BaseModel):
+    """Scope for the duplicate-registration cleanup (empty = whole school)."""
+    class_name: Optional[str] = None
+
+
+@router.post("/registrations/dedupe")
+async def registrations_dedupe(
+    payload: DedupeIn | None = None,
+    class_name: Optional[str] = Query(None),
+    school_id: Optional[str] = Query(None),
+    current_user: dict = Depends(require_school_staff),
+    db: AsyncSession = Depends(get_db),
+):
+    """Remove duplicate registrations (same student, same class) on demand."""
+    sid = _staff_school_id(current_user, school_id)
+    cls = class_name or (payload.class_name if payload else None)
+    names = await _dedupe_students(db, sid, cls)
+    await db.flush()
+    return {"ok": True, "removed": len(names), "students": names}
 
 
 class SimplifyCodesIn(BaseModel):
@@ -3934,7 +4167,10 @@ async def exam_results(
             select(SchoolExamResult, User)
             .join(User, User.id == SchoolExamResult.student_id)
             .where(SchoolExamResult.exam_id == exam.id)
-            .order_by(SchoolExamResult.final_score.desc())
+            # Paper-collection order: the table follows the time each student
+            # submitted (earliest first) instead of mixing yesterday's sitting
+            # among today's, which made the marks look shuffled.
+            .order_by(SchoolExamResult.created_at.asc(), User.full_name.asc())
         )
     ).all()
     code_rows = (

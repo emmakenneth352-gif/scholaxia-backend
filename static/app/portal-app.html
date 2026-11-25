@@ -2728,6 +2728,7 @@ tr:last-child td{border-bottom:none}
     if (bk) bk.innerHTML =
       '<button class="btn sm" onclick="regApproveAll(this)">✅ Approve All' + (f.cls ? " · " + esc(f.cls) : "") + '</button>' +
       '<button class="btn sm ghost" onclick="regSimpleCodes(this)">🔢 Simple codes</button>' +
+      '<button class="btn sm ghost" onclick="regDedupe(this)">🧹 Remove duplicates</button>' +
       '<button class="btn sm ghost" onclick="regBulkRestrict(true)">🚫 Restrict' + (n ? " (" + n + ")" : "") + '</button>' +
       '<button class="btn sm ghost" onclick="regBulkRestrict(false)">🔓 Unrestrict' + (n ? " (" + n + ")" : "") + '</button>' +
       '<button class="btn sm red" onclick="regBulkDelete()">🗑 Delete' + (n ? " (" + n + ")" : "") + '</button>' +
@@ -2801,6 +2802,24 @@ tr:last-child td{border-bottom:none}
           })
           .catch(function (e) { busy(b, false, "Confirm"); mErr(errText(e)); });
       }, "Change codes", true);
+  };
+  /* Same child registered two or three times → one slip. The backend keeps
+     the account with sittings and removes the empty copies; the Approve
+     Students page also heals automatically whenever it loads. */
+  window.regDedupe = function (btn) {
+    var scope = window.__regF.cls ? "class " + esc(window.__regF.cls) : "the whole school";
+    confirmModal("Remove duplicate registrations",
+      'Look for the same student registered more than once in <strong>' + scope + '</strong> and keep only one slip? Only empty duplicate accounts are removed — a student with submitted results is never deleted.',
+      function (b) {
+        busy(b, true);
+        cbtApi("/registrations/dedupe" + (window.__regF.cls ? "?class_name=" + encodeURIComponent(window.__regF.cls) : ""), { method: "POST" })
+          .then(function (d) {
+            closeModal();
+            toast(d.removed ? "🧹 Removed " + d.removed + " duplicate registration(s)" : "No duplicate registrations found");
+            regRefresh();
+          })
+          .catch(function (e) { busy(b, false, "Confirm"); mErr(errText(e)); });
+      }, "Remove duplicates");
   };
   window.regRestrictOne = function (id, restricted, btn) {
     busy(btn, true);
@@ -3406,7 +3425,7 @@ tr:last-child td{border-bottom:none}
         '<p class="mhint" style="margin:-6px 0 10px">Score = (Correct Answers ÷ Questions) × Total Mark. Set 20, 30, 50 or 100 — a student who gets 8 of 10 questions right scores 24 when the total mark is 30.</p>' +
         '<div class="form-grid rg2"><div><label class="f-label">🕐 Start Date & Time *</label><input class="f-in" id="scDate" type="datetime-local" onchange="schStartChanged()" /></div>' +
         '<div><label class="f-label">🕘 End Date & Time *</label><input class="f-in" id="scEnd" type="datetime-local" /><p class="mhint" style="margin-top:4px">The exam stops at this time — a paper still open is submitted automatically.</p></div></div>' +
-        '<div class="radio-row"><button class="btn green" onclick="schSave()">💾 Save Schedule</button><button class="btn ghost" onclick="schClear()">🔄 Clear Schedule</button><button class="btn ghost" onclick="schClear(true)">🗑 Clear + erase sat papers</button></div>' +
+        '<div class="radio-row"><button class="btn green" onclick="schSave()">💾 Save Schedule</button><button class="btn ghost" onclick="schClear()">🔄 Clear schedule (keeps results)</button><button class="btn ghost" onclick="schClear(true)">🗑 Delete papers + scores</button></div>' +
         '<div class="merr" id="scErr"></div></div>' +
         '<div class="panel"><h3>🔔 Current Class Schedule</h3><p class="mhint">Select a class to view its schedule.</p><div id="scCurrent"><div class="empty">Select a class above</div></div></div>' +
         '<div class="panel"><h3>👨‍🎓 Registered Students in Selected Class</h3><div id="scRoster"><div class="empty">Select a class above</div></div></div>';
@@ -3445,7 +3464,7 @@ tr:last-child td{border-bottom:none}
         var over = r.scheduled_end && new Date(r.scheduled_end).getTime() < Date.now();
         var st = r.window_open ? '<span class="pill ok">Open now</span>' : over ? '<span class="pill warn">Closed</span>' : r.is_published ? '<span class="pill blue">Scheduled</span>' : '<span class="pill warn">Draft</span>';
         var endsTxt = r.scheduled_end ? ' → ' + tOnly(r.scheduled_end) : "";
-        return '<div class="sumrow" style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px"><span><strong>' + esc(r.subjects) + '</strong> — ' + (r.exam_date ? dOnly(r.exam_date) : "—") + ' ' + (r.scheduled_start ? new Date(r.scheduled_start).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "") + endsTxt + ' · ' + fmtDurM(r.duration_minutes) + ' · ' + r.questions_to_display + ' questions' + (r.total_mark ? ' · total mark ' + r.total_mark : '') + '</span>' + st + '</div>';
+        return '<div class="sumrow" style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px"><span><strong>' + esc(r.subjects) + '</strong> — ' + (r.exam_date ? dOnly(r.exam_date) : "—") + ' ' + (r.scheduled_start ? new Date(r.scheduled_start).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "") + endsTxt + ' · ' + fmtDurM(r.duration_minutes) + ' · ' + r.questions_to_display + ' questions' + (r.total_mark ? ' · total mark ' + r.total_mark : '') + '</span>' + st + '<button class="btn sm ghost" style="margin-left:8px" onclick="schDelExam(\'' + r.exam_id + '\',\'' + esc(r.subjects || "").replace(/'/g, "") + '\')" title="Delete this paper and its scores">🗑</button></div>';
       }).join("") : '<div class="empty">No schedule</div>';
       cbtApi("/roster/" + encodeURIComponent(cls)).then(function (rd) {
         var st = rd.students || [];
@@ -3504,10 +3523,10 @@ tr:last-child td{border-bottom:none}
   window.schClear = function (force) {
     var cls = $("scClass").value;
     if (!cls) return toastErr("Select the class first.");
-    confirmModal(force ? "Clear schedule AND scores" : "Clear schedule",
+    confirmModal(force ? "Delete papers AND their scores" : "Clear schedule — results are kept",
       force
-        ? 'Delete the whole schedule for <strong>' + esc(cls) + '</strong> <strong>including the papers students already sat</strong>? Their attempts and scores for these exams are erased, so you can upload the real questions and schedule them again without an "already taken" tick.'
-        : 'Clear the whole schedule for <strong>' + esc(cls) + '</strong>? Exams without submissions are removed; papers already sat are kept.',
+        ? 'Throw away the practice papers for <strong>' + esc(cls) + '</strong>, <strong>including the sittings students already did</strong>? Their attempts and scores on these papers are erased, so the main exam can be scheduled with no "already taken" tick. Other classes and the Result Book are not touched.'
+        : 'Clear the schedule for <strong>' + esc(cls) + '</strong>? Papers nobody has sat are removed so the class can be re-scheduled cleanly; <strong>papers already sat and every score are kept</strong>.',
       function (btn) {
         busy(btn, true);
         cbtApi("/schedule/" + encodeURIComponent(cls) + (force ? "?force=true" : ""), { method: "DELETE" }).then(function (d) {
@@ -3515,7 +3534,19 @@ tr:last-child td{border-bottom:none}
           toast((d.removed || 0) + " scheduled exam(s) cleared" + (d.kept ? " · " + d.kept + " kept (already sat)" : ""));
           schLoadCurrent(cls);
         }).catch(function (e) { busy(btn, false, "Confirm"); mErr(errText(e)); });
-      }, force ? "Delete everything" : "Clear", true);
+      }, force ? "Delete scores" : "Clear schedule", true);
+  };
+  /* Remove ONE paper (and its scores) without touching the rest of the class. */
+  window.schDelExam = function (examId, subject) {
+    var cls = $("scClass").value;
+    confirmModal("Delete this paper",
+      'Delete <strong>' + esc(subject) + '</strong> for <strong>' + esc(cls) + '</strong> and the scores already recorded on it? Other subjects in this class, their schedules and their results are not touched.',
+      function (btn) {
+        busy(btn, true);
+        cbtApi("/exams/" + examId + "?force=true", { method: "DELETE" }).then(function () {
+          closeModal(); toast("Paper deleted"); schLoadCurrent(cls);
+        }).catch(function (e) { busy(btn, false, "Delete"); mErr(errText(e)); });
+      }, "Delete paper");
   };
   /* — Grant Exam Retake page — reference: type reg number → Fetch Student →
      see their exams + scores → grant the retake — */
@@ -3621,6 +3652,17 @@ tr:last-child td{border-bottom:none}
     var list = exams.filter(function (x) {
       return (!fs || x.subject === fs) && (!fc || x.class_name === fc);
     });
+    // One entry per class + subject: old duplicate papers showed the same
+    // subject twice in this picker ("Digital Marketing — SS3" two times). The
+    // paper holding submissions wins, then the one holding questions.
+    var seen = {};
+    list.forEach(function (x) {
+      var k = (x.class_name || "") + "|" + (x.subject || "").toLowerCase();
+      var rank = (x.submission_count || 0) * 1000 + (x.question_count || 0);
+      if (!seen[k] || rank > seen[k].rank) seen[k] = { x: x, rank: rank };
+    });
+    list = Object.keys(seen).map(function (k) { return seen[k].x; });
+    list.sort(function (a, b) { return String(a.subject || "").localeCompare(String(b.subject || "")); });
     var sel = $("rvExam");
     if (!sel) return;
     sel.innerHTML = list.length ? list.map(function (x) { return '<option value="' + x.id + '">' + esc(x.title) + " — " + esc(x.class_name) + " · " + esc(x.subject || "") + '</option>'; }).join("")
@@ -3634,11 +3676,11 @@ tr:last-child td{border-bottom:none}
     cbtApi("/exams/" + examId + "/results").then(function (d) {
       window.__rvData = d;
       var rows = (d.results || []).map(function (r, i) {
-        return '<tr><td>' + (i + 1) + '</td><td><strong>' + esc(r.student_name) + '</strong></td><td><code>' + esc(r.reg_number || "—") + '</code></td><td>' + r.total_questions + '</td><td><strong style="color:var(--ok)">' + r.correct_answers + '</strong></td><td><strong>' + r.final_score + ' / ' + r.total_mark + '</strong></td><td>' + r.percentage + '%</td><td><span class="pill ' + (r.percentage >= 50 ? "ok" : "bad") + '">' + esc(r.grade || "—") + '</span></td><td>' + dOnly(r.submitted_at) + '</td>' +
+        return '<tr><td>' + (i + 1) + '</td><td><strong>' + esc(r.student_name) + '</strong></td><td><code>' + esc(r.reg_number || "—") + '</code></td><td>' + r.total_questions + '</td><td><strong style="color:var(--ok)">' + r.correct_answers + '</strong></td><td><strong>' + r.final_score + ' / ' + r.total_mark + '</strong></td><td>' + r.percentage + '%</td><td><span class="pill ' + (r.percentage >= 50 ? "ok" : "bad") + '">' + esc(r.grade || "—") + '</span></td><td>' + dt(r.submitted_at) + '</td>' +
           '<td><button class="btn sm ghost" onclick="grantRetake(\'' + esc(r.student_id) + '\',\'' + esc(r.student_name).replace(/'/g, "") + '\')">↻ Grant Retake</button></td></tr>';
       });
       var box = $("rvTbl");
-      if (box) box.innerHTML = (rows.length ? tbl(["S/N", "Student Name", "Reg Number", "Total Questions", "Correct Answers", "Total Score", "Percentage", "Grade", "Date", "Actions"], rows)
+      if (box) box.innerHTML = (rows.length ? tbl(["S/N", "Student Name", "Reg Number", "Total Questions", "Correct Answers", "Total Score", "Percentage", "Grade", "Submitted", "Actions"], rows)
         : '<div class="empty">No submissions for this exam yet.</div>') +
         '<p class="mhint" style="margin-top:12px">🎯 Percentage = (Correct Answers ÷ Total Questions) × 100 · Total Score = that percentage of the exam\'s Total Mark' + ((d.exam && d.exam.total_mark) ? ' (' + d.exam.total_mark + ')' : '') + '. Set the Total Mark yourself on the Exam Schedule tab.</p>';
       var pub = $("rvPublish");
