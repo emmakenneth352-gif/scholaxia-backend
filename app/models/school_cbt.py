@@ -407,9 +407,14 @@ class SchoolExamResult(Base):
     is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)  # §22/§29
     published_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    # One row per SITTING. A retake adds its own result instead of overwriting
+    # (or deleting) the score the student already earned, so the teacher can
+    # show the child the original mark next to the retake.
+    is_retake: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    attempt_no: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
     __table_args__ = (
-        Index("ux_school_exam_results", "exam_id", "student_id", unique=True),
+        Index("ux_school_exam_results_attempt", "exam_id", "student_id", "attempt_id", unique=True),
     )
 
 

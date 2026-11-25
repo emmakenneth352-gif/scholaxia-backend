@@ -2200,14 +2200,18 @@ async def retake_lookup(
     for code, exam, user in rows:
         res = None
         if exam is not None:
+            # A retaken student has more than one result now — show the latest.
             res = (
                 await db.execute(
-                    select(SchoolExamResult).where(
+                    select(SchoolExamResult)
+                    .where(
                         SchoolExamResult.exam_id == exam.id,
                         SchoolExamResult.student_id == user.id,
                     )
+                    .order_by(SchoolExamResult.created_at.desc())
+                    .limit(1)
                 )
-            ).scalar_one_or_none()
+            ).scalars().first()
         try:
             requested = json.loads(code.requested_subjects) if code.requested_subjects else []
         except Exception:
@@ -2224,6 +2228,7 @@ async def retake_lookup(
                 "total_mark": (res.total_mark if res else None),
                 "percentage": (res.percentage if res else None),
                 "grade": (res.grade if res else None),
+                "is_retake": bool(getattr(res, "is_retake", False)),
                 "requested_subjects": requested,
             }
         )
@@ -2274,15 +2279,15 @@ class ScheduleSaveIn(BaseModel):
 async def _delete_exam_rows(db: AsyncSession, exam: SchoolExam) -> None:
     """Delete a paper and every row that only exists because of it.
 
-    Answers hold an FK to the paper's question rows, so they go first; a
-    duplicate removed by _dedupe_class_exams normally has no sittings, but the
-    order keeps this safe either way.
+    The foreign keys decide the order: results, answers and sync logs all point
+    at an attempt, and answers point at the paper's questions, so those children
+    must go BEFORE the rows they reference. Deleting the attempts first (as this
+    used to) raised a FK violation, which is the 500 teachers saw on "Delete
+    this paper".
     """
     qids = (
         await db.execute(select(SchoolExamQuestion.id).where(SchoolExamQuestion.exam_id == exam.id))
     ).scalars().all()
-    if qids:
-        await db.execute(delete(SchoolExamAnswer).where(SchoolExamAnswer.exam_question_id.in_(qids)))
     att_ids = (
         await db.execute(select(SchoolExamAttempt.id).where(SchoolExamAttempt.exam_id == exam.id))
     ).scalars().all()
@@ -2293,18 +2298,56 @@ async def _delete_exam_rows(db: AsyncSession, exam: SchoolExam) -> None:
             .where(SchoolExamSyncLog.attempt_id.in_(att_ids))
             .values(attempt_id=None)
         )
-        await db.execute(delete(SchoolExamAttempt).where(SchoolExamAttempt.id.in_(att_ids)))
+    if qids:
+        await db.execute(delete(SchoolExamAnswer).where(SchoolExamAnswer.exam_question_id.in_(qids)))
     # Sync logs carry a NOT NULL exam_id, so they must go with the paper too.
     await db.execute(delete(SchoolExamSyncLog).where(SchoolExamSyncLog.exam_id == exam.id))
-    for rel in (SchoolExamQuestion, SchoolExamAssignment, SchoolExamResult, SchoolExamDownload):
+    for rel in (SchoolExamResult, SchoolExamDownload):
         await db.execute(delete(rel).where(rel.exam_id == exam.id))
+    if att_ids:
+        await db.execute(delete(SchoolExamAttempt).where(SchoolExamAttempt.id.in_(att_ids)))
+    for rel in (SchoolExamQuestion, SchoolExamAssignment):
+        await db.execute(delete(rel).where(rel.exam_id == exam.id))
+    # The credential row is the student's identity (the printed slip) — detach
+    # it from the removed paper instead of deleting it.
     await db.execute(
         update(SchoolExamAccessCode)
         .where(SchoolExamAccessCode.exam_id == exam.id)
         .values(exam_id=None)
     )
-    await db.delete(exam)
+    await db.execute(delete(SchoolExam).where(SchoolExam.id == exam.id))
+    try:
+        db.expunge(exam)
+    except Exception:
+        pass
     await db.flush()
+
+
+async def _exam_has_sitting(db: AsyncSession, exam: SchoolExam) -> bool:
+    """True once anybody sat or scored this paper — deleting it would destroy a
+    record the school must be able to show (a mark is evidence)."""
+    attempts = (
+        await db.execute(
+            select(func.count(SchoolExamAttempt.id)).where(SchoolExamAttempt.exam_id == exam.id)
+        )
+    ).scalar_one()
+    if int(attempts or 0):
+        return True
+    results = (
+        await db.execute(
+            select(func.count(SchoolExamResult.id)).where(SchoolExamResult.exam_id == exam.id)
+        )
+    ).scalar_one()
+    return bool(int(results or 0))
+
+
+def _unschedule_exam(exam: SchoolExam) -> None:
+    """Take a paper off the calendar while keeping every score it produced."""
+    exam.exam_date = None
+    exam.scheduled_start = None
+    exam.scheduled_end = None
+    exam.is_published = False
+    exam.status = "draft"
 
 
 async def _dedupe_class_exams(db: AsyncSession, sid: UUID, cls_norm: str) -> int:
@@ -2583,23 +2626,12 @@ async def save_schedule(
     for subject, exam in list(by_subject.items()):
         if subject in {w.strip().lower() for w in want}:
             continue
-        if any(str(a) for a in (
-            await db.execute(
-                select(SchoolExamAttempt.id).where(SchoolExamAttempt.exam_id == exam.id)
-            )
-        ).scalars().all()[:1]):
-            continue  # keep exams with submissions
-        for rel in (SchoolExamQuestion, SchoolExamAssignment, SchoolExamResult):
-            await db.execute(delete(rel).where(rel.exam_id == exam.id))
-        # The credential row is the student's identity (the printed slip) —
-        # detach it from the removed paper instead of deleting it, so saving the
-        # schedule again reuses the same reg number + access code.
-        await db.execute(
-            update(SchoolExamAccessCode)
-            .where(SchoolExamAccessCode.exam_id == exam.id)
-            .values(exam_id=None)
-        )
-        await db.delete(exam)
+        if await _exam_has_sitting(db, exam):
+            # Somebody sat or scored it: leaving the subject out of the schedule
+            # takes the paper off the calendar, never off the Result Book.
+            _unschedule_exam(exam)
+            continue
+        await _delete_exam_rows(db, exam)
         removed += 1
     await db.flush()
     return {
@@ -2610,31 +2642,6 @@ async def save_schedule(
         "removed": removed,
         "missing_questions": missing,
     }
-
-
-async def _purge_exam_sittings(db: AsyncSession, exam: SchoolExam) -> int:
-    """Delete every sitting of an exam, children first.
-
-    A forced Clear throws a practice paper away. Answers hold an FK to
-    school_exam_questions, and results / sync logs hold FKs to attempts, so the
-    rows have to go in this order or the delete fails.
-    """
-    att_ids = (
-        await db.execute(select(SchoolExamAttempt.id).where(SchoolExamAttempt.exam_id == exam.id))
-    ).scalars().all()
-    if att_ids:
-        await db.execute(delete(SchoolExamAnswer).where(SchoolExamAnswer.attempt_id.in_(att_ids)))
-        await db.execute(
-            update(SchoolExamSyncLog)
-            .where(SchoolExamSyncLog.attempt_id.in_(att_ids))
-            .values(attempt_id=None)
-        )
-        await db.execute(delete(SchoolExamAttempt).where(SchoolExamAttempt.id.in_(att_ids)))
-    await db.execute(delete(SchoolExamSyncLog).where(SchoolExamSyncLog.exam_id == exam.id))
-    for rel in (SchoolExamResult, SchoolExamDownload):
-        await db.execute(delete(rel).where(rel.exam_id == exam.id))
-    await db.flush()
-    return len(att_ids)
 
 
 @router.delete("/schedule/{class_name}")
@@ -2670,25 +2677,17 @@ async def clear_schedule(
     removed = 0
     kept = 0
     for exam in exams:
-        attempts = (
-            await db.execute(select(SchoolExamAttempt.id).where(SchoolExamAttempt.exam_id == exam.id))
-        ).scalars().all()
-        if attempts and not force:
+        if not force and await _exam_has_sitting(db, exam):
+            # Plain Clear removes the SCHEDULE, not the record: the paper comes
+            # off the calendar and every score stays in Results. Only the
+            # explicit "Delete papers + scores" (force) throws sittings away.
+            _unschedule_exam(exam)
             kept += 1
             continue
-        if attempts:
-            await _purge_exam_sittings(db, exam)
-        for rel in (SchoolExamQuestion, SchoolExamAssignment, SchoolExamResult):
-            await db.execute(delete(rel).where(rel.exam_id == exam.id))
-        await db.execute(
-            update(SchoolExamAccessCode)
-            .where(SchoolExamAccessCode.exam_id == exam.id)
-            .values(exam_id=None)
-        )
-        await db.delete(exam)
+        await _delete_exam_rows(db, exam)
         removed += 1
     await db.flush()
-    return {"ok": True, "removed": removed, "kept": kept}
+    return {"ok": True, "removed": removed, "kept": kept, "unscheduled": kept}
 
 
 @router.get("/schedule")
@@ -2832,15 +2831,11 @@ async def delete_exam(
     subs = (
         await db.execute(select(func.count(SchoolExamAttempt.id)).where(SchoolExamAttempt.exam_id == exam.id))
     ).scalar_one()
-    if int(subs or 0) > 0:
-        if not force:
-            raise HTTPException(status_code=400, detail="This exam already has submissions — archive it instead")
-        # Explicit per-paper erase: only THIS paper's sittings/scores go. The
-        # other subjects in the class keep their schedule and results.
-        await _purge_exam_sittings(db, exam)
-    # Keep each student's slip: the credential row is their identity, so it is
-    # detached from the removed paper instead of deleted (deleting it minted a
-    # brand-new access code on the next schedule save).
+    if int(subs or 0) > 0 and not force:
+        raise HTTPException(status_code=400, detail="This exam already has submissions — archive it instead")
+    # Explicit per-paper erase: only THIS paper's sittings/scores go. The other
+    # subjects in the class keep their schedule and results, and each student's
+    # slip (access code) is detached rather than deleted.
     await _delete_exam_rows(db, exam)
     return {"ok": True}
 
@@ -4195,6 +4190,8 @@ async def exam_results(
                 "final_score": res.final_score,
                 "percentage": res.percentage,
                 "grade": res.grade,
+                "is_retake": bool(getattr(res, "is_retake", False)),
+                "attempt_no": int(getattr(res, "attempt_no", 1) or 1),
                 "is_published": bool(res.is_published),
                 "submitted_at": res.created_at.isoformat() if res.created_at else None,
             }
@@ -4225,17 +4222,24 @@ async def retake_history(
         return {"student": None, "history": []}
     student = rows[0][2]
     history = []
+    seen_exams: set[str] = set()
     for code, exam, user in rows:
-        if exam is None:
+        if exam is None or str(exam.id) in seen_exams:
             continue
-        res = (
+        seen_exams.add(str(exam.id))
+        # EVERY sitting, oldest first: the original score stays on record and
+        # each retake is listed under it, so a teacher can show the child
+        # "29 → then 28" instead of arguing about a mark that was overwritten.
+        results = (
             await db.execute(
-                select(SchoolExamResult).where(
+                select(SchoolExamResult)
+                .where(
                     SchoolExamResult.exam_id == exam.id,
                     SchoolExamResult.student_id == user.id,
                 )
+                .order_by(SchoolExamResult.created_at.asc())
             )
-        ).scalar_one_or_none()
+        ).scalars().all()
         granted_at = (
             await db.execute(
                 select(func.max(SchoolExamSyncLog.created_at)).where(
@@ -4245,22 +4249,28 @@ async def retake_history(
                 )
             )
         ).scalar()
-        history.append(
-            {
-                "exam_id": str(exam.id),
-                "subject": exam.subject,
-                "class_name": (exam.class_name or "").upper(),
-                "session": exam.session,
-                "term": exam.term,
-                "submitted": bool(code.is_used),
-                "score": (res.final_score if res else None),
-                "total_mark": (res.total_mark if res else None) or (exam.total_mark or None),
-                "percentage": (res.percentage if res else None),
-                "grade": (res.grade if res else None),
-                "retake_granted_at": granted_at.isoformat() if granted_at else None,
-            }
-        )
-    history.sort(key=lambda h: h.get("retake_granted_at") or "", reverse=True)
+        for res in (results or [None]):
+            history.append(
+                {
+                    "exam_id": str(exam.id),
+                    "subject": exam.subject,
+                    "class_name": (exam.class_name or "").upper(),
+                    "session": exam.session,
+                    "term": exam.term,
+                    "submitted": bool(res is not None),
+                    "score": (res.final_score if res else None),
+                    "total_mark": (res.total_mark if res else None) or (exam.total_mark or None),
+                    "percentage": (res.percentage if res else None),
+                    "grade": (res.grade if res else None),
+                    "is_retake": bool(getattr(res, "is_retake", False)),
+                    "attempt_no": int(getattr(res, "attempt_no", 1) or 1),
+                    "sitting_at": res.created_at.isoformat() if (res and res.created_at) else None,
+                    "retake_granted_at": granted_at.isoformat() if granted_at else None,
+                }
+            )
+    history.sort(
+        key=lambda h: (h.get("retake_granted_at") or "", h.get("sitting_at") or ""), reverse=True
+    )
     return {
         "student": {
             "id": str(student.id),
@@ -4280,8 +4290,9 @@ async def grant_retake(
     db: AsyncSession = Depends(get_db),
 ):
     """Reference dashboard's \"Grant Exam Retake\": listed students may sit the
-    exam again — we clear their last attempt (keeping the audit log) so the
-    portal shows START EXAM once more."""
+    exam again. The old attempt, answers and result are KEPT (they are the
+    evidence a teacher shows the child); the slip is re-opened and the retake
+    gets its own result row marked as a retake."""
     sid = _staff_school_id(current_user, school_id)
     exam = await _get_school_exam(db, exam_id, sid)
     granted = []
@@ -4290,36 +4301,11 @@ async def grant_retake(
             suid = UUID(str(s))
         except ValueError:
             continue
-        attempts = (
-            await db.execute(
-                select(SchoolExamAttempt).where(
-                    SchoolExamAttempt.exam_id == exam.id, SchoolExamAttempt.student_id == suid
-                )
-            )
-        ).scalars().all()
-        att_ids = [att.id for att in attempts]
-
-        # Delete children BEFORE the attempt rows. SchoolExamResult and
-        # SchoolExamSyncLog both hold FKs to school_exam_attempts, so the old
-        # order (log → delete attempt → delete result) raised a FK violation
-        # and silently left the retake un-granted.
-        await db.execute(
-            delete(SchoolExamResult).where(
-                SchoolExamResult.exam_id == exam.id, SchoolExamResult.student_id == suid
-            )
-        )
-        if att_ids:
-            await db.execute(delete(SchoolExamAnswer).where(SchoolExamAnswer.attempt_id.in_(att_ids)))
-            # Keep the audit trail but detach it from the attempts we remove.
-            await db.execute(
-                update(SchoolExamSyncLog)
-                .where(SchoolExamSyncLog.attempt_id.in_(att_ids))
-                .values(attempt_id=None)
-            )
-            for att in attempts:
-                await db.delete(att)
-        # A fresh download is required after a retake so the student receives
-        # a NEW randomized paper instead of the old cached one.
+        # The previous sitting is EVIDENCE: its attempt, answers and result
+        # stay on record, so the Results tab shows the first mark next to the
+        # retake instead of quietly replacing it. Only the cached download is
+        # dropped (a retake gets a freshly randomized paper) and the slip is
+        # re-opened so the student can start again.
         await db.execute(
             delete(SchoolExamDownload).where(
                 SchoolExamDownload.exam_id == exam.id, SchoolExamDownload.student_id == suid
@@ -4599,11 +4585,14 @@ async def student_my_exams(
             window_open = _exam_window_open(e, now) or retake_granted or (e.id in in_progress)
             res = (
                 await db.execute(
-                    select(SchoolExamResult).where(
+                    select(SchoolExamResult)
+                    .where(
                         SchoolExamResult.exam_id == e.id, SchoolExamResult.student_id == user.id
                     )
+                    .order_by(SchoolExamResult.created_at.desc())
+                    .limit(1)
                 )
-            ).scalar_one_or_none()
+            ).scalars().first()
             out.append(
                 {
                     "id": str(e.id),
@@ -4864,8 +4853,11 @@ async def start_attempt(
                 )
             )
         ).scalar_one()
-        allowed = int(exam.max_attempts or 1) + (1 if is_retake else 0)
-        if int(past or 0) >= allowed:
+        # A granted retake (single-use flag, consumed right below) always
+        # opens exactly one more sitting. It cannot rely on an attempt count
+        # any more: a retake's attempt is now KEPT on record instead of being
+        # deleted, so counting attempts would block the second retake.
+        if int(past or 0) >= int(exam.max_attempts or 1) and not is_retake:
             raise HTTPException(status_code=403, detail="You have already taken this examination")
         # A granted retake buys exactly ONE more sit — consume it as soon as
         # the new attempt starts so the flag cannot be reused for free attempts.
@@ -5155,12 +5147,32 @@ async def submit_attempt(
     res = (
         await db.execute(
             select(SchoolExamResult).where(
-                SchoolExamResult.exam_id == exam.id, SchoolExamResult.student_id == user.id
+                SchoolExamResult.exam_id == exam.id,
+                SchoolExamResult.student_id == user.id,
+                SchoolExamResult.attempt_id == attempt.id,
             )
         )
     ).scalar_one_or_none()
     if not res:
-        res = SchoolExamResult(school_id=exam.school_id, exam_id=exam.id, student_id=user.id, attempt_id=attempt.id)
+        # Each sitting keeps its OWN result row: a retake must never overwrite
+        # the score the student already earned — that mark is what the teacher
+        # compares the new one against.
+        prior = (
+            await db.execute(
+                select(func.count(SchoolExamResult.id)).where(
+                    SchoolExamResult.exam_id == exam.id,
+                    SchoolExamResult.student_id == user.id,
+                )
+            )
+        ).scalar_one()
+        res = SchoolExamResult(
+            school_id=exam.school_id,
+            exam_id=exam.id,
+            student_id=user.id,
+            attempt_id=attempt.id,
+            is_retake=bool(prior),
+            attempt_no=int(prior or 0) + 1,
+        )
         db.add(res)
     res.attempt_id = attempt.id
     res.total_questions = total_q

@@ -949,11 +949,18 @@ async def ensure_school_cbt_schema() -> None:
             percentage DOUBLE PRECISION NOT NULL DEFAULT 0,
             grade VARCHAR(5) NULL,
             is_published BOOLEAN NOT NULL DEFAULT FALSE,
+            is_retake BOOLEAN NOT NULL DEFAULT FALSE,
+            attempt_no INTEGER NOT NULL DEFAULT 1,
             published_at TIMESTAMP NULL,
             created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW()
         )
         """,
-        "CREATE UNIQUE INDEX IF NOT EXISTS ux_school_exam_results ON school_exam_results (exam_id, student_id)",
+        "ALTER TABLE school_exam_results ADD COLUMN IF NOT EXISTS is_retake BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE school_exam_results ADD COLUMN IF NOT EXISTS attempt_no INTEGER NOT NULL DEFAULT 1",
+        # One result per sitting: a retake keeps the original score and adds a
+        # second row marked as the retake (the old unique index allowed one).
+        "DROP INDEX IF EXISTS ux_school_exam_results",
+        "CREATE UNIQUE INDEX IF NOT EXISTS ux_school_exam_results_attempt ON school_exam_results (exam_id, student_id, attempt_id)",
     )
     for stmt in stmts:
         try:

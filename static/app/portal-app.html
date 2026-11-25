@@ -3526,12 +3526,12 @@ tr:last-child td{border-bottom:none}
     confirmModal(force ? "Delete papers AND their scores" : "Clear schedule — results are kept",
       force
         ? 'Throw away the practice papers for <strong>' + esc(cls) + '</strong>, <strong>including the sittings students already did</strong>? Their attempts and scores on these papers are erased, so the main exam can be scheduled with no "already taken" tick. Other classes and the Result Book are not touched.'
-        : 'Clear the schedule for <strong>' + esc(cls) + '</strong>? Papers nobody has sat are removed so the class can be re-scheduled cleanly; <strong>papers already sat and every score are kept</strong>.',
+        : 'Clear the schedule for <strong>' + esc(cls) + '</strong>? Subjects nobody has sat are removed; a paper that already has scores is taken off the schedule and <strong>every score stays in Results</strong>. Use “Delete papers + scores” only when you really want the marks erased.',
       function (btn) {
         busy(btn, true);
         cbtApi("/schedule/" + encodeURIComponent(cls) + (force ? "?force=true" : ""), { method: "DELETE" }).then(function (d) {
           closeModal();
-          toast((d.removed || 0) + " scheduled exam(s) cleared" + (d.kept ? " · " + d.kept + " kept (already sat)" : ""));
+          toast((d.removed || 0) + " scheduled exam(s) cleared" + (d.kept ? " · " + d.kept + " kept — results safe, off the schedule" : ""));
           schLoadCurrent(cls);
         }).catch(function (e) { busy(btn, false, "Confirm"); mErr(errText(e)); });
       }, force ? "Delete scores" : "Clear schedule", true);
@@ -3552,7 +3552,7 @@ tr:last-child td{border-bottom:none}
      see their exams + scores → grant the retake — */
   function retakeList() {
     $("exBody").innerHTML = '<div class="panel"><h3>🔄 Grant Exam Retake</h3>' +
-      '<p class="mhint" style="margin-bottom:14px">Enter the student\'s Registration Number, fetch their exams, and grant a retake. Their previous attempt is cleared and they can start again.</p>' +
+      '<p class="mhint" style="margin-bottom:14px">Enter the student\'s Registration Number, fetch their exams, and grant a retake. Their old score stays on record, the new sitting is marked as a retake, and they can start again.</p>' +
       '<div class="form-grid rg2"><div><label class="f-label">🔢 Student Reg Number *</label><input class="f-in" id="rtReg" placeholder="Enter registration number e.g. SCHX/26/544560" onkeydown="if(event.key===\'Enter\')retakeFetch()" /></div>' +
       '<div><label class="f-label">&nbsp;</label><button class="btn" onclick="retakeFetch()">🔍 Fetch Student</button></div></div>' +
       '<div id="rtOut"><div class="empty">Fetch a student to see their exams.</div></div>' +
@@ -3599,17 +3599,17 @@ tr:last-child td{border-bottom:none}
           var score = x.score != null
             ? '<strong>' + x.score + ' / ' + (x.total_mark || "—") + '</strong>' + (x.percentage != null ? ' (' + x.percentage + '%)' : "")
             : "—";
-          return '<tr><td><span class="pill blue">' + esc(x.subject) + '</span></td>' +
+          return '<tr><td><span class="pill blue">' + esc(x.subject) + '</span>' + (x.is_retake ? ' <span class="pill warn">Retake</span>' : '') + '</td>' +
             '<td>' + esc(x.class_name || "—") + '</td>' +
             '<td>' + score + '</td>' +
             '<td>' + esc(x.grade || "—") + '</td>' +
-            '<td>' + (x.submitted ? '<span class="pill ok">Submitted</span>' : '<span class="pill gray">Not submitted</span>') + '</td>' +
+            '<td>' + (x.submitted ? '<span class="pill ok">Submitted</span>' : '<span class="pill gray">Not submitted</span>') + (x.sitting_at ? '<div class="mhint">' + dt(x.sitting_at) + '</div>' : '') + '</td>' +
             '<td>' + (x.retake_granted_at ? dOnly(x.retake_granted_at) : "—") + '</td></tr>';
         }));
     }).catch(function () { box.innerHTML = ""; });
   }
   window.retakeGrant = function (examId, studentId, name, subject) {
-    confirmModal("Grant Exam Retake", 'Allow <strong>' + esc(name) + '</strong> to retake <strong>' + esc(subject) + '</strong>? Their previous attempt is cleared and a fresh attempt is recorded.', function (btn) {
+    confirmModal("Grant Exam Retake", 'Allow <strong>' + esc(name) + '</strong> to retake <strong>' + esc(subject) + '</strong>? Their old score stays on record and the new sitting is marked as a retake.', function (btn) {
       busy(btn, true);
       cbtApi("/exams/" + examId + "/retake", { method: "POST", body: { student_ids: [studentId] } }).then(function () {
         closeModal(); toast("Retake granted — " + name + " can start again"); retakeFetch();
@@ -3678,7 +3678,7 @@ tr:last-child td{border-bottom:none}
     cbtApi("/exams/" + examId + "/results").then(function (d) {
       window.__rvData = d;
       var rows = (d.results || []).map(function (r, i) {
-        return '<tr><td>' + (i + 1) + '</td><td><strong>' + esc(r.student_name) + '</strong></td><td><code>' + esc(r.reg_number || "—") + '</code></td><td>' + r.total_questions + '</td><td><strong style="color:var(--ok)">' + r.correct_answers + '</strong></td><td><strong>' + r.final_score + ' / ' + r.total_mark + '</strong></td><td>' + r.percentage + '%</td><td><span class="pill ' + (r.percentage >= 50 ? "ok" : "bad") + '">' + esc(r.grade || "—") + '</span></td><td>' + dt(r.submitted_at) + '</td>' +
+        return '<tr><td>' + (i + 1) + '</td><td><strong>' + esc(r.student_name) + '</strong>' + (r.is_retake ? ' <span class="pill warn">Retake</span>' : '') + '</td><td><code>' + esc(r.reg_number || "—") + '</code></td><td>' + r.total_questions + '</td><td><strong style="color:var(--ok)">' + r.correct_answers + '</strong></td><td><strong>' + r.final_score + ' / ' + r.total_mark + '</strong></td><td>' + r.percentage + '%</td><td><span class="pill ' + (r.percentage >= 50 ? "ok" : "bad") + '">' + esc(r.grade || "—") + '</span></td><td>' + dt(r.submitted_at) + '</td>' +
           '<td><button class="btn sm ghost" onclick="grantRetake(\'' + esc(r.student_id) + '\',\'' + esc(r.student_name).replace(/'/g, "") + '\')">↻ Grant Retake</button></td></tr>';
       });
       var box = $("rvTbl");
@@ -3697,7 +3697,7 @@ tr:last-child td{border-bottom:none}
     if (!d || !(d.results || []).length) return toastErr("Open an exam with submissions first, then print.");
     var ex = d.exam || {};
     var rows = (d.results || []).map(function (r, i) {
-      return '<tr><td>' + (i + 1) + '</td><td>' + esc(r.student_name) + '</td><td>' + esc(r.reg_number || "—") + '</td>' +
+      return '<tr><td>' + (i + 1) + '</td><td>' + esc(r.student_name) + (r.is_retake ? " (retake)" : "") + '</td><td>' + esc(r.reg_number || "—") + '</td>' +
         '<td>' + esc(ex.class_name || "") + '</td><td>' + esc(ex.subject || "") + '</td><td>' + r.total_questions + '</td><td>' + r.correct_answers + '</td><td><strong>' + r.final_score + ' / ' + r.total_mark + '</strong></td>' +
         '<td>' + r.percentage + '%</td><td>' + esc(r.grade || "—") + '</td><td>' + dOnly(r.submitted_at) + '</td></tr>';
     }).join("");
@@ -3725,7 +3725,7 @@ tr:last-child td{border-bottom:none}
   };
   window.grantRetake = function (studentId, name) {
     var examId = window.__rvExam; if (!examId) return;
-    confirmModal("Grant Exam Retake", 'Allow <strong>' + esc(name) + '</strong> to retake this examination? Their previous attempt is cleared and a fresh attempt is recorded.', function (btn) {
+    confirmModal("Grant Exam Retake", 'Allow <strong>' + esc(name) + '</strong> to retake this examination? Their old score stays on record and the new sitting is marked as a retake.', function (btn) {
       busy(btn, true);
       cbtApi("/exams/" + examId + "/retake", { method: "POST", body: { student_ids: [studentId] } }).then(function () {
         closeModal(); toast("Retake granted — student can start again"); examResultsView(examId);

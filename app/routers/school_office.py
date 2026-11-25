@@ -1608,34 +1608,9 @@ async def grant_retake(
             await db.execute(select(SchoolExam).where(SchoolExam.id == portal_exam_id))
         ).scalar_one_or_none()
         if portal_exam is not None:
-            old_attempts = (
-                await db.execute(
-                    select(SchoolExamAttempt).where(
-                        SchoolExamAttempt.exam_id == portal_exam.id,
-                        SchoolExamAttempt.student_id == student_id,
-                    )
-                )
-            ).scalars().all()
-            old_attempt_ids = [a.id for a in old_attempts]
-            # Result first (it points at the attempt), then answers, then the
-            # attempts themselves — Postgres enforces those foreign keys.
-            await db.execute(
-                delete(SchoolExamResult).where(
-                    SchoolExamResult.exam_id == portal_exam.id,
-                    SchoolExamResult.student_id == student_id,
-                )
-            )
-            if old_attempt_ids:
-                await db.execute(
-                    delete(SchoolExamAnswer).where(SchoolExamAnswer.attempt_id.in_(old_attempt_ids))
-                )
-                await db.execute(
-                    _sa_update(SchoolExamSyncLog)
-                    .where(SchoolExamSyncLog.attempt_id.in_(old_attempt_ids))
-                    .values(attempt_id=None)
-                )
-                for old in old_attempts:
-                    await db.delete(old)
+            # The previous sitting is kept as evidence: its result, answers and
+            # attempt stay, so the retake can be compared with the original mark
+            # instead of deleting it.
             # A retake gets a freshly randomized paper, so the old download
             # must go too (the portal asks for a fresh download before starting).
             await db.execute(
