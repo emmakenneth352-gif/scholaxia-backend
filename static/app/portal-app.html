@@ -1072,17 +1072,24 @@ tr:last-child td{border-bottom:none}
       busy($("adSave"), true);
       officeApi("/students", { method: "POST", body: { full_name: name, class_name: cls, password: pw, email: em || null } }).then(function (d) {
         closeModal();
-        openModal("✅ Student created",
-          '<div class="mnote">Share these login details with the student:<br/><br/>Student ID: <code>' + esc(d.student_id || d.id || "—") + '</code><br/>Password: <code>' + esc(d.password || pw) + '</code><br/>Class: <code>' + esc(cls) + '</code></div>' +
-          '<p class="mhint" style="margin-top:10px">The student logs in on your school link with this Student ID + password.</p>',
-          '<button class="btn" onclick="closeModal()">Done</button>');
+        if (d.existing_account) {
+          openModal("✅ Student linked to your school",
+            '<div class="mnote"><strong>' + esc(name) + '</strong> already had a Scholaxia account with that email, so it was added to your school roster instead of being rejected.<br/><br/>Student ID: <code>' + esc(d.student_id || d.id || "—") + '</code><br/>Class: <code>' + esc(cls) + '</code>' + (d.password ? '<br/>New password: <code>' + esc(d.password) + '</code>' : '<br/><span class="muted">Their existing password still works.</span>') + '</div>' +
+            '<p class="mhint" style="margin-top:10px">One child, one account — no duplicate was created.</p>',
+            '<button class="btn" onclick="closeModal()">Done</button>');
+        } else {
+          openModal("✅ Student created",
+            '<div class="mnote">Share these login details with the student:<br/><br/>Student ID: <code>' + esc(d.student_id || d.id || "—") + '</code><br/>Password: <code>' + esc(d.password || pw) + '</code><br/>Class: <code>' + esc(cls) + '</code></div>' +
+            '<p class="mhint" style="margin-top:10px">The student logs in on your school link with this Student ID + password.</p>',
+            '<button class="btn" onclick="closeModal()">Done</button>');
+        }
         loadStudents();
       }).catch(function (e) { busy($("adSave"), false, "Add student"); mErr(errText(e)); });
     });
   };
   window.importStudents = function () {
     openModal("Import Students (CSV)",
-      '<p class="mhint" style="margin-bottom:12px">CSV columns: <code>full_name, class_name</code> (plus optional <code>email</code>, <code>student_id</code>). Passwords are auto-generated and shown after import.</p>' +
+      '<p class="mhint" style="margin-bottom:12px">CSV columns: <code>full_name, class_name</code> (plus optional <code>email</code>, <code>student_id</code>). Passwords are auto-generated and shown after import. A student who already has a Scholaxia account with that email is <strong>linked to your school</strong> — never rejected as a duplicate.</p>' +
       '<div class="mrow"><input type="file" id="impFile" accept=".csv,text/csv" class="f-in" /></div><div class="merr"></div>',
       '<button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn" id="impGo">Import</button>');
     $("impGo").addEventListener("click", function () {
@@ -1096,7 +1103,7 @@ tr:last-child td{border-bottom:none}
         openModal("✅ Imported " + (d.created_count != null ? d.created_count : made.length) + " students",
           (d.errors && d.errors.length ? '<p class="mhint" style="margin-bottom:10px;color:var(--bad)">Skipped: ' + esc(d.errors.join("; ")) + '</p>' : "") +
           '<div style="max-height:300px;overflow:auto">' + tbl(["Name", "Student ID", "Password"], made.map(function (s) {
-            return '<tr><td>' + esc(s.full_name) + '</td><td><span class="pill violet">' + esc(s.student_id || "—") + '</span></td><td><code>' + esc(s.password || "—") + '</code></td></tr>';
+            return '<tr><td>' + esc(s.full_name) + (s.existing_account ? ' <span class="pill blue">linked</span>' : '') + '</td><td><span class="pill violet">' + esc(s.student_id || "—") + '</span></td><td>' + (s.existing_account ? '<span class="muted">existing password</span>' : '<code>' + esc(s.password || "—") + '</code>') + '</td></tr>';
           })) + '</div>', '<button class="btn" onclick="closeModal()">Done</button>', true);
         loadStudents();
       }).catch(function (e) { busy($("impGo"), false, "Import"); mErr(errText(e)); });
@@ -1627,10 +1634,13 @@ tr:last-child td{border-bottom:none}
         (d.exams_assigned ? ' (already scheduled)' : '') + schedNote +
         (pickedTxt ? '.<br/><span class="muted" style="font-size:13px">' + pickedTxt + '</span>' : '.') + codeLine +
         (d.reg_number ? '<div style="margin-top:12px"><button class="btn green" onclick="printRegSlip(window.__lastReg)">🖨️ Print Registration Slip</button></div>' : '') + '</div>';
+      if (d.already_registered) {
+        $("rgDone").innerHTML += '<div class="mhint" style="margin-top:8px">ℹ️ This student was already registered — the slip above is their existing one. Nothing was duplicated.</div>';
+      }
       window.__lastReg = d;
       $("rgFirst").value = ""; $("rgMiddle").value = ""; $("rgSur").value = "";
       regRecent();
-      toast("Student registered — details ready to print");
+      toast(d.already_registered ? "Already registered — showing their existing slip" : "Student registered — details ready to print");
     }).catch(toastErr);
   };
   function regRecent() {

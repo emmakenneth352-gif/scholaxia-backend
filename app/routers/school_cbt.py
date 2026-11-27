@@ -1885,16 +1885,27 @@ async def register_exam_student(
     ).first()
     if dup is not None:
         du, dc = dup
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"{du.full_name} is already registered in {cls} — Registration Number "
-                f"{dc.reg_number}, Access Code {dc.access_code}. Print that slip again "
-                f"instead of registering a duplicate."
-                if dc is not None
-                else f"{du.full_name} is already registered in {cls}."
-            ),
-        )
+        if dc is not None:
+            # Already on the roster: hand back the SAME slip instead of an
+            # error, so registering a class twice (or re-adding students who
+            # came over from the Scholaxia portal) never blocks the school and
+            # never mints a second identity for one child.
+            try:
+                req = json.loads(dc.requested_subjects or "[]")
+            except Exception:
+                req = []
+            return {
+                "student_id": str(du.id),
+                "full_name": du.full_name,
+                "class_name": cls,
+                "exams_assigned": 0,
+                "subjects": [s for s in req if str(s).upper() != "ALL"],
+                "requested_subjects": req,
+                "reg_number": dc.reg_number,
+                "access_code": dc.access_code,
+                "already_registered": True,
+            }
+        raise HTTPException(status_code=409, detail=f"{du.full_name} is already registered in {cls}.")
 
     # Exam-scoped students never log into the main app; email is a unique
     # placeholder (they sign in with REG NUMBER + ACCESS CODE, §14).

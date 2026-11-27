@@ -819,14 +819,12 @@ async def register_candidate(
         )
     ).scalars().first()
     if dup is not None:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"{dup.full_name} is already registered in {cls} — Registration Number "
-                f"{dup.rec_number}, Access Code {dup.access_code}. Print that slip again "
-                f"instead of registering a duplicate."
-            ),
-        )
+        # Already on the roster: return their EXISTING slip instead of failing.
+        # Re-adding a class (or uploading the list twice) must never block
+        # registration or mint a second identity for one child.
+        data = _candidate_dict(dup)
+        data["already_registered"] = True
+        return data
 
     # Exam-scoped student account (never logs into the main app — credentials
     # are REG NUMBER + ACCESS CODE, §14).
@@ -967,11 +965,23 @@ def _student_row(user: User, profile: StudentProfile | None, campus: SchoolCampu
     }
 
 
-async def _create_school_student(db: AsyncSession, campus: SchoolCampus, payload: SchoolStudentIn) -> tuple[User, str]:
+async def _create_school_student(
+    db: AsyncSession, campus: SchoolCampus, payload: SchoolStudentIn
+) -> tuple[User, str | None, bool]:
+    """Put a student on this school's roster — even if Scholaxia already knows them.
+
+    Students very often registered on the main Scholaxia portal first (or the
+    school imported the class once already), so their EMAIL is already the
+    login identity of an existing account. Rejecting that row ("Email already
+    in use") is what stopped a whole class — and, at exam time, a whole school —
+    from being registered. The account is reused and claimed by this school
+    instead: one child, one account, one login, now on this roster.
+    """
     sid = (payload.student_id or "").strip().upper() or (
         (campus.code or "STU").upper()[:8] + "-" + secrets.token_hex(2).upper()
     )
     email = str(payload.email or "").lower().strip()
+    password = (payload.password or "").strip() or secrets.token_urlsafe(8)
     if not email:
         # No email provided — synthesize a unique placeholder (students log
         # in with their Student ID, never this address).
@@ -981,10 +991,56 @@ async def _create_school_student(db: AsyncSession, campus: SchoolCampus, payload
             await db.execute(select(User.id).where(User.email == email))
         ).scalar_one_or_none() is not None:
             email = f"{sid.lower()}-{secrets.token_hex(2)}@{base_slug}.scholaxia.local"
-    existing = (await db.execute(select(User).where(User.email == email))).scalar_one_or_none()
-    if existing:
-        raise HTTPException(status_code=400, detail=f"Email already in use: {email}")
-    password = (payload.password or "").strip() or secrets.token_urlsafe(8)
+    existing = (
+        await db.execute(select(User).where(func.lower(User.email) == email))
+    ).scalar_one_or_none()
+    if existing is not None and existing.role == UserRole.student:
+        user = existing
+        profile = (
+            await db.execute(select(StudentProfile).where(StudentProfile.user_id == user.id))
+        ).scalar_one_or_none()
+        claimed = profile is None or user.school_id != campus.id
+        if user.school_id != campus.id:
+            # The school registering a student is the school they belong to;
+            # leaving school_id alone hid them from this roster forever.
+            user.school_id = campus.id
+        if not user.is_active:
+            user.is_active = True
+        if profile is None:
+            profile = StudentProfile(
+                user_id=user.id,
+                education_level=payload.class_name.strip().upper(),
+                school_student_id=sid,
+                has_active_subscription=bool(getattr(campus, "subscription_active", False)),
+            )
+            db.add(profile)
+        else:
+            if payload.class_name and payload.class_name.strip():
+                profile.education_level = payload.class_name.strip().upper()
+            if sid and not profile.school_student_id:
+                profile.school_student_id = sid
+        if claimed:
+            # Claiming the account sets the password the school is about to
+            # hand out. A repeat import of a row that is already on this
+            # roster never rotates a password students may be using.
+            user.hashed_password = hash_password(password)
+            await db.flush()
+            return user, password, True
+        await db.flush()
+        return user, None, True
+    if existing is not None:
+        # The address belongs to a teacher/admin/parent account that must not
+        # be hijacked into a student row: keep that account untouched and give
+        # this student a school-scoped address instead of failing the row.
+        local, _, domain = email.partition("@")
+        tag = (campus.code or campus.slug or "school").lower().replace("-", "")[:12] or "school"
+        email = f"{local}+{tag}@{domain or 'school.scholaxia.local'}"
+        n = 1
+        while (
+            await db.execute(select(User.id).where(User.email == email))
+        ).scalar_one_or_none() is not None:
+            email = f"{local}+{tag}{n}@{domain or 'school.scholaxia.local'}"
+            n += 1
     user = User(
         email=email,
         hashed_password=hash_password(password),
@@ -1005,7 +1061,7 @@ async def _create_school_student(db: AsyncSession, campus: SchoolCampus, payload
         )
     )
     await db.flush()
-    return user, password
+    return user, password, False
 
 
 @router.get("/students")
@@ -1067,10 +1123,13 @@ async def add_school_student(
     db: AsyncSession = Depends(get_db),
 ):
     campus = await _campus(db, current_user, payload.school_id)
-    user, password = await _create_school_student(db, campus, payload)
+    user, password, linked = await _create_school_student(db, campus, payload)
     profile = (await db.execute(select(StudentProfile).where(StudentProfile.user_id == user.id))).scalar_one_or_none()
     data = _student_row(user, profile, campus)
     data["password"] = password
+    # True when the student already had a Scholaxia account and was linked to
+    # this school instead of being rejected as "Email already in use".
+    data["existing_account"] = linked
     return data
 
 
@@ -1099,7 +1158,7 @@ async def import_school_students(
             errors.append(f"Row {i}: name and class are required (email optional — students log in with their Student ID)")
             continue
         try:
-            user, pw = await _create_school_student(
+            user, pw, linked = await _create_school_student(
                 db,
                 campus,
                 SchoolStudentIn(full_name=name, email=email, class_name=klass, student_id=sid or None, password=password),
@@ -1107,6 +1166,7 @@ async def import_school_students(
             profile = (await db.execute(select(StudentProfile).where(StudentProfile.user_id == user.id))).scalar_one()
             item = _student_row(user, profile, campus)
             item["password"] = pw
+            item["existing_account"] = linked
             created.append(item)
         except HTTPException as exc:
             errors.append(f"Row {i}: {exc.detail}")
