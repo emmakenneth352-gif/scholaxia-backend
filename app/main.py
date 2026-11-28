@@ -409,6 +409,9 @@ if ADMIN_STATIC_DIR.is_dir():
 # public host that has the installer uploaded.
 import re as _re
 import os as _os
+import uuid as _uuid
+import zipfile as _zipfile
+import tempfile as _tempfile
 
 _DESKTOP_INSTALLER_DIR = Path(
     _os.environ.get("DESKTOP_INSTALLER_DIR", "")
@@ -422,11 +425,14 @@ _DESKTOP_INSTALLER_DIRS = [
     WEBSITE_STATIC_DIR / "downloads",
     Path(__file__).resolve().parent.parent / "website" / "downloads",
 ]
-_FILENAME_RE = _re.compile(r"^[\w.\-]+\.(exe|apk)$")
+_FILENAME_RE = _re.compile(r"^[\w.\-]+\.(exe|apk|zip)$")
 _CHUNK = 512 * 1024
 _CONTENT_TYPES = {
     ".exe": "application/vnd.microsoft.portable-executable",
     ".apk": "application/vnd.android.package-archive",
+    # Zipped copies of the installer: Chrome's "isn't commonly downloaded"
+    # block only targets raw executables, so this is the fallback link.
+    ".zip": "application/zip",
 }
 
 
@@ -440,6 +446,39 @@ def _find_installer(filename: str) -> Path | None:
         if target.is_file():
             return target
     return None
+
+
+# Chrome refuses raw .exe downloads it has not seen before ("isn't commonly
+# downloaded"), so the site also offers the installer as a .zip — that warning
+# does not apply to archives. The archive is built on first request and cached
+# outside the repo, so git never carries a second 80 MB copy.
+_ZIP_CACHE_DIR = Path(_tempfile.gettempdir()) / "scholaxia-installer-zips"
+_ZIP_README = (
+    "Scholaxia Desktop (Windows 10/11)\r\n\r\n"
+    "1. Extract this ZIP (right-click > Extract All).\r\n"
+    "2. Run the setup .exe inside.\r\n"
+    "3. If Windows SmartScreen appears, choose 'More info' then 'Run anyway'.\r\n"
+)
+
+
+def _installer_zip(filename: str) -> Path | None:
+    """Return a ZIP copy of <filename minus .zip>, building it once."""
+    cached = _ZIP_CACHE_DIR / filename
+    if cached.is_file() and cached.stat().st_size > 0:
+        return cached
+    source = _find_installer(filename[: -len(".zip")] + ".exe")
+    if source is None:
+        return None
+    try:
+        _ZIP_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        part = cached.with_name(f"{cached.name}.{_os.getpid()}.{_uuid.uuid4().hex[:8]}.part")
+        with _zipfile.ZipFile(part, "w", _zipfile.ZIP_STORED, allowZip64=True) as archive:
+            archive.write(source, source.name)
+            archive.writestr("README.txt", _ZIP_README)
+        _os.replace(part, cached)
+    except OSError:
+        return None
+    return cached
 
 
 def _file_download_response(path: Path, request: Request) -> Response:
@@ -497,7 +536,10 @@ def _file_download_response(path: Path, request: Request) -> Response:
 async def desktop_installer_download(filename: str, request: Request):
     if not _FILENAME_RE.match(filename or ""):
         raise HTTPException(status_code=404, detail="Not found")
-    target = _find_installer(filename)
+    if filename.lower().endswith(".zip"):
+        target = _installer_zip(filename)
+    else:
+        target = _find_installer(filename)
     if target is None:
         raise HTTPException(status_code=404, detail="File not found on this server")
     return _file_download_response(target, request)
